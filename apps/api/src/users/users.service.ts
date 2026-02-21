@@ -1,49 +1,80 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { MoneyLedgerType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import type { CreateUser, UpdateUser } from '@chorly/shared';
 import type { RequestUser } from '../common/dev-auth/dev-auth.types';
+import { hashPassword } from '../common/auth/password';
 
 @Injectable()
 export class UsersService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private readonly publicUserSelect = {
+    id: true,
+    tenantId: true,
+    email: true,
+    displayName: true,
+    role: true,
+    isAdmin: true,
+    isSystemAdmin: true,
+    locale: true,
+    isActive: true,
+    isAway: true,
+    createdAt: true,
+  } satisfies Prisma.UserSelect;
+
   list(tenantId: string) {
-    return this.prisma.user.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
+    return this.prisma.user.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: 'asc' },
+      select: this.publicUserSelect,
+    });
   }
 
   async get(tenantId: string, id: string) {
-    const user = await this.prisma.user.findFirst({ where: { tenantId, id } });
+    const user = await this.prisma.user.findFirst({
+      where: { tenantId, id },
+      select: this.publicUserSelect,
+    });
     if (!user) throw new NotFoundException('User not found');
     return user;
   }
 
-  create(tenantId: string, data: CreateUser) {
+  async create(tenantId: string, data: CreateUser) {
+    if (data.email && !data.password) {
+      throw new BadRequestException('Password is required when email is provided');
+    }
+    const passwordHash = data.password ? await hashPassword(data.password) : null;
     return this.prisma.user.create({
       data: {
         tenantId,
         email: data.email ?? null,
+        passwordHash,
         displayName: data.displayName,
         role: data.role,
         isAdmin: data.isAdmin ?? false,
         locale: data.locale ?? 'he',
         isAway: data.isAway ?? false,
       },
+      select: this.publicUserSelect,
     });
   }
 
   async update(tenantId: string, id: string, data: UpdateUser) {
     await this.get(tenantId, id);
+    const passwordHash = data.password !== undefined ? await hashPassword(data.password) : undefined;
     return this.prisma.user.update({
       where: { id },
       data: {
         email: data.email,
+        passwordHash,
         displayName: data.displayName,
         role: data.role,
         isAdmin: data.isAdmin,
         locale: data.locale,
         isAway: data.isAway,
       },
+      select: this.publicUserSelect,
     });
   }
 

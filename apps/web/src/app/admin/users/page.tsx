@@ -23,6 +23,7 @@ export default function AdminUsersPage() {
   const [locale, setLocale] = useState<'en' | 'he'>('he');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAway, setIsAway] = useState(false);
+  const [password, setPassword] = useState('');
 
   const load = () => api.get('/users').then(setUsers).catch((e) => setError(String(e.message || e)));
 
@@ -32,16 +33,37 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/users', { displayName, email: email || undefined, role, locale, isAdmin, isAway });
+      if (email && password.length < 8) {
+        setError('Password must be at least 8 characters when email is provided.');
+        return;
+      }
+      await api.post('/users', { displayName, email: email || undefined, password: password || undefined, role, locale, isAdmin, isAway });
       setDisplayName('');
       setEmail('');
       setRole('child');
       setLocale('he');
       setIsAdmin(false);
       setIsAway(false);
+      setPassword('');
       await load();
     } catch (err: any) {
       setError(err.message || 'Failed to create user');
+    }
+  }
+
+  async function onSetPassword(user: User) {
+    const next = window.prompt(`Set a new password for ${user.displayName} (min 8 chars):`);
+    if (!next) return;
+    if (next.length < 8) {
+      setError('Password must be at least 8 characters.');
+      return;
+    }
+    setError('');
+    try {
+      await api.patch(`/users/${user.id}`, { password: next });
+      await load();
+    } catch (err: any) {
+      setError(err.message || 'Failed to set password');
     }
   }
 
@@ -56,6 +78,7 @@ export default function AdminUsersPage() {
       <form onSubmit={onSubmit} className="card form-grid">
         <input placeholder="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
         <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" placeholder="Password (min 8)" value={password} onChange={(e) => setPassword(e.target.value)} />
         <select value={role} onChange={(e) => setRole(e.target.value as 'parent' | 'child')} required>
           <option value="child">Child</option>
           <option value="parent">Parent</option>
@@ -72,7 +95,7 @@ export default function AdminUsersPage() {
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Role</th><th>Locale</th><th>Admin</th><th>Away</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Locale</th><th>Admin</th><th>Away</th><th>Actions</th></tr>
           </thead>
           <tbody>
             {users.map((user) => (
@@ -83,6 +106,7 @@ export default function AdminUsersPage() {
                 <td>{user.locale}</td>
                 <td>{user.isAdmin ? 'Yes' : 'No'}</td>
                 <td>{user.isAway ? 'Yes' : 'No'}</td>
+                <td><button type="button" className="ghost-button" onClick={() => onSetPassword(user)}>Set password</button></td>
               </tr>
             ))}
           </tbody>

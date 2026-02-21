@@ -6,6 +6,7 @@ export const FamilyRoleSchema = z.union([z.literal('parent'), z.literal('child')
 export const CreateUserSchema = z.object({
   email: z.string().email().optional(),
   displayName: z.string().min(1),
+  password: z.string().min(8).optional(),
   role: FamilyRoleSchema,
   isAdmin: z.boolean().default(false),
   locale: LocaleSchema.default('he'),
@@ -24,6 +25,7 @@ export const RepeatingCalendarScheduleSchema = z.object({
   type: z.literal('repeating_calendar'),
   rrule: z.string().min(1),
   dueTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  endsAt: z.string().datetime().optional(),
   gracePeriodMinutes: z.number().int().min(0).default(60),
 });
 
@@ -31,6 +33,7 @@ export const RepeatingAfterCompletionScheduleSchema = z.object({
   type: z.literal('repeating_after_completion'),
   intervalDays: z.number().int().positive(),
   dueTime: z.string().regex(/^\d{2}:\d{2}$/).optional(),
+  endsAt: z.string().datetime().optional(),
   gracePeriodMinutes: z.number().int().min(0).default(60),
 });
 

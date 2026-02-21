@@ -40,6 +40,7 @@ export class UsersController {
       required: ['displayName', 'role'],
       properties: {
         email: { type: 'string', format: 'email' },
+        password: { type: 'string', minLength: 8 },
         displayName: { type: 'string' },
         role: { type: 'string', enum: ['parent', 'child'] },
         isAdmin: { type: 'boolean' },
@@ -61,6 +62,7 @@ export class UsersController {
       type: 'object',
       properties: {
         email: { type: 'string', format: 'email' },
+        password: { type: 'string', minLength: 8 },
         displayName: { type: 'string' },
         role: { type: 'string', enum: ['parent', 'child'] },
         isAdmin: { type: 'boolean' },
