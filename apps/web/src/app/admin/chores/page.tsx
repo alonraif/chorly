@@ -156,7 +156,7 @@ export default function AdminChoresPage() {
         <button type="submit">Create chore</button>
       </form>
 
-      <section className="card">
+      <section id="favorites" className="card">
         <h3>Templates</h3>
         <ul className="list">
           {templates.map((template) => (

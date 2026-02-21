@@ -87,6 +87,20 @@ a {
   letter-spacing: 0.02em;
 }
 
+.site-brand {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  text-decoration: none;
+}
+
+.site-family {
+  margin: 0;
+  color: var(--color-text-soft);
+  font-weight: 700;
+  font-size: clamp(1rem, 1.4vw, 1.2rem);
+}
+
 .eyebrow {
   margin: 0 0 var(--space-2);
   color: var(--color-text-soft);

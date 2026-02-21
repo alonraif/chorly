@@ -70,6 +70,13 @@ export class FamilyService {
     return this.prisma.user.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
   }
 
+  current(tenantId: string) {
+    return this.prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { id: true, name: true, defaultLocale: true },
+    });
+  }
+
   async invite(tenantId: string, inviter: RequestUser, email: string, role: FamilyRole = FamilyRole.parent, expiresInDays = 7) {
     if (!inviter.isAdmin && !inviter.isSystemAdmin) throw new BadRequestException('Admin required');
     const token = randomBytes(24).toString('hex');

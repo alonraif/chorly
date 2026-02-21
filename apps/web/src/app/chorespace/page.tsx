@@ -6,11 +6,13 @@ export default function ChorespacePage() {
       <section className="card home-hero">
         <div className="page-title">
           <h2>Family Chorespace</h2>
-          <p className="lead">Choose a chorespace by role and run day-to-day chores without digging through admin screens.</p>
+          <p className="lead">Choose a chorespace by role and run day-to-day chores.</p>
         </div>
         <div className="action-row">
           <Link className="button-link" href="/today">Open Today</Link>
           <Link className="button-link" href="/week">Open Week</Link>
+          <Link className="button-link" href="/admin/chores#new-chore">Create and assign chore</Link>
+          <Link className="button-link" href="/admin/chores#favorites">Assign chore from favorites</Link>
         </div>
       </section>
 
@@ -28,19 +30,6 @@ export default function ChorespacePage() {
         </article>
       </section>
 
-      <section className="card">
-        <h3>Setup and Admin</h3>
-        <div className="admin-links home-links">
-          <Link href="/family/create">Create Family</Link>
-          <Link href="/family/accept">Accept Invite</Link>
-          <Link href="/admin/family">Family Admin</Link>
-          <Link href="/admin/users">User Admin</Link>
-          <Link href="/admin/chores">Chore Admin</Link>
-          <Link href="/parent/review">Parent Review</Link>
-          <Link href="/system">System Admin</Link>
-          <a href="http://localhost:4000/docs">API Docs</a>
-        </div>
-      </section>
     </div>
   );
 }

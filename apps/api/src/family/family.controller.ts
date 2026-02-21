@@ -52,6 +52,13 @@ export class FamilyController {
     return this.family.listMembers(tenantId);
   }
 
+  @Get('/current')
+  @UseGuards(RequireTenantGuard)
+  @ApiOperation({ summary: 'Get active family/tenant details' })
+  current(@CurrentTenant() tenantId: string) {
+    return this.family.current(tenantId);
+  }
+
   @Get('/invites')
   @UseGuards(AdminGuard, RequireTenantGuard)
   @ApiOperation({ summary: 'List pending invites for current family' })
