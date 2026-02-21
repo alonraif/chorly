@@ -1,40 +1,57 @@
 'use client';
 
-import { FormEvent, useEffect, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { api } from '../../../lib/api';
 
-type User = { id: string; displayName: string };
+type User = { id: string; displayName: string; role: 'parent' | 'child' };
 type Chore = { id: string; title_en: string; title_he: string; hasReward: boolean; rewardAmount: string | null };
+
+const REPEATING_CALENDAR_OPTIONS = [
+  { label: 'Every day', value: 'FREQ=DAILY' },
+  { label: 'Every Sunday', value: 'FREQ=WEEKLY;BYDAY=SU' },
+  { label: 'Every Monday', value: 'FREQ=WEEKLY;BYDAY=MO' },
+  { label: 'Every Tuesday', value: 'FREQ=WEEKLY;BYDAY=TU' },
+  { label: 'Every Wednesday', value: 'FREQ=WEEKLY;BYDAY=WE' },
+  { label: 'Every Thursday', value: 'FREQ=WEEKLY;BYDAY=TH' },
+  { label: 'Every Friday', value: 'FREQ=WEEKLY;BYDAY=FR' },
+  { label: 'Every Saturday', value: 'FREQ=WEEKLY;BYDAY=SA' },
+  { label: 'First Sunday of every month', value: 'FREQ=MONTHLY;BYDAY=1SU' },
+  { label: 'First Monday of every month', value: 'FREQ=MONTHLY;BYDAY=1MO' },
+  { label: 'Last Sunday of every month', value: 'FREQ=MONTHLY;BYDAY=-1SU' },
+] as const;
 
 export default function AdminChoresPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [chores, setChores] = useState<Chore[]>([]);
-  const [templates, setTemplates] = useState<Chore[]>([]);
   const [error, setError] = useState('');
 
-  const [titleEn, setTitleEn] = useState('');
-  const [titleHe, setTitleHe] = useState('');
+  const [titleEngHe, setTitleEngHe] = useState('');
+  const [assigneeId, setAssigneeId] = useState('');
   const [scheduleType, setScheduleType] = useState<'one_time' | 'repeating_calendar' | 'repeating_after_completion'>('repeating_calendar');
   const [oneTimeDueAt, setOneTimeDueAt] = useState('');
-  const [rrule, setRrule] = useState('FREQ=WEEKLY;BYDAY=SU');
+  const [rrule, setRrule] = useState<string>(REPEATING_CALENDAR_OPTIONS[1].value);
   const [intervalDays, setIntervalDays] = useState(2);
   const [dueTime, setDueTime] = useState('20:00');
   const [grace, setGrace] = useState(60);
   const [shared, setShared] = useState(false);
-  const [mode, setMode] = useState<'fixed' | 'round_robin'>('fixed');
+  const [sharedAssigneeIds, setSharedAssigneeIds] = useState<string[]>([]);
   const [skipAwayUsers, setSkipAwayUsers] = useState(true);
-  const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [hasReward, setHasReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState('');
+  const [addToFavorites, setAddToFavorites] = useState(false);
+  const assignableUsers = useMemo(() => users.filter((user) => user.role === 'child'), [users]);
 
   async function load() {
     try {
-      const [u, c, t] = await Promise.all([api.get('/users'), api.get('/chores'), api.get('/templates')]);
+      const [u, c] = await Promise.all([api.get('/users'), api.get('/chores')]);
       setUsers(u);
       setChores(c);
-      setTemplates(t);
-      if (assigneeIds.length === 0 && u.length > 0) {
-        setAssigneeIds([u[0].id]);
+      const firstAssignable = u.find((user: User) => user.role === 'child');
+      if (!assigneeId && firstAssignable) {
+        setAssigneeId(firstAssignable.id);
+      }
+      if (sharedAssigneeIds.length === 0 && firstAssignable) {
+        setSharedAssigneeIds([firstAssignable.id]);
       }
     } catch (err: any) {
       setError(err.message || 'Failed to load');
@@ -42,6 +59,20 @@ export default function AdminChoresPage() {
   }
 
   useEffect(() => { load(); }, []);
+  useEffect(() => {
+    if (!assigneeId) return;
+    setSharedAssigneeIds((prev) => (prev.includes(assigneeId) ? prev : [...prev, assigneeId]));
+  }, [assigneeId]);
+  useEffect(() => {
+    const assignableIds = new Set(assignableUsers.map((user) => user.id));
+    if (assigneeId && !assignableIds.has(assigneeId)) {
+      setAssigneeId(assignableUsers[0]?.id || '');
+    }
+    setSharedAssigneeIds((prev) => {
+      const next = prev.filter((id) => assignableIds.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [assigneeId, assignableUsers]);
 
   function buildSchedule() {
     if (scheduleType === 'one_time') {
@@ -57,51 +88,55 @@ export default function AdminChoresPage() {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/chores', {
-        title_en: titleEn,
-        title_he: titleHe,
+      const effectiveAssigneeIds = shared
+        ? Array.from(new Set([assigneeId, ...sharedAssigneeIds])).filter(Boolean)
+        : assigneeId ? [assigneeId] : [];
+      const payload = {
+        title_en: titleEngHe,
+        title_he: titleEngHe,
         hasReward,
         rewardAmount: hasReward ? rewardAmount : undefined,
         allowNotes: true,
         allowPhotoProof: false,
         schedule: buildSchedule(),
-        assignment: { shared, mode, skipAwayUsers, assigneeIds },
-      });
-      setTitleEn('');
-      setTitleHe('');
+        assignment: { shared, mode: shared ? 'round_robin' : 'fixed', skipAwayUsers, assigneeIds: effectiveAssigneeIds },
+      };
+      await api.post('/chores', payload);
+      if (addToFavorites) {
+        await api.post('/templates', payload);
+      }
+      setTitleEngHe('');
       await load();
     } catch (err: any) {
       setError(err.message || 'Failed to create chore');
     }
   }
 
-  async function onClone(templateId: string) {
-    setError('');
-    try {
-      await api.post(`/templates/${templateId}/clone`);
-      await load();
-    } catch (err: any) {
-      setError(err.message || 'Failed to clone template');
-    }
-  }
-
   return (
     <div>
       <div className="page-title">
-        <h2>Admin / Chores</h2>
-        <p className="lead">Create chores, configure schedules, and clone from templates.</p>
+        <h2>Create and asign chore</h2>
+        <p className="lead">Create chores, configure schedules, and assign them to kids.</p>
       </div>
       {error && <p className="error">{error}</p>}
 
       <form id="new-chore" className="card form-grid" onSubmit={onCreate}>
-        <input placeholder="Title EN" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} required />
-        <input placeholder="Title HE" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} required />
+        <label>Title
+          <input value={titleEngHe} onChange={(e) => setTitleEngHe(e.target.value)} required />
+        </label>
+
+        <label>Assignee
+          <select value={assigneeId} onChange={(e) => setAssigneeId(e.target.value)} required>
+            {assignableUsers.map((user) => <option key={user.id} value={user.id}>{user.displayName}</option>)}
+          </select>
+        </label>
+        {assignableUsers.length === 0 && <p className="error form-full">No child users available for assignment.</p>}
 
         <label>Schedule type
           <select value={scheduleType} onChange={(e) => setScheduleType(e.target.value as any)}>
-            <option value="one_time">one_time</option>
-            <option value="repeating_calendar">repeating_calendar</option>
-            <option value="repeating_after_completion">repeating_after_completion</option>
+            <option value="one_time">One time</option>
+            <option value="repeating_calendar">Repeating calendar</option>
+            <option value="repeating_after_completion">Repeating after completion</option>
           </select>
         </label>
 
@@ -111,7 +146,13 @@ export default function AdminChoresPage() {
           </label>
         )}
         {scheduleType === 'repeating_calendar' && (
-          <input placeholder="RRULE" value={rrule} onChange={(e) => setRrule(e.target.value)} />
+          <label>Repeat
+            <select value={rrule} onChange={(e) => setRrule(e.target.value)}>
+              {REPEATING_CALENDAR_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
         )}
         {scheduleType === 'repeating_after_completion' && (
           <label>Interval days
@@ -129,44 +170,51 @@ export default function AdminChoresPage() {
           <input type="number" min={0} value={grace} onChange={(e) => setGrace(Number(e.target.value))} />
         </label>
 
-        <label><input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} /> Shared chore</label>
-
-        <label>Assignment mode
-          <select value={mode} onChange={(e) => setMode(e.target.value as any)}>
-            <option value="fixed">fixed</option>
-            <option value="round_robin">round_robin</option>
-          </select>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={shared} onChange={(e) => setShared(e.target.checked)} />
+          Shared chore
         </label>
 
-        <label><input type="checkbox" checked={skipAwayUsers} onChange={(e) => setSkipAwayUsers(e.target.checked)} /> Skip away users</label>
+        {shared && (
+          <fieldset className="checkbox-list">
+            <legend>Kids sharing this task</legend>
+            {assignableUsers.map((user) => (
+              <label key={user.id} className="checkbox-row">
+                <input
+                  type="checkbox"
+                  checked={sharedAssigneeIds.includes(user.id)}
+                  onChange={(e) => {
+                    if (e.target.checked) {
+                      setSharedAssigneeIds((prev) => Array.from(new Set([...prev, user.id])));
+                      return;
+                    }
+                    setSharedAssigneeIds((prev) => prev.filter((id) => id !== user.id));
+                  }}
+                />
+                {user.displayName}
+              </label>
+            ))}
+          </fieldset>
+        )}
 
-        <label>Assignees
-          <select
-            multiple
-            value={assigneeIds}
-            onChange={(e) => setAssigneeIds([...e.currentTarget.selectedOptions].map((o) => o.value))}
-          >
-            {users.map((user) => <option key={user.id} value={user.id}>{user.displayName}</option>)}
-          </select>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={skipAwayUsers} onChange={(e) => setSkipAwayUsers(e.target.checked)} />
+          Skip away users
         </label>
 
-        <label><input type="checkbox" checked={hasReward} onChange={(e) => setHasReward(e.target.checked)} /> Has reward</label>
+        <label className="checkbox-row">
+          <input type="checkbox" checked={hasReward} onChange={(e) => setHasReward(e.target.checked)} />
+          Has reward
+        </label>
         {hasReward && <input placeholder="Reward amount" value={rewardAmount} onChange={(e) => setRewardAmount(e.target.value)} />}
+
+        <label className="checkbox-row">
+          <input type="checkbox" checked={addToFavorites} onChange={(e) => setAddToFavorites(e.target.checked)} />
+          Add to favorites
+        </label>
 
         <button type="submit">Create chore</button>
       </form>
-
-      <section id="favorites" className="card">
-        <h3>Templates</h3>
-        <ul className="list">
-          {templates.map((template) => (
-            <li key={template.id}>
-              {template.title_en} / {template.title_he}
-              <button onClick={() => onClone(template.id)}>Clone</button>
-            </li>
-          ))}
-        </ul>
-      </section>
 
       <section id="active-chores" className="card">
         <h3>Active chores</h3>

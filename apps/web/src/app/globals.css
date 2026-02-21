@@ -243,6 +243,14 @@ p {
   gap: var(--space-3);
 }
 
+.form-full {
+  grid-column: 1 / -1;
+}
+
+.form-grid button {
+  min-height: 44px;
+}
+
 input,
 select,
 button,
@@ -261,6 +269,12 @@ textarea {
   color: var(--color-text);
 }
 
+input:not([type='checkbox']),
+select,
+textarea {
+  min-height: 44px;
+}
+
 input:focus,
 select:focus,
 textarea:focus {
@@ -277,6 +291,36 @@ label {
 
 label > input[type='checkbox'] {
   width: auto;
+}
+
+input[type='checkbox'] {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--color-accent);
+}
+
+.checkbox-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.checkbox-list {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.checkbox-list legend {
+  padding: 0 6px;
+  font-weight: 700;
+  color: var(--color-text-soft);
 }
 
 button {

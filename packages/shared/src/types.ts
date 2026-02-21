@@ -1,6 +1,7 @@
 import type { z } from 'zod';
 import type {
   LocaleSchema,
+  FamilyRoleSchema,
   ChoreScheduleSchema,
   AssignmentModeSchema,
   AssignmentConfigSchema,
@@ -15,6 +16,7 @@ import type {
 } from './schemas';
 
 export type Locale = z.infer<typeof LocaleSchema>;
+export type FamilyRole = z.infer<typeof FamilyRoleSchema>;
 export type AssignmentMode = z.infer<typeof AssignmentModeSchema>;
 export type ChoreSchedule = z.infer<typeof ChoreScheduleSchema>;
 export type AssignmentConfig = z.infer<typeof AssignmentConfigSchema>;

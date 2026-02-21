@@ -12,6 +12,7 @@ import { FamilyService } from './family.service';
 const CreateFamilySchema = z.object({
   familyName: z.string().min(1),
   displayName: z.string().min(1),
+  role: z.enum(['parent', 'child']),
   email: z.string().email().optional(),
   password: z.string().min(8),
   locale: z.enum(['en', 'he']).optional(),
@@ -19,7 +20,7 @@ const CreateFamilySchema = z.object({
 
 const InviteSchema = z.object({
   email: z.string().email(),
-  role: z.enum(['parent', 'child', 'caregiver']).optional(),
+  role: z.enum(['parent', 'child']),
   expiresInDays: z.number().int().positive().max(30).optional(),
 });
 
@@ -40,7 +41,7 @@ export class FamilyController {
 
   @Post('/create')
   @ApiOperation({ summary: 'Create a new family and its first admin user (first sign-in flow)' })
-  @ApiBody({ schema: { type: 'object', required: ['familyName', 'displayName', 'password'], properties: { familyName: { type: 'string' }, displayName: { type: 'string' }, email: { type: 'string' }, password: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
+  @ApiBody({ schema: { type: 'object', required: ['familyName', 'displayName', 'role', 'password'], properties: { familyName: { type: 'string' }, displayName: { type: 'string' }, role: { type: 'string', enum: ['parent', 'child'] }, email: { type: 'string' }, password: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
   createFamily(@Body(new ZodValidationPipe(CreateFamilySchema)) body: any) {
     return this.family.createFamily(body);
   }
@@ -69,7 +70,7 @@ export class FamilyController {
   @Post('/invites')
   @UseGuards(AdminGuard, RequireTenantGuard)
   @ApiOperation({ summary: 'Invite a user to current family (admin)' })
-  @ApiBody({ schema: { type: 'object', required: ['email'], properties: { email: { type: 'string' }, role: { type: 'string', enum: ['parent', 'child', 'caregiver'] }, expiresInDays: { type: 'number' } } } })
+  @ApiBody({ schema: { type: 'object', required: ['email', 'role'], properties: { email: { type: 'string' }, role: { type: 'string', enum: ['parent', 'child'] }, expiresInDays: { type: 'number' } } } })
   invite(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: RequestUser,

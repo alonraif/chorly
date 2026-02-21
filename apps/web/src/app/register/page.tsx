@@ -6,12 +6,12 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../../lib/user';
 
-type InviteRole = 'parent' | 'child' | 'caregiver';
+type FamilyRole = 'parent' | 'child';
 
 type CreatedInvite = {
   id: string;
   email: string;
-  role: InviteRole;
+  role: FamilyRole;
   token: string;
 };
 
@@ -25,9 +25,10 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [familyName, setFamilyName] = useState('');
+  const [signupRole, setSignupRole] = useState<FamilyRole>('parent');
 
   const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<InviteRole>('parent');
+  const [inviteRole, setInviteRole] = useState<FamilyRole>('parent');
   const [createdInvites, setCreatedInvites] = useState<CreatedInvite[]>([]);
 
   const [step, setStep] = useState<'register' | 'invite'>('register');
@@ -55,6 +56,7 @@ export default function RegisterPage() {
       const data = await api.post('/family/create', {
         familyName,
         displayName,
+        role: signupRole,
         email,
         password,
       });
@@ -87,7 +89,7 @@ export default function RegisterPage() {
         {
           id: invite.id,
           email: invite.email,
-          role: inviteRole,
+          role: invite.role as FamilyRole,
           token: invite.token,
         },
       ]);
@@ -129,10 +131,9 @@ export default function RegisterPage() {
 
             <label>
               Role
-              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as InviteRole)}>
+              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as FamilyRole)}>
                 <option value="parent">Parent</option>
                 <option value="child">Child</option>
-                <option value="caregiver">Caregiver</option>
               </select>
             </label>
 
@@ -236,6 +237,14 @@ export default function RegisterPage() {
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </div>
+        </label>
+
+        <label>
+          Role
+          <select value={signupRole} onChange={(e) => setSignupRole(e.target.value as FamilyRole)}>
+            <option value="parent">Parent</option>
+            <option value="child">Child</option>
+          </select>
         </label>
 
         <label>

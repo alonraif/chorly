@@ -11,6 +11,7 @@ type ViewMode = 'list' | 'calendar';
 type User = {
   id: string;
   displayName: string;
+  role: 'parent' | 'child';
   isAdmin: boolean;
   isActive: boolean;
 };
@@ -91,7 +92,7 @@ export default function ChildPage() {
         setActor(meTyped);
         setUsers(allTyped.filter((u) => u.isActive));
         if (meTyped.isAdmin) {
-          const firstChild = allTyped.find((u) => !u.isAdmin && u.isActive);
+          const firstChild = allTyped.find((u) => u.role === 'child' && u.isActive);
           setTargetUserId(firstChild?.id || meTyped.id);
         } else {
           setTargetUserId(meTyped.id);
@@ -176,7 +177,7 @@ export default function ChildPage() {
           <label>
             Child
             <select value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
-              {users.filter((u) => !u.isAdmin).map((u) => (
+              {users.filter((u) => u.role === 'child').map((u) => (
                 <option key={u.id} value={u.id}>{u.displayName}</option>
               ))}
             </select>

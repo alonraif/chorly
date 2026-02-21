@@ -10,7 +10,7 @@ import { hashPassword } from '../common/auth/password';
 export class FamilyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createFamily(input: { familyName: string; displayName: string; email?: string; password: string; locale?: Locale }) {
+  async createFamily(input: { familyName: string; displayName: string; role: FamilyRole; email?: string; password: string; locale?: Locale }) {
     const email = input.email?.trim().toLowerCase();
     if (email) {
       const exists = await this.prisma.user.findUnique({ where: { email } });
@@ -33,7 +33,7 @@ export class FamilyService {
           email: email ?? null,
           passwordHash,
           displayName: input.displayName,
-          role: FamilyRole.parent,
+          role: input.role,
           locale: input.locale || 'he',
           isAdmin: true,
         },
@@ -77,7 +77,7 @@ export class FamilyService {
     });
   }
 
-  async invite(tenantId: string, inviter: RequestUser, email: string, role: FamilyRole = FamilyRole.parent, expiresInDays = 7) {
+  async invite(tenantId: string, inviter: RequestUser, email: string, role: FamilyRole, expiresInDays = 7) {
     if (!inviter.isAdmin && !inviter.isSystemAdmin) throw new BadRequestException('Admin required');
     const token = randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);

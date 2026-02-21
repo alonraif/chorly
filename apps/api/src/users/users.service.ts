@@ -24,6 +24,7 @@ export class UsersService {
         tenantId,
         email: data.email ?? null,
         displayName: data.displayName,
+        role: data.role,
         isAdmin: data.isAdmin ?? false,
         locale: data.locale ?? 'he',
         isAway: data.isAway ?? false,
@@ -38,6 +39,7 @@ export class UsersService {
       data: {
         email: data.email,
         displayName: data.displayName,
+        role: data.role,
         isAdmin: data.isAdmin,
         locale: data.locale,
         isAway: data.isAway,

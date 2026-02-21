@@ -3,13 +3,15 @@
 import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 
-type Member = { id: string; displayName: string; email: string | null; isAdmin: boolean; isSystemAdmin?: boolean };
-type Invite = { id: string; email: string; token: string; expiresAt: string };
+type FamilyRole = 'parent' | 'child';
+type Member = { id: string; displayName: string; email: string | null; role: FamilyRole; isAdmin: boolean; isSystemAdmin?: boolean };
+type Invite = { id: string; email: string; role: FamilyRole; token: string; expiresAt: string };
 
 export default function AdminFamilyPage() {
   const [members, setMembers] = useState<Member[]>([]);
   const [invites, setInvites] = useState<Invite[]>([]);
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState<FamilyRole>('child');
   const [error, setError] = useState('');
 
   async function load() {
@@ -28,8 +30,9 @@ export default function AdminFamilyPage() {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/family/invites', { email, expiresInDays: 7 });
+      await api.post('/family/invites', { email, role, expiresInDays: 7 });
       setEmail('');
+      setRole('child');
       await load();
     } catch (err: any) {
       setError(err.message || 'Failed to create invite');
@@ -46,6 +49,10 @@ export default function AdminFamilyPage() {
 
       <form className="card form-grid" onSubmit={invite}>
         <input placeholder="Invite email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <select value={role} onChange={(e) => setRole(e.target.value as FamilyRole)} required>
+          <option value="child">Child</option>
+          <option value="parent">Parent</option>
+        </select>
         <button type="submit">Send invite</button>
       </form>
 
@@ -53,7 +60,7 @@ export default function AdminFamilyPage() {
         <h3>Members</h3>
         <ul className="list">
           {members.map((m) => (
-            <li key={m.id}>{m.displayName} ({m.email || 'no-email'}) {m.isSystemAdmin ? 'root' : m.isAdmin ? 'admin' : 'member'}</li>
+            <li key={m.id}>{m.displayName} ({m.email || 'no-email'}) role: {m.role} | {m.isSystemAdmin ? 'root' : m.isAdmin ? 'admin' : 'member'}</li>
           ))}
         </ul>
       </section>
@@ -63,7 +70,7 @@ export default function AdminFamilyPage() {
         <ul className="list">
           {invites.map((i) => (
             <li key={i.id}>
-              {i.email} | token: <code>{i.token}</code> | expires: {new Date(i.expiresAt).toLocaleString()}
+              {i.email} ({i.role}) | token: <code>{i.token}</code> | expires: {new Date(i.expiresAt).toLocaleString()}
             </li>
           ))}
         </ul>

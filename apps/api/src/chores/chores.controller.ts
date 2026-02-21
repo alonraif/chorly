@@ -100,6 +100,17 @@ export class ChoresController {
     return this.chores.templates(tenantId);
   }
 
+  @Post('/templates')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Create template chore (family admin)' })
+  @ApiBody({ schema: ChoreDefinitionBodySchema })
+  createTemplate(
+    @CurrentTenant() tenantId: string,
+    @Body(new ZodValidationPipe(CreateChoreDefinitionSchema)) body: any,
+  ) {
+    return this.chores.create(tenantId, body, true);
+  }
+
   @Post('/templates/:id/clone')
   @UseGuards(AdminGuard)
   @ApiOperation({ summary: 'Clone a template into active chores (family admin)' })

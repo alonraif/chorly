@@ -7,6 +7,7 @@ import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../../
 export default function CreateFamilyPage() {
   const [familyName, setFamilyName] = useState('');
   const [displayName, setDisplayName] = useState('');
+  const [role, setRole] = useState<'parent' | 'child'>('parent');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [locale, setLocale] = useState<'he' | 'en'>('he');
@@ -21,6 +22,7 @@ export default function CreateFamilyPage() {
       const data = await api.post('/family/create', {
         familyName,
         displayName,
+        role,
         email: email || undefined,
         password,
         locale,
@@ -47,6 +49,10 @@ export default function CreateFamilyPage() {
       <form className="card form-grid" onSubmit={onSubmit}>
         <input placeholder="Family name" value={familyName} onChange={(e) => setFamilyName(e.target.value)} required />
         <input placeholder="Your display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
+        <select value={role} onChange={(e) => setRole(e.target.value as 'parent' | 'child')}>
+          <option value="parent">Parent</option>
+          <option value="child">Child</option>
+        </select>
         <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
         <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
         <select value={locale} onChange={(e) => setLocale(e.target.value as 'he' | 'en')}>

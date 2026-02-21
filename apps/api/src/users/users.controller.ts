@@ -37,10 +37,11 @@ export class UsersController {
   @ApiBody({
     schema: {
       type: 'object',
-      required: ['displayName'],
+      required: ['displayName', 'role'],
       properties: {
         email: { type: 'string', format: 'email' },
         displayName: { type: 'string' },
+        role: { type: 'string', enum: ['parent', 'child'] },
         isAdmin: { type: 'boolean' },
         locale: { type: 'string', enum: ['en', 'he'] },
         isAway: { type: 'boolean' },
@@ -61,6 +62,7 @@ export class UsersController {
       properties: {
         email: { type: 'string', format: 'email' },
         displayName: { type: 'string' },
+        role: { type: 'string', enum: ['parent', 'child'] },
         isAdmin: { type: 'boolean' },
         locale: { type: 'string', enum: ['en', 'he'] },
         isAway: { type: 'boolean' },

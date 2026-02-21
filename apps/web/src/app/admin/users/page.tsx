@@ -7,6 +7,7 @@ type User = {
   id: string;
   email: string | null;
   displayName: string;
+  role: 'parent' | 'child';
   locale: 'en' | 'he';
   isAdmin: boolean;
   isAway: boolean;
@@ -18,6 +19,7 @@ export default function AdminUsersPage() {
 
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [role, setRole] = useState<'parent' | 'child'>('child');
   const [locale, setLocale] = useState<'en' | 'he'>('he');
   const [isAdmin, setIsAdmin] = useState(false);
   const [isAway, setIsAway] = useState(false);
@@ -30,9 +32,10 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setError('');
     try {
-      await api.post('/users', { displayName, email: email || undefined, locale, isAdmin, isAway });
+      await api.post('/users', { displayName, email: email || undefined, role, locale, isAdmin, isAway });
       setDisplayName('');
       setEmail('');
+      setRole('child');
       setLocale('he');
       setIsAdmin(false);
       setIsAway(false);
@@ -53,6 +56,10 @@ export default function AdminUsersPage() {
       <form onSubmit={onSubmit} className="card form-grid">
         <input placeholder="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
         <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <select value={role} onChange={(e) => setRole(e.target.value as 'parent' | 'child')} required>
+          <option value="child">Child</option>
+          <option value="parent">Parent</option>
+        </select>
         <select value={locale} onChange={(e) => setLocale(e.target.value as 'en' | 'he')}>
           <option value="he">Hebrew</option>
           <option value="en">English</option>
@@ -65,13 +72,14 @@ export default function AdminUsersPage() {
       <div className="table-wrap">
         <table className="table">
           <thead>
-            <tr><th>Name</th><th>Email</th><th>Locale</th><th>Admin</th><th>Away</th></tr>
+            <tr><th>Name</th><th>Email</th><th>Role</th><th>Locale</th><th>Admin</th><th>Away</th></tr>
           </thead>
           <tbody>
             {users.map((user) => (
               <tr key={user.id}>
                 <td>{user.displayName}</td>
                 <td>{user.email || '-'}</td>
+                <td>{user.role}</td>
                 <td>{user.locale}</td>
                 <td>{user.isAdmin ? 'Yes' : 'No'}</td>
                 <td>{user.isAway ? 'Yes' : 'No'}</td>

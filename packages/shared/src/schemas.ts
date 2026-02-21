@@ -1,10 +1,12 @@
 import { z } from 'zod';
 
 export const LocaleSchema = z.union([z.literal('en'), z.literal('he')]);
+export const FamilyRoleSchema = z.union([z.literal('parent'), z.literal('child')]);
 
 export const CreateUserSchema = z.object({
   email: z.string().email().optional(),
   displayName: z.string().min(1),
+  role: FamilyRoleSchema,
   isAdmin: z.boolean().default(false),
   locale: LocaleSchema.default('he'),
   isAway: z.boolean().default(false),
