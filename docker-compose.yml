@@ -1,4 +1,21 @@
 services:
+  api:
+    image: node:20
+    working_dir: /app
+    command: sh -lc "corepack enable && pnpm install && pnpm --filter chorly-api prisma:generate && pnpm --filter chorly-api dev"
+    environment:
+      DATABASE_URL: postgresql://chorly:chorly@postgres:5432/chorly
+      PORT: 4000
+      DEV_TENANT_ID: dev-tenant
+    depends_on:
+      - postgres
+      - redis
+    ports:
+      - "4000:4000"
+    volumes:
+      - ./:/app
+      - /app/node_modules
+
   postgres:
     image: postgres:16
     environment:
