@@ -8,9 +8,8 @@ type Locale = 'en' | 'he';
 type User = { id: string; locale: Locale };
 
 function applyDocumentLocale(locale: Locale) {
-  const dir = locale === 'he' ? 'rtl' : 'ltr';
   document.documentElement.lang = locale;
-  document.documentElement.dir = dir;
+  document.documentElement.dir = 'ltr';
 }
 
 export function LocaleDirection() {

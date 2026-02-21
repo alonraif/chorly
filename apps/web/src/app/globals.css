@@ -388,7 +388,8 @@ button + button {
 
 .auth-shell {
   display: grid;
-  place-items: center;
+  align-items: center;
+  justify-items: left;
   min-height: 68vh;
 }
 

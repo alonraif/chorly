@@ -35,7 +35,7 @@ export default function LoginPage() {
   }
 
   return (
-    <section className="auth-shell">
+    <section className="auth-shell" dir="ltr">
       <form className="card auth-card" onSubmit={onSubmit}>
         <div className="page-title">
           <h1>Welcome to Chorly</h1>
