@@ -3,10 +3,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api } from '../lib/api';
 import {
+  clearCurrentLocale,
   clearCurrentTenantId,
   clearCurrentUserId,
   getCurrentTenantId,
   getCurrentUserId,
+  setCurrentLocale,
   setCurrentTenantId,
   setCurrentUserId,
 } from '../lib/user';
@@ -15,6 +17,7 @@ type User = {
   id: string;
   displayName: string;
   email: string | null;
+  locale: 'en' | 'he';
   isAdmin: boolean;
   isSystemAdmin?: boolean;
 };
@@ -41,6 +44,8 @@ export function UserSwitcher() {
         setUsers(list);
         const next = list.some((u) => u.id === currentUser) ? currentUser : '';
         setSelected(next);
+        const current = list.find((u) => u.id === currentUser);
+        if (current) setCurrentLocale(current.locale);
       })
       .catch(() => {
         setUsers([]);
@@ -52,6 +57,10 @@ export function UserSwitcher() {
     if (!manualUserId.trim()) {
       setError('User ID required');
       return;
+    }
+    const manual = users.find((u) => u.id === manualUserId.trim());
+    if (manual) {
+      setCurrentLocale(manual.locale);
     }
     setCurrentUserId(manualUserId.trim());
     if (tenantOverride.trim()) {
@@ -73,6 +82,8 @@ export function UserSwitcher() {
           setSelected(id);
           setManualUserId(id);
           if (id) {
+            const user = users.find((entry) => entry.id === id);
+            if (user) setCurrentLocale(user.locale);
             setCurrentUserId(id);
             window.location.reload();
           }
@@ -104,6 +115,7 @@ export function UserSwitcher() {
         onClick={() => {
           clearCurrentUserId();
           clearCurrentTenantId();
+          clearCurrentLocale();
           window.location.reload();
         }}
       >

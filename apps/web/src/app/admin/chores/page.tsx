@@ -87,7 +87,10 @@ export default function AdminChoresPage() {
 
   return (
     <div>
-      <h2>Admin / Chores</h2>
+      <div className="page-title">
+        <h2>Admin / Chores</h2>
+        <p className="lead">Create chores, configure schedules, and clone from templates.</p>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <form className="card form-grid" onSubmit={onCreate}>
@@ -155,7 +158,7 @@ export default function AdminChoresPage() {
 
       <section className="card">
         <h3>Templates</h3>
-        <ul>
+        <ul className="list">
           {templates.map((template) => (
             <li key={template.id}>
               {template.title_en} / {template.title_he}
@@ -167,7 +170,7 @@ export default function AdminChoresPage() {
 
       <section className="card">
         <h3>Active chores</h3>
-        <ul>
+        <ul className="list">
           {chores.map((chore) => (
             <li key={chore.id}>{chore.title_en} / {chore.title_he} {chore.hasReward ? `(reward ${chore.rewardAmount})` : ''}</li>
           ))}

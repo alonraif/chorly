@@ -38,7 +38,10 @@ export default function AdminFamilyPage() {
 
   return (
     <div>
-      <h2>Admin / Family</h2>
+      <div className="page-title">
+        <h2>Admin / Family</h2>
+        <p className="lead">Manage members and invitations for the active tenant.</p>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <form className="card form-grid" onSubmit={invite}>
@@ -48,7 +51,7 @@ export default function AdminFamilyPage() {
 
       <section className="card">
         <h3>Members</h3>
-        <ul>
+        <ul className="list">
           {members.map((m) => (
             <li key={m.id}>{m.displayName} ({m.email || 'no-email'}) {m.isSystemAdmin ? 'root' : m.isAdmin ? 'admin' : 'member'}</li>
           ))}
@@ -57,7 +60,7 @@ export default function AdminFamilyPage() {
 
       <section className="card">
         <h3>Pending Invites</h3>
-        <ul>
+        <ul className="list">
           {invites.map((i) => (
             <li key={i.id}>
               {i.email} | token: <code>{i.token}</code> | expires: {new Date(i.expiresAt).toLocaleString()}

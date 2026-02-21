@@ -44,7 +44,10 @@ export default function AdminUsersPage() {
 
   return (
     <div>
-      <h2>Admin / Users</h2>
+      <div className="page-title">
+        <h2>Admin / Users</h2>
+        <p className="lead">Create and inspect users in the current tenant.</p>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <form onSubmit={onSubmit} className="card form-grid">
@@ -59,22 +62,24 @@ export default function AdminUsersPage() {
         <button type="submit">Create user</button>
       </form>
 
-      <table className="table">
-        <thead>
-          <tr><th>Name</th><th>Email</th><th>Locale</th><th>Admin</th><th>Away</th></tr>
-        </thead>
-        <tbody>
-          {users.map((user) => (
-            <tr key={user.id}>
-              <td>{user.displayName}</td>
-              <td>{user.email || '-'}</td>
-              <td>{user.locale}</td>
-              <td>{user.isAdmin ? 'Yes' : 'No'}</td>
-              <td>{user.isAway ? 'Yes' : 'No'}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <div className="table-wrap">
+        <table className="table">
+          <thead>
+            <tr><th>Name</th><th>Email</th><th>Locale</th><th>Admin</th><th>Away</th></tr>
+          </thead>
+          <tbody>
+            {users.map((user) => (
+              <tr key={user.id}>
+                <td>{user.displayName}</td>
+                <td>{user.email || '-'}</td>
+                <td>{user.locale}</td>
+                <td>{user.isAdmin ? 'Yes' : 'No'}</td>
+                <td>{user.isAway ? 'Yes' : 'No'}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 }

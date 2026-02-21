@@ -46,12 +46,15 @@ export default function ParentReviewPage() {
 
   return (
     <div>
-      <h2>Parent Review</h2>
+      <div className="page-title">
+        <h2>Parent Review</h2>
+        <p className="lead">Approve completed chores and track overdue items.</p>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <section className="card">
         <h3>Done but not approved</h3>
-        <ul>
+        <ul className="list">
           {doneNotApproved.map((instance) => (
             <li key={instance.id}>
               {instance.chore.title_he} / {instance.chore.title_en}
@@ -63,7 +66,7 @@ export default function ParentReviewPage() {
 
       <section className="card">
         <h3>Overdue</h3>
-        <ul>
+        <ul className="list">
           {overdue.map((instance) => (
             <li key={instance.id}>{instance.chore.title_he} / {instance.chore.title_en} ({new Date(instance.dueAt).toLocaleString()})</li>
           ))}

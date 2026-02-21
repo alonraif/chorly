@@ -16,11 +16,14 @@ export default function SystemPage() {
 
   return (
     <div>
-      <h2>System Admin</h2>
+      <div className="page-title">
+        <h2>System Admin</h2>
+        <p className="lead">Switch active tenant context while operating as a root user.</p>
+      </div>
       {error && <p className="error">{error}</p>}
       <section className="card">
         <h3>Tenants</h3>
-        <ul>
+        <ul className="list">
           {tenants.map((tenant) => (
             <li key={tenant.id}>
               <b>{tenant.name}</b> ({tenant.id})

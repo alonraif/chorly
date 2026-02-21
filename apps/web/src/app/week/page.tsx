@@ -45,18 +45,23 @@ export default function WeekPage() {
 
   return (
     <div>
-      <h2>Week</h2>
+      <div className="page-title">
+        <h2>Week</h2>
+        <p className="lead">Seven-day timeline grouped by due date.</p>
+      </div>
       {error && <p className="error">{error}</p>}
-      {Object.keys(grouped).sort().map((day) => (
-        <section className="card" key={day}>
-          <h3>{day}</h3>
-          <ul>
-            {grouped[day].map((item) => (
-              <li key={item.id}>{item.chore.title_he} / {item.chore.title_en} ({item.status})</li>
-            ))}
-          </ul>
-        </section>
-      ))}
+      <div className="cards-grid">
+        {Object.keys(grouped).sort().map((day) => (
+          <section className="card" key={day}>
+            <h3>{day}</h3>
+            <ul className="list">
+              {grouped[day].map((item) => (
+                <li key={item.id}>{item.chore.title_he} / {item.chore.title_en} ({item.status})</li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { api } from '../../../lib/api';
-import { clearCurrentTenantId, setCurrentUserId } from '../../../lib/user';
+import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../../../lib/user';
 
 export default function AcceptInvitePage() {
   const [token, setToken] = useState('');
@@ -26,6 +26,7 @@ export default function AcceptInvitePage() {
       setResult(data);
       if (data?.id) {
         setCurrentUserId(data.id);
+        setCurrentLocale(locale);
         clearCurrentTenantId();
       }
     } catch (err: any) {
@@ -35,7 +36,10 @@ export default function AcceptInvitePage() {
 
   return (
     <div>
-      <h2>Accept Family Invite</h2>
+      <div className="page-title">
+        <h2>Accept Family Invite</h2>
+        <p className="lead">Join an existing family with your invite token.</p>
+      </div>
       {error && <p className="error">{error}</p>}
       <form className="card form-grid" onSubmit={onSubmit}>
         <input placeholder="Invite token" value={token} onChange={(e) => setToken(e.target.value)} required />

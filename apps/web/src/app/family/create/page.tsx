@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from 'react';
 import { api } from '../../../lib/api';
-import { clearCurrentTenantId, setCurrentUserId } from '../../../lib/user';
+import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../../../lib/user';
 
 export default function CreateFamilyPage() {
   const [familyName, setFamilyName] = useState('');
@@ -26,6 +26,7 @@ export default function CreateFamilyPage() {
       setResult(data);
       if (data?.admin?.id) {
         setCurrentUserId(data.admin.id);
+        setCurrentLocale(locale);
         clearCurrentTenantId();
       }
     } catch (err: any) {
@@ -35,8 +36,10 @@ export default function CreateFamilyPage() {
 
   return (
     <div>
-      <h2>Create Family</h2>
-      <p>First-time onboarding: create a family and become its admin.</p>
+      <div className="page-title">
+        <h2>Create Family</h2>
+        <p className="lead">First-time onboarding: create a family and become its admin.</p>
+      </div>
       {error && <p className="error">{error}</p>}
 
       <form className="card form-grid" onSubmit={onSubmit}>

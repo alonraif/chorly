@@ -51,24 +51,29 @@ export default function TodayPage() {
 
   return (
     <div>
-      <h2>Today</h2>
+      <div className="page-title">
+        <h2>Today</h2>
+        <p className="lead">Your assigned chores for today, with fast mark-done and undo actions.</p>
+      </div>
       {error && <p className="error">{error}</p>}
-      {instances.map((instance) => {
-        const mine = currentUser ? instance.doneByUserId[currentUser] : undefined;
-        const done = !!mine && !mine.undoneAt;
-        return (
-          <div className="card" key={instance.id}>
-            <h3>{instance.chore.title_he} / {instance.chore.title_en}</h3>
-            <p>Due: {new Date(instance.dueAt).toLocaleString()}</p>
-            <p>Status: {instance.status}</p>
-            {done ? (
-              <button onClick={() => undo(instance.id)}>Undo</button>
-            ) : (
-              <button onClick={() => markDone(instance.id)}>Mark done</button>
-            )}
-          </div>
-        );
-      })}
+      <div className="cards-grid">
+        {instances.map((instance) => {
+          const mine = currentUser ? instance.doneByUserId[currentUser] : undefined;
+          const done = !!mine && !mine.undoneAt;
+          return (
+            <div className="card" key={instance.id}>
+              <h3>{instance.chore.title_he} / {instance.chore.title_en}</h3>
+              <p>Due: {new Date(instance.dueAt).toLocaleString()}</p>
+              <p>Status: {instance.status}</p>
+              {done ? (
+                <button onClick={() => undo(instance.id)}>Undo</button>
+              ) : (
+                <button onClick={() => markDone(instance.id)}>Mark done</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
     </div>
   );
 }
