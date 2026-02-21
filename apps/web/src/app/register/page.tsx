@@ -22,6 +22,8 @@ export default function RegisterPage() {
   const [lastName, setLastName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [familyName, setFamilyName] = useState('');
 
   const [inviteEmail, setInviteEmail] = useState('');
@@ -41,6 +43,10 @@ export default function RegisterPage() {
     setError('');
     if (!displayName || !email.trim() || !password.trim() || !familyName.trim()) {
       setError('Please fill in all required fields.');
+      return;
+    }
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
       return;
     }
 
@@ -202,7 +208,34 @@ export default function RegisterPage() {
 
         <label>
           Password
-          <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
+          <div className="password-row">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+            <button type="button" className="ghost-button" onClick={() => setShowPassword((v) => !v)}>
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
+        </label>
+
+        <label>
+          Confirm Password
+          <div className="password-row">
+            <input
+              type={showPassword ? 'text' : 'password'}
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={8}
+            />
+            <button type="button" className="ghost-button" onClick={() => setShowPassword((v) => !v)}>
+              {showPassword ? 'Hide' : 'Show'}
+            </button>
+          </div>
         </label>
 
         <label>
