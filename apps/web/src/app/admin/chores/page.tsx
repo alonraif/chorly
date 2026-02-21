@@ -5,8 +5,16 @@ import { useRouter } from 'next/navigation';
 import { api } from '../../../lib/api';
 
 type User = { id: string; displayName: string; role: 'parent' | 'child' };
-type Chore = { id: string; title_en: string; title_he: string; hasReward: boolean; rewardAmount: string | null };
 type SuccessSummary = { title: string; scheduleLabel: string; assignees: string; shared: boolean; favorite: boolean };
+type ExistingChore = {
+  id: string;
+  title_en: string;
+  title_he: string;
+  hasReward: boolean;
+  rewardAmount: string | null;
+  scheduleJson: any;
+  assignmentJson: any;
+};
 
 const REPEATING_CALENDAR_OPTIONS = [
   { label: 'Every day', value: 'FREQ=DAILY' },
@@ -25,7 +33,6 @@ const REPEATING_CALENDAR_OPTIONS = [
 export default function AdminChoresPage() {
   const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
-  const [chores, setChores] = useState<Chore[]>([]);
   const [error, setError] = useState('');
 
   const [titleEngHe, setTitleEngHe] = useState('');
@@ -45,13 +52,13 @@ export default function AdminChoresPage() {
   const [rewardAmount, setRewardAmount] = useState('');
   const [addToFavorites, setAddToFavorites] = useState(false);
   const [successSummary, setSuccessSummary] = useState<SuccessSummary | null>(null);
+  const [editChoreId, setEditChoreId] = useState<string | null>(null);
   const assignableUsers = useMemo(() => users.filter((user) => user.role === 'child'), [users]);
 
-  async function load() {
+  async function loadUsers() {
     try {
-      const [u, c] = await Promise.all([api.get('/users'), api.get('/chores')]);
+      const u = await api.get('/users');
       setUsers(u);
-      setChores(c);
       const firstAssignable = u.find((user: User) => user.role === 'child');
       if (!assigneeId && firstAssignable) {
         setAssigneeId(firstAssignable.id);
@@ -64,7 +71,57 @@ export default function AdminChoresPage() {
     }
   }
 
-  useEffect(() => { load(); }, []);
+  async function loadChoreForEdit(choreId: string) {
+    const chore = await api.get(`/chores/${choreId}`) as ExistingChore;
+    const schedule = chore.scheduleJson || {};
+    const assignment = chore.assignmentJson || {};
+    setEditChoreId(chore.id);
+    setTitleEngHe(chore.title_en || chore.title_he || '');
+    setHasReward(!!chore.hasReward);
+    setRewardAmount(chore.rewardAmount || '');
+    setShared(!!assignment.shared);
+    const nextAssignees = Array.isArray(assignment.assigneeIds) ? assignment.assigneeIds : [];
+    setSharedAssigneeIds(nextAssignees);
+    setAssigneeId(nextAssignees[0] || '');
+    setSkipAwayUsers(assignment.skipAwayUsers ?? true);
+
+    if (schedule.type === 'one_time') {
+      setScheduleType('one_time');
+      setOneTimeDueAt(schedule.oneTimeDueAt ? new Date(schedule.oneTimeDueAt).toISOString().slice(0, 16) : '');
+    } else if (schedule.type === 'repeating_after_completion') {
+      setScheduleType('repeating_after_completion');
+      setIntervalDays(schedule.intervalDays ?? 1);
+      setDueTime(schedule.dueTime || '20:00');
+    } else {
+      setScheduleType('repeating_calendar');
+      setRrule(schedule.rrule || REPEATING_CALENDAR_OPTIONS[0].value);
+      setDueTime(schedule.dueTime || '20:00');
+    }
+
+    if (schedule.endsAt) {
+      setRecurrenceEndMode('end_date');
+      setRecurrenceEndDate(new Date(schedule.endsAt).toISOString().slice(0, 10));
+    } else {
+      setRecurrenceEndMode('indefinite');
+      setRecurrenceEndDate('');
+    }
+    setGrace(schedule.gracePeriodMinutes ?? 60);
+  }
+
+  useEffect(() => {
+    loadUsers();
+  }, []);
+
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const editMode = query.get('edit');
+    const choreId = query.get('choreId');
+    if (editMode === 'series' && choreId) {
+      loadChoreForEdit(choreId).catch((err: any) => setError(err.message || 'Failed to load chore'));
+      return;
+    }
+    setEditChoreId(null);
+  }, []);
   useEffect(() => {
     if (!assigneeId) return;
     setSharedAssigneeIds((prev) => (prev.includes(assigneeId) ? prev : [...prev, assigneeId]));
@@ -110,6 +167,11 @@ export default function AdminChoresPage() {
         schedule: buildSchedule(),
         assignment: { shared, mode: shared ? 'round_robin' : 'fixed', skipAwayUsers, assigneeIds: effectiveAssigneeIds },
       };
+      if (editChoreId) {
+        await api.patch(`/chores/${editChoreId}`, payload);
+        router.push('/parent');
+        return;
+      }
       await api.post('/chores', payload);
       if (addToFavorites) {
         await api.post('/templates', payload);
@@ -136,7 +198,7 @@ export default function AdminChoresPage() {
         favorite: addToFavorites,
       });
       setTitleEngHe('');
-      await load();
+      await loadUsers();
     } catch (err: any) {
       setError(err.message || 'Failed to create chore');
     }
@@ -145,8 +207,8 @@ export default function AdminChoresPage() {
   return (
     <div>
       <div className="page-title">
-        <h2>Create and asign chore</h2>
-        <p className="lead">Create chores, configure schedules, and assign them to kids.</p>
+        <h2>{editChoreId ? 'Edit chore series' : 'Create and asign chore'}</h2>
+        <p className="lead">{editChoreId ? 'Update chore schedule and assignment for the entire series.' : 'Create chores, configure schedules, and assign them to kids.'}</p>
       </div>
       {error && <p className="error">{error}</p>}
 
@@ -257,17 +319,8 @@ export default function AdminChoresPage() {
           Add to favorites
         </label>
 
-        <button type="submit">Create chore</button>
+        <button type="submit">{editChoreId ? 'Save changes' : 'Create chore'}</button>
       </form>
-
-      <section id="active-chores" className="card">
-        <h3>Active chores</h3>
-        <ul className="list">
-          {chores.map((chore) => (
-            <li key={chore.id}>{chore.title_en} / {chore.title_he} {chore.hasReward ? `(reward ${chore.rewardAmount})` : ''}</li>
-          ))}
-        </ul>
-      </section>
 
       {successSummary && (
         <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="chore-created-title">

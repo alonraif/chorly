@@ -194,7 +194,7 @@ export class ChoresService {
     const nextSchedule = patch.schedule ? ChoreScheduleSchema.parse(patch.schedule) : (existing.scheduleJson as object);
     const nextAssignment = patch.assignment ? AssignmentConfigSchema.parse(patch.assignment) : (existing.assignmentJson as AssignmentConfig);
 
-    return this.prisma.choreDefinition.update({
+    const updated = await this.prisma.choreDefinition.update({
       where: { id },
       data: {
         title_en: patch.title_en,
@@ -207,6 +207,17 @@ export class ChoresService {
         assignmentJson: nextAssignment,
       },
     });
+    const now = new Date();
+    await this.prisma.choreInstance.deleteMany({
+      where: {
+        tenantId,
+        choreId: id,
+        dueAt: { gte: now },
+        status: { not: 'approved' },
+      },
+    });
+    await this.materializeUpcomingInstances(tenantId, id);
+    return updated;
   }
 
   async remove(tenantId: string, id: string) {

@@ -9,8 +9,6 @@ export default function ChorespacePage() {
           <p className="lead">Choose a chorespace by role and run day-to-day chores.</p>
         </div>
         <div className="action-row">
-          <Link className="button-link" href="/today">Open Today</Link>
-          <Link className="button-link" href="/week">Open Week</Link>
           <Link className="button-link" href="/admin/chores#new-chore">Create and assign chore</Link>
           <Link className="button-link" href="/admin/chores#favorites">Assign chore from favorites</Link>
         </div>

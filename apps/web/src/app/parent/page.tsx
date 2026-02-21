@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { DateTime } from 'luxon';
 import { useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 
 type InstanceStatus = 'assigned' | 'done' | 'approved';
@@ -16,7 +17,35 @@ type Instance = {
   assignments: Array<{ userId: string; displayName: string }>;
 };
 
+type User = {
+  id: string;
+  displayName: string;
+  role: 'parent' | 'child';
+  isActive: boolean;
+};
+
+type ChoreDefinition = {
+  id: string;
+  scheduleJson: { type: 'one_time' | 'repeating_calendar' | 'repeating_after_completion' };
+};
+
 type ViewMode = 'list' | 'calendar';
+
+type OccurrenceEditorState = {
+  instanceId: string;
+  choreId: string;
+  dueAtLocal: string;
+  assigneeUserId: string;
+  choreTitle: string;
+};
+
+type EditChoiceState = {
+  instanceId: string;
+  choreId: string;
+  dueAt: string;
+  choreTitle: string;
+  assigneeUserId: string;
+};
 
 function statusLabel(status: InstanceStatus) {
   if (status === 'approved') return 'Approved';
@@ -29,9 +58,13 @@ function dayLabel(dayIso: string) {
 }
 
 export default function ParentPage() {
+  const router = useRouter();
   const [items, setItems] = useState<Instance[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
+  const [occurrenceEditor, setOccurrenceEditor] = useState<OccurrenceEditorState | null>(null);
+  const [editChoice, setEditChoice] = useState<EditChoiceState | null>(null);
 
   const range = useMemo(() => {
     const now = DateTime.now().setZone('Asia/Jerusalem').startOf('day');
@@ -43,8 +76,12 @@ export default function ParentPage() {
 
   async function load() {
     try {
-      const data = await api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`);
-      setItems(data);
+      const [instancesData, usersData] = await Promise.all([
+        api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`),
+        api.get('/users'),
+      ]);
+      setItems(instancesData);
+      setUsers((usersData as User[]).filter((user) => user.role === 'child' && user.isActive));
     } catch (e: any) {
       setError(e.message || String(e));
     }
@@ -53,6 +90,69 @@ export default function ParentPage() {
   useEffect(() => {
     load();
   }, [range.from, range.to]);
+
+  function toLocalDatetimeInput(iso: string) {
+    return DateTime.fromISO(iso).setZone('Asia/Jerusalem').toFormat("yyyy-LL-dd'T'HH:mm");
+  }
+
+  async function onEdit(item: Instance) {
+    setError('');
+    try {
+      const chore = await api.get(`/chores/${item.choreId}`) as ChoreDefinition;
+      const isRecurring = chore.scheduleJson.type !== 'one_time';
+      const currentAssignee = item.assignments[0]?.userId || users[0]?.id || '';
+      if (isRecurring) {
+        setEditChoice({
+          instanceId: item.id,
+          choreId: item.choreId,
+          dueAt: item.dueAt,
+          choreTitle: `${item.chore.title_he} / ${item.chore.title_en}`,
+          assigneeUserId: currentAssignee,
+        });
+        return;
+      }
+
+      setOccurrenceEditor({
+        instanceId: item.id,
+        choreId: item.choreId,
+        dueAtLocal: toLocalDatetimeInput(item.dueAt),
+        assigneeUserId: currentAssignee,
+        choreTitle: `${item.chore.title_he} / ${item.chore.title_en}`,
+      });
+    } catch (e: any) {
+      setError(e.message || 'Failed to open chore editor');
+    }
+  }
+
+  function openOccurrenceEditorFromChoice() {
+    if (!editChoice) return;
+    setOccurrenceEditor({
+      instanceId: editChoice.instanceId,
+      choreId: editChoice.choreId,
+      dueAtLocal: toLocalDatetimeInput(editChoice.dueAt),
+      assigneeUserId: editChoice.assigneeUserId,
+      choreTitle: editChoice.choreTitle,
+    });
+    setEditChoice(null);
+  }
+
+  async function saveOccurrenceEdit() {
+    if (!occurrenceEditor) return;
+    if (!occurrenceEditor.assigneeUserId) {
+      setError('Please select an assignee.');
+      return;
+    }
+    try {
+      await api.patch(`/instances/${occurrenceEditor.instanceId}`, {
+        dueAt: new Date(occurrenceEditor.dueAtLocal).toISOString(),
+        assigneeUserId: occurrenceEditor.assigneeUserId,
+      });
+      setOccurrenceEditor(null);
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Failed to update occurrence');
+    }
+  }
 
   async function onDeleteOccurrence(instanceId: string) {
     const ok = window.confirm('Delete this chore occurrence?');
@@ -106,7 +206,6 @@ export default function ParentPage() {
         <div className="action-row">
           <Link className="button-link" href="/admin/chores#new-chore">Create chore</Link>
           <Link className="button-link" href="/admin/chores#new-chore">Assign chore</Link>
-          <Link className="button-link" href="/admin/chores#active-chores">Edit chore</Link>
         </div>
 
         <details className="admin-dropdown">
@@ -158,6 +257,7 @@ export default function ParentPage() {
                             {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {item.assignments.map((a) => a.displayName).join(', ')}
                           </small>
                           <div className="action-row">
+                            <button type="button" className="ghost-button" onClick={() => onEdit(item)}>Edit chore</button>
                             <button type="button" className="ghost-button" onClick={() => onDeleteOccurrence(item.id)}>Delete occurrence</button>
                             <button type="button" className="ghost-button" onClick={() => onDeleteRecurring(item.choreId)}>Delete recurring chore</button>
                           </div>
@@ -188,6 +288,7 @@ export default function ParentPage() {
                           {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {statusLabel(item.status)}
                         </small>
                         <div className="action-row">
+                          <button type="button" className="ghost-button" onClick={() => onEdit(item)}>Edit chore</button>
                           <button type="button" className="ghost-button" onClick={() => onDeleteOccurrence(item.id)}>Delete occurrence</button>
                           <button type="button" className="ghost-button" onClick={() => onDeleteRecurring(item.choreId)}>Delete recurring chore</button>
                         </div>
@@ -202,6 +303,60 @@ export default function ParentPage() {
           </div>
         )}
       </section>
+
+      {occurrenceEditor && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-occurrence-title">
+          <div className="modal-card">
+            <h3 id="edit-occurrence-title">Edit occurrence</h3>
+            <p>{occurrenceEditor.choreTitle}</p>
+            <label>
+              Due date/time
+              <input
+                type="datetime-local"
+                value={occurrenceEditor.dueAtLocal}
+                onChange={(e) => setOccurrenceEditor((prev) => (prev ? { ...prev, dueAtLocal: e.target.value } : prev))}
+              />
+            </label>
+            <label>
+              Assignee
+              <select
+                value={occurrenceEditor.assigneeUserId}
+                onChange={(e) => setOccurrenceEditor((prev) => (prev ? { ...prev, assigneeUserId: e.target.value } : prev))}
+              >
+                {users.map((user) => (
+                  <option key={user.id} value={user.id}>{user.displayName}</option>
+                ))}
+              </select>
+            </label>
+            <div className="action-row">
+              <button type="button" onClick={saveOccurrenceEdit}>Save</button>
+              <button type="button" className="ghost-button" onClick={() => setOccurrenceEditor(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editChoice && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-choice-title">
+          <div className="modal-card">
+            <h3 id="edit-choice-title">Edit recurring chore</h3>
+            <p>{editChoice.choreTitle}</p>
+            <div className="action-row">
+              <button type="button" onClick={openOccurrenceEditorFromChoice}>Edit occurrence</button>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditChoice(null);
+                  router.push(`/admin/chores?edit=series&choreId=${encodeURIComponent(editChoice.choreId)}`);
+                }}
+              >
+                Edit series
+              </button>
+              <button type="button" className="ghost-button" onClick={() => setEditChoice(null)}>Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

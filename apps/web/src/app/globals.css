@@ -80,6 +80,11 @@ a {
   gap: var(--space-4);
 }
 
+.logout-button {
+  align-self: center;
+  white-space: nowrap;
+}
+
 .site-title {
   margin: 0;
   font-family: var(--font-heading), "Rubik", sans-serif;

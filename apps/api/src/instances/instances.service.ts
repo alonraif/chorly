@@ -208,4 +208,91 @@ export class InstancesService {
     await this.prisma.choreInstance.delete({ where: { id: instanceId } });
     return { ok: true };
   }
+
+  async update(tenantId: string, instanceId: string, patch: { dueAt?: string; assigneeUserId?: string }) {
+    const instance = await this.getInstanceOrThrow(tenantId, instanceId);
+    if (instance.status === 'approved') {
+      throw new BadRequestException('Approved instances cannot be edited');
+    }
+
+    if (patch.assigneeUserId) {
+      const nextAssignee = await this.prisma.user.findFirst({
+        where: {
+          id: patch.assigneeUserId,
+          tenantId,
+          role: 'child',
+          isActive: true,
+        },
+        select: { id: true },
+      });
+      if (!nextAssignee) {
+        throw new BadRequestException('Assignee must be an active child user in this family');
+      }
+    }
+
+    const dueAt = patch.dueAt ? new Date(patch.dueAt) : undefined;
+    if (dueAt && Number.isNaN(dueAt.getTime())) {
+      throw new BadRequestException('Invalid dueAt');
+    }
+
+    try {
+      const updated = await this.prisma.$transaction(async (tx) => {
+        if (patch.assigneeUserId) {
+          await tx.choreCompletion.deleteMany({ where: { instanceId } });
+          await tx.instanceAssignment.deleteMany({ where: { instanceId } });
+          await tx.instanceAssignment.create({
+            data: { instanceId, userId: patch.assigneeUserId! },
+          });
+        }
+
+        return tx.choreInstance.update({
+          where: { id: instanceId },
+          data: {
+            dueAt,
+            status: patch.assigneeUserId ? 'assigned' : undefined,
+            approvedAt: null,
+            approvedByUserId: null,
+          },
+          include: {
+            chore: true,
+            assignments: { include: { user: true } },
+            completions: true,
+          },
+        });
+      });
+
+      const doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }> = {};
+      for (const completion of updated.completions) {
+        doneByUserId[completion.userId] = {
+          doneAt: completion.doneAt.toISOString(),
+          undoneAt: completion.undoneAt ? completion.undoneAt.toISOString() : null,
+        };
+      }
+
+      return {
+        id: updated.id,
+        choreId: updated.choreId,
+        chore: {
+          title_en: updated.chore.title_en,
+          title_he: updated.chore.title_he,
+          hasReward: updated.chore.hasReward,
+        },
+        dueAt: updated.dueAt.toISOString(),
+        status: updated.status,
+        approvedAt: updated.approvedAt ? updated.approvedAt.toISOString() : null,
+        rewardAmount: updated.rewardAmount?.toString() ?? null,
+        assignments: updated.assignments.map((a) => ({
+          userId: a.userId,
+          displayName: a.user.displayName,
+          locale: a.user.locale,
+        })),
+        doneByUserId,
+      };
+    } catch (error: any) {
+      if (error?.code === 'P2002') {
+        throw new BadRequestException('Another occurrence already exists at this due date/time');
+      }
+      throw error;
+    }
+  }
 }

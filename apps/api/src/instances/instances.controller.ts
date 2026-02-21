@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   ApproveInstanceSchema,
@@ -6,6 +6,7 @@ import {
   MarkDoneSchema,
   UndoDoneSchema,
 } from '@chorly/shared';
+import { z } from 'zod';
 import { AdminGuard } from '../common/dev-auth/admin.guard';
 import { CurrentTenant } from '../common/dev-auth/current-tenant.decorator';
 import { CurrentUser } from '../common/dev-auth/current-user.decorator';
@@ -14,6 +15,13 @@ import { RequireTenantGuard } from '../common/dev-auth/require-tenant.guard';
 import { RequireUserGuard } from '../common/dev-auth/require-user.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { InstancesService } from './instances.service';
+
+const UpdateInstanceSchema = z.object({
+  dueAt: z.string().datetime().optional(),
+  assigneeUserId: z.string().min(1).optional(),
+}).refine((data) => data.dueAt !== undefined || data.assigneeUserId !== undefined, {
+  message: 'At least one field is required',
+});
 
 @ApiTags('instances')
 @ApiHeader({ name: 'x-user-id', required: false })
@@ -83,5 +91,18 @@ export class InstancesController {
     @Param('id') id: string,
   ) {
     return this.instances.remove(tenantId, id);
+  }
+
+  @Patch(':id')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Update one chore instance (family admin)' })
+  @ApiParam({ name: 'id' })
+  @ApiBody({ schema: { type: 'object', properties: { dueAt: { type: 'string', format: 'date-time' }, assigneeUserId: { type: 'string' } } } })
+  update(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateInstanceSchema)) body: z.infer<typeof UpdateInstanceSchema>,
+  ) {
+    return this.instances.update(tenantId, id, body);
   }
 }
