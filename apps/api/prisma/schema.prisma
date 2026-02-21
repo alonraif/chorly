@@ -20,6 +20,7 @@ enum InstanceStatus {
 
 enum MoneyLedgerType {
   earn
+  payout
 }
 
 enum InviteStatus {
@@ -27,6 +28,12 @@ enum InviteStatus {
   accepted
   revoked
   expired
+}
+
+enum FamilyRole {
+  parent
+  child
+  caregiver
 }
 
 model Tenant {
@@ -48,7 +55,9 @@ model User {
   tenantId       String
   tenant         Tenant   @relation(fields: [tenantId], references: [id])
   email          String?  @unique
+  passwordHash   String?
   displayName    String
+  role           FamilyRole @default(parent)
   isAdmin        Boolean  @default(false)
   isSystemAdmin  Boolean  @default(false)
   locale         Locale   @default(he)
@@ -74,6 +83,7 @@ model FamilyInvite {
   inviterUserId String
   inviter       User        @relation("InviteCreator", fields: [inviterUserId], references: [id])
   email         String
+  role          FamilyRole  @default(parent)
   token         String      @unique
   status        InviteStatus @default(pending)
   expiresAt     DateTime

@@ -1,30 +1,72 @@
+'use client';
+
 import Link from 'next/link';
+import { FormEvent, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { api } from '../lib/api';
+import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../lib/user';
 
-export default function Home() {
+export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  async function onSubmit(e: FormEvent) {
+    e.preventDefault();
+    setError('');
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
+      return;
+    }
+    setLoading(true);
+    try {
+      const user = await api.post('/auth/login', { email, password });
+      setCurrentUserId(user.id);
+      setCurrentLocale(user.locale);
+      clearCurrentTenantId();
+      router.push('/chorespace');
+    } catch (err: any) {
+      setError(err.message || 'Login failed');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
-    <div className="cards-grid">
-      <section className="card">
+    <section className="auth-shell">
+      <form className="card auth-card" onSubmit={onSubmit}>
         <div className="page-title">
-          <h2>Dashboard</h2>
-          <p className="lead">Manage family chores with a cleaner workflow across onboarding, daily execution, and admin controls.</p>
+          <h1>Welcome to Chorly</h1>
+          <h2>Login</h2>
+          <p className="lead">Sign in to your family chorespace.</p>
         </div>
-      </section>
 
-      <section className="card">
-        <h3>Quick Links</h3>
-        <ul className="list">
-          <li><Link href="/family/create">Create a family (first sign-in)</Link></li>
-          <li><Link href="/family/accept">Accept family invite</Link></li>
-          <li><Link href="/admin/family">Manage family members/invites</Link></li>
-          <li><Link href="/today">Today chores</Link></li>
-          <li><Link href="/week">Weekly view</Link></li>
-          <li><Link href="/parent/review">Parent review</Link></li>
-          <li><Link href="/admin/users">Manage users</Link></li>
-          <li><Link href="/admin/chores">Manage chores</Link></li>
-          <li><Link href="/system">System admin tenant switch</Link></li>
-          <li><a href="http://localhost:4000/docs">Swagger docs</a></li>
-        </ul>
-      </section>
-    </div>
+        {error && <p className="error">{error}</p>}
+
+        <label>
+          Email
+          <input type="email" placeholder="you@example.com" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        </label>
+
+        <label>
+          Password
+          <input
+            type="password"
+            placeholder="Enter password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+          />
+        </label>
+
+        <button type="submit" disabled={loading}>{loading ? 'Logging in…' : 'Login'}</button>
+
+        <p className="auth-secondary">
+          First time here? <Link href="/register">Register</Link>
+        </p>
+      </form>
+    </section>
   );
 }

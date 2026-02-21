@@ -123,6 +123,61 @@ a {
   background: var(--color-accent);
 }
 
+.nav-more {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.nav-more summary {
+  list-style: none;
+  cursor: pointer;
+  border: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.78);
+  border-radius: 999px;
+  color: var(--color-accent-strong);
+  padding: 8px 14px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+.nav-more summary::-webkit-details-marker {
+  display: none;
+}
+
+.nav-more[open] summary {
+  border-color: var(--color-accent);
+}
+
+.nav-more-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 210px;
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: #fff;
+  box-shadow: var(--shadow-sm);
+}
+
+.nav-more-menu a {
+  text-decoration: none;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 8px 10px;
+  color: var(--color-accent-strong);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.nav-more-menu a:hover {
+  background: rgba(20, 108, 148, 0.1);
+  border-color: var(--color-accent);
+}
+
 main {
   display: grid;
   gap: var(--space-4);
@@ -301,6 +356,283 @@ button + button {
   font-weight: 700;
 }
 
+.parent-view {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.action-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.button-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  border: 0;
+  border-radius: 999px;
+  background: linear-gradient(135deg, var(--color-accent), #158f96);
+  color: white;
+  padding: 10px 16px;
+  font-weight: 700;
+  transition: transform 120ms ease, box-shadow 120ms ease;
+}
+
+.button-link:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(20, 108, 148, 0.25);
+}
+
+.auth-shell {
+  display: grid;
+  place-items: center;
+  min-height: 68vh;
+}
+
+.auth-card {
+  width: min(520px, 100%);
+  gap: var(--space-4);
+}
+
+.auth-grid {
+  width: 100%;
+}
+
+.auth-secondary {
+  color: var(--color-text-soft);
+}
+
+.auth-secondary a {
+  color: var(--color-accent-strong);
+  font-weight: 700;
+}
+
+.invite-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.invite-list {
+  margin-top: var(--space-2);
+}
+
+.ghost-button {
+  background: white;
+  color: var(--color-accent-strong);
+  border: 1px solid var(--color-border);
+}
+
+.ghost-button:hover {
+  box-shadow: none;
+  background: var(--color-bg-soft);
+}
+
+.admin-dropdown {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2) var(--space-3);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.admin-dropdown summary {
+  cursor: pointer;
+  font-weight: 700;
+  color: var(--color-accent-strong);
+}
+
+.admin-links {
+  margin-top: var(--space-2);
+  display: grid;
+  gap: var(--space-1);
+}
+
+.admin-links a {
+  text-decoration: none;
+}
+
+.week-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.view-toggle {
+  display: inline-flex;
+  padding: 4px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: #fff;
+}
+
+.view-toggle button {
+  background: transparent;
+  color: var(--color-text-soft);
+  box-shadow: none;
+  padding: 8px 14px;
+}
+
+.view-toggle button.active {
+  background: var(--color-accent);
+  color: #fff;
+}
+
+.view-toggle button:hover {
+  transform: none;
+  box-shadow: none;
+  background: rgba(20, 108, 148, 0.12);
+}
+
+.view-toggle button.active:hover {
+  background: var(--color-accent);
+}
+
+.list-week {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.day-list {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3);
+  background: rgba(255, 255, 255, 0.72);
+  display: grid;
+  gap: var(--space-2);
+}
+
+.day-list h4,
+.calendar-day h4 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.compact li {
+  padding: 8px 0;
+}
+
+.task-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.task-title {
+  font-weight: 700;
+}
+
+.task-meta {
+  color: var(--color-text-soft);
+}
+
+.status-badge {
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.status-assigned {
+  background: #eef6ff;
+  color: #174a7b;
+  border-color: #c8def8;
+}
+
+.status-done {
+  background: #ecfdf3;
+  color: #0f5132;
+  border-color: #b8e8cb;
+}
+
+.status-approved {
+  background: #fff6db;
+  color: #7a5800;
+  border-color: #f2df9f;
+}
+
+.calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.calendar-day {
+  min-height: 180px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+  background: rgba(255, 255, 255, 0.72);
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+}
+
+.wallet-card {
+  gap: var(--space-2);
+}
+
+.wallet-total {
+  justify-self: start;
+}
+
+.home-shell {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.home-hero {
+  gap: var(--space-4);
+}
+
+.role-grid {
+  display: grid;
+  gap: var(--space-3);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.role-card {
+  align-content: start;
+}
+
+.home-links {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.home-links a {
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.76);
+}
+
+.task-click {
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  box-shadow: none;
+  padding: 0;
+  border-radius: 0;
+  text-align: start;
+}
+
+.task-click:hover {
+  transform: none;
+  box-shadow: none;
+}
+
+.task-click:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
 @media (max-width: 900px) {
   .app-body {
     padding: var(--space-4) 0;
@@ -319,12 +651,21 @@ button + button {
     max-width: 100%;
   }
 
+  .nav-more-menu {
+    right: auto;
+    left: 0;
+  }
+
   .switcher-wrap small {
     text-align: start;
   }
 
   .form-grid {
     grid-template-columns: 1fr;
+  }
+
+  .calendar-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   button,

@@ -8,6 +8,7 @@ export default function CreateFamilyPage() {
   const [familyName, setFamilyName] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [locale, setLocale] = useState<'he' | 'en'>('he');
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
@@ -21,6 +22,7 @@ export default function CreateFamilyPage() {
         familyName,
         displayName,
         email: email || undefined,
+        password,
         locale,
       });
       setResult(data);
@@ -46,6 +48,7 @@ export default function CreateFamilyPage() {
         <input placeholder="Family name" value={familyName} onChange={(e) => setFamilyName(e.target.value)} required />
         <input placeholder="Your display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
         <input placeholder="Email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" placeholder="Password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
         <select value={locale} onChange={(e) => setLocale(e.target.value as 'he' | 'en')}>
           <option value="he">Hebrew</option>
           <option value="en">English</option>

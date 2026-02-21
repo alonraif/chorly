@@ -13,11 +13,13 @@ const CreateFamilySchema = z.object({
   familyName: z.string().min(1),
   displayName: z.string().min(1),
   email: z.string().email().optional(),
+  password: z.string().min(8),
   locale: z.enum(['en', 'he']).optional(),
 });
 
 const InviteSchema = z.object({
   email: z.string().email(),
+  role: z.enum(['parent', 'child', 'caregiver']).optional(),
   expiresInDays: z.number().int().positive().max(30).optional(),
 });
 
@@ -25,6 +27,7 @@ const AcceptInviteSchema = z.object({
   token: z.string().min(10),
   displayName: z.string().min(1),
   email: z.string().email().optional(),
+  password: z.string().min(8),
   locale: z.enum(['en', 'he']).optional(),
 });
 
@@ -37,7 +40,7 @@ export class FamilyController {
 
   @Post('/create')
   @ApiOperation({ summary: 'Create a new family and its first admin user (first sign-in flow)' })
-  @ApiBody({ schema: { type: 'object', required: ['familyName', 'displayName'], properties: { familyName: { type: 'string' }, displayName: { type: 'string' }, email: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
+  @ApiBody({ schema: { type: 'object', required: ['familyName', 'displayName', 'password'], properties: { familyName: { type: 'string' }, displayName: { type: 'string' }, email: { type: 'string' }, password: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
   createFamily(@Body(new ZodValidationPipe(CreateFamilySchema)) body: any) {
     return this.family.createFamily(body);
   }
@@ -59,18 +62,18 @@ export class FamilyController {
   @Post('/invites')
   @UseGuards(AdminGuard, RequireTenantGuard)
   @ApiOperation({ summary: 'Invite a user to current family (admin)' })
-  @ApiBody({ schema: { type: 'object', required: ['email'], properties: { email: { type: 'string' }, expiresInDays: { type: 'number' } } } })
+  @ApiBody({ schema: { type: 'object', required: ['email'], properties: { email: { type: 'string' }, role: { type: 'string', enum: ['parent', 'child', 'caregiver'] }, expiresInDays: { type: 'number' } } } })
   invite(
     @CurrentTenant() tenantId: string,
     @CurrentUser() user: RequestUser,
     @Body(new ZodValidationPipe(InviteSchema)) body: any,
   ) {
-    return this.family.invite(tenantId, user, body.email, body.expiresInDays);
+    return this.family.invite(tenantId, user, body.email, body.role, body.expiresInDays);
   }
 
   @Post('/invites/accept')
   @ApiOperation({ summary: 'Accept invite and join family' })
-  @ApiBody({ schema: { type: 'object', required: ['token', 'displayName'], properties: { token: { type: 'string' }, displayName: { type: 'string' }, email: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
+  @ApiBody({ schema: { type: 'object', required: ['token', 'displayName', 'password'], properties: { token: { type: 'string' }, displayName: { type: 'string' }, email: { type: 'string' }, password: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
   accept(@Body(new ZodValidationPipe(AcceptInviteSchema)) body: any) {
     return this.family.acceptInvite(body);
   }

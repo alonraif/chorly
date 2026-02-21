@@ -1,9 +1,10 @@
 import { PrismaClient } from '@prisma/client';
 import { TEMPLATE_CHORES } from '../src/common/templates/template-catalog';
+import { hashPassword } from '../src/common/auth/password';
 
 const prisma = new PrismaClient();
 
-async function seedTenant(tenantId: string, tenantName: string) {
+async function seedTenant(tenantId: string, tenantName: string, passwordHash: string) {
   const tenant = await prisma.tenant.upsert({
     where: { id: tenantId },
     update: { name: tenantName },
@@ -12,20 +13,20 @@ async function seedTenant(tenantId: string, tenantName: string) {
 
   const admin = await prisma.user.upsert({
     where: { email: `admin+${tenantId}@chorly.local` },
-    update: { tenantId: tenant.id, isAdmin: true, isActive: true },
-    create: { tenantId: tenant.id, email: `admin+${tenantId}@chorly.local`, displayName: `Admin ${tenantId}`, isAdmin: true, locale: 'he' },
+    update: { tenantId: tenant.id, isAdmin: true, isActive: true, passwordHash, role: 'parent' },
+    create: { tenantId: tenant.id, email: `admin+${tenantId}@chorly.local`, passwordHash, displayName: `Admin ${tenantId}`, role: 'parent', isAdmin: true, locale: 'he' },
   });
 
   const member1 = await prisma.user.upsert({
     where: { email: `member1+${tenantId}@chorly.local` },
-    update: { tenantId: tenant.id, isAdmin: false, isActive: true },
-    create: { tenantId: tenant.id, email: `member1+${tenantId}@chorly.local`, displayName: 'Noa', isAdmin: false, locale: 'he' },
+    update: { tenantId: tenant.id, isAdmin: false, isActive: true, passwordHash, role: 'child' },
+    create: { tenantId: tenant.id, email: `member1+${tenantId}@chorly.local`, passwordHash, displayName: 'Noa', role: 'child', isAdmin: false, locale: 'he' },
   });
 
   const member2 = await prisma.user.upsert({
     where: { email: `member2+${tenantId}@chorly.local` },
-    update: { tenantId: tenant.id, isAdmin: false, isActive: true },
-    create: { tenantId: tenant.id, email: `member2+${tenantId}@chorly.local`, displayName: 'Daniel', isAdmin: false, locale: 'en' },
+    update: { tenantId: tenant.id, isAdmin: false, isActive: true, passwordHash, role: 'child' },
+    create: { tenantId: tenant.id, email: `member2+${tenantId}@chorly.local`, passwordHash, displayName: 'Daniel', role: 'child', isAdmin: false, locale: 'en' },
   });
 
   for (const template of TEMPLATE_CHORES) {
@@ -61,6 +62,8 @@ async function seedTenant(tenantId: string, tenantName: string) {
 
 async function main() {
   const devTenantId = process.env.DEV_TENANT_ID || 'dev-tenant';
+  const seedPassword = process.env.SEED_USER_PASSWORD || 'Password123!';
+  const passwordHash = await hashPassword(seedPassword);
 
   await prisma.tenant.upsert({
     where: { id: devTenantId },
@@ -70,23 +73,25 @@ async function main() {
 
   const system = await prisma.user.upsert({
     where: { email: 'root@chorly.local' },
-    update: { isSystemAdmin: true, isAdmin: true, isActive: true },
+    update: { isSystemAdmin: true, isAdmin: true, isActive: true, passwordHash, role: 'parent' },
     create: {
       tenantId: devTenantId,
       email: 'root@chorly.local',
+      passwordHash,
       displayName: 'Chorly Root',
+      role: 'parent',
       isAdmin: true,
       isSystemAdmin: true,
       locale: 'en',
     },
   });
 
-  const seededA = await seedTenant(devTenantId, 'Dev Family');
-  const seededB = await seedTenant('demo-tenant', 'Demo Family');
+  const seededA = await seedTenant(devTenantId, 'Dev Family', passwordHash);
+  const seededB = await seedTenant('demo-tenant', 'Demo Family', passwordHash);
 
   await prisma.user.update({ where: { id: system.id }, data: { tenantId: devTenantId } });
 
-  console.log('Seed complete', { systemAdminId: system.id, tenants: [seededA, seededB], templates: TEMPLATE_CHORES.length });
+  console.log('Seed complete', { systemAdminId: system.id, tenants: [seededA, seededB], templates: TEMPLATE_CHORES.length, seedPassword });
 }
 
 main().catch((e) => {

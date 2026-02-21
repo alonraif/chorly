@@ -1,20 +1,22 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { InviteStatus, Prisma, type Locale } from '@prisma/client';
+import { FamilyRole, InviteStatus, Prisma, type Locale } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import type { RequestUser } from '../common/dev-auth/dev-auth.types';
 import { TEMPLATE_CHORES } from '../common/templates/template-catalog';
+import { hashPassword } from '../common/auth/password';
 
 @Injectable()
 export class FamilyService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async createFamily(input: { familyName: string; displayName: string; email?: string; locale?: Locale }) {
+  async createFamily(input: { familyName: string; displayName: string; email?: string; password: string; locale?: Locale }) {
     const email = input.email?.trim().toLowerCase();
     if (email) {
       const exists = await this.prisma.user.findUnique({ where: { email } });
       if (exists) throw new ConflictException('Email already exists');
     }
+    const passwordHash = await hashPassword(input.password);
 
     return this.prisma.$transaction(async (tx) => {
       const tenant = await tx.tenant.create({
@@ -29,7 +31,9 @@ export class FamilyService {
         data: {
           tenantId: tenant.id,
           email: email ?? null,
+          passwordHash,
           displayName: input.displayName,
+          role: FamilyRole.parent,
           locale: input.locale || 'he',
           isAdmin: true,
         },
@@ -66,7 +70,7 @@ export class FamilyService {
     return this.prisma.user.findMany({ where: { tenantId }, orderBy: { createdAt: 'asc' } });
   }
 
-  async invite(tenantId: string, inviter: RequestUser, email: string, expiresInDays = 7) {
+  async invite(tenantId: string, inviter: RequestUser, email: string, role: FamilyRole = FamilyRole.parent, expiresInDays = 7) {
     if (!inviter.isAdmin && !inviter.isSystemAdmin) throw new BadRequestException('Admin required');
     const token = randomBytes(24).toString('hex');
     const expiresAt = new Date(Date.now() + expiresInDays * 24 * 60 * 60 * 1000);
@@ -76,6 +80,7 @@ export class FamilyService {
         tenantId,
         inviterUserId: inviter.id,
         email: email.trim().toLowerCase(),
+        role,
         token,
         expiresAt,
       },
@@ -91,7 +96,7 @@ export class FamilyService {
     });
   }
 
-  async acceptInvite(input: { token: string; displayName: string; locale?: Locale; email?: string }) {
+  async acceptInvite(input: { token: string; displayName: string; password: string; locale?: Locale; email?: string }) {
     const invite = await this.prisma.familyInvite.findUnique({ where: { token: input.token } });
     if (!invite) throw new NotFoundException('Invite not found');
     if (invite.status !== InviteStatus.pending) throw new BadRequestException('Invite is not active');
@@ -103,13 +108,16 @@ export class FamilyService {
     const email = (input.email || invite.email).trim().toLowerCase();
     const existing = await this.prisma.user.findUnique({ where: { email } });
     if (existing) throw new ConflictException('Email already exists');
+    const passwordHash = await hashPassword(input.password);
 
     return this.prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
         data: {
           tenantId: invite.tenantId,
           email,
+          passwordHash,
           displayName: input.displayName,
+          role: invite.role,
           locale: input.locale || 'he',
           isAdmin: false,
         },

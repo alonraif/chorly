@@ -4,8 +4,11 @@ import { CreateUserSchema, UpdateUserSchema } from '@chorly/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { UsersService } from './users.service';
 import { AdminGuard } from '../common/dev-auth/admin.guard';
+import { CurrentUser } from '../common/dev-auth/current-user.decorator';
+import type { RequestUser } from '../common/dev-auth/dev-auth.types';
 import { CurrentTenant } from '../common/dev-auth/current-tenant.decorator';
 import { RequireTenantGuard } from '../common/dev-auth/require-tenant.guard';
+import { RequireUserGuard } from '../common/dev-auth/require-user.guard';
 
 @ApiTags('users')
 @ApiHeader({ name: 'x-user-id', required: false })
@@ -70,5 +73,21 @@ export class UsersController {
     @Body(new ZodValidationPipe(UpdateUserSchema)) body: any,
   ) {
     return this.users.update(tenantId, id, body);
+  }
+
+  @Get(':id/earnings')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Get earnings summary and earning entries for a user' })
+  @ApiParam({ name: 'id' })
+  earnings(@CurrentTenant() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.users.earnings(tenantId, id, user);
+  }
+
+  @Post(':id/payout-reset')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Mark current due amount as paid out (family admin)' })
+  @ApiParam({ name: 'id' })
+  payoutReset(@CurrentTenant() tenantId: string, @Param('id') id: string, @CurrentUser() user: RequestUser) {
+    return this.users.payoutReset(tenantId, id, user);
   }
 }

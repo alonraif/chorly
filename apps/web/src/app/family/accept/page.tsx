@@ -1,6 +1,6 @@
 'use client';
 
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../../../lib/user';
 
@@ -8,9 +8,15 @@ export default function AcceptInvitePage() {
   const [token, setToken] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
   const [locale, setLocale] = useState<'he' | 'en'>('he');
   const [error, setError] = useState('');
   const [result, setResult] = useState<any>(null);
+
+  useEffect(() => {
+    const tokenFromUrl = new URLSearchParams(window.location.search).get('token');
+    if (tokenFromUrl) setToken(tokenFromUrl);
+  }, []);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -21,6 +27,7 @@ export default function AcceptInvitePage() {
         token,
         displayName,
         email: email || undefined,
+        password,
         locale,
       });
       setResult(data);
@@ -45,6 +52,7 @@ export default function AcceptInvitePage() {
         <input placeholder="Invite token" value={token} onChange={(e) => setToken(e.target.value)} required />
         <input placeholder="Display name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} required />
         <input placeholder="Email (optional override)" value={email} onChange={(e) => setEmail(e.target.value)} />
+        <input type="password" placeholder="Create password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={8} />
         <select value={locale} onChange={(e) => setLocale(e.target.value as 'he' | 'en')}>
           <option value="he">Hebrew</option>
           <option value="en">English</option>

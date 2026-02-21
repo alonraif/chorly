@@ -93,7 +93,7 @@ export default function AdminChoresPage() {
       </div>
       {error && <p className="error">{error}</p>}
 
-      <form className="card form-grid" onSubmit={onCreate}>
+      <form id="new-chore" className="card form-grid" onSubmit={onCreate}>
         <input placeholder="Title EN" value={titleEn} onChange={(e) => setTitleEn(e.target.value)} required />
         <input placeholder="Title HE" value={titleHe} onChange={(e) => setTitleHe(e.target.value)} required />
 
@@ -168,7 +168,7 @@ export default function AdminChoresPage() {
         </ul>
       </section>
 
-      <section className="card">
+      <section id="active-chores" className="card">
         <h3>Active chores</h3>
         <ul className="list">
           {chores.map((chore) => (

@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { DateTime } from 'luxon';
+import { useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { getCurrentUserId } from '../../lib/user';
 
 type InstanceStatus = 'assigned' | 'done' | 'approved';
 
@@ -11,8 +11,8 @@ type Instance = {
   id: string;
   dueAt: string;
   status: InstanceStatus;
-  chore: { title_en: string; title_he: string; hasReward?: boolean };
-  assignments?: Array<{ userId: string; displayName: string }>;
+  chore: { title_en: string; title_he: string };
+  assignments: Array<{ userId: string; displayName: string }>;
 };
 
 type ViewMode = 'list' | 'calendar';
@@ -27,27 +27,24 @@ function dayLabel(dayIso: string) {
   return DateTime.fromISO(dayIso).toFormat('EEE, LLL d');
 }
 
-export default function WeekPage() {
+export default function ParentPage() {
   const [items, setItems] = useState<Instance[]>([]);
   const [error, setError] = useState('');
   const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const currentUser = getCurrentUserId();
 
   const range = useMemo(() => {
-    const start = DateTime.now().setZone('Asia/Jerusalem').startOf('day');
-    const end = start.plus({ days: 6 }).endOf('day');
+    const now = DateTime.now().setZone('Asia/Jerusalem').startOf('day');
     return {
-      from: start.toUTC().toISO(),
-      to: end.toUTC().toISO(),
+      from: now.toUTC().toISO(),
+      to: now.plus({ days: 6 }).endOf('day').toUTC().toISO(),
     };
   }, []);
 
   useEffect(() => {
-    if (!currentUser) return;
-    api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}&userId=${currentUser}`)
+    api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`)
       .then(setItems)
       .catch((e) => setError(e.message || String(e)));
-  }, [currentUser]);
+  }, [range.from, range.to]);
 
   const dayKeys = useMemo(() => {
     const start = DateTime.fromISO(range.from || '').startOf('day');
@@ -67,10 +64,30 @@ export default function WeekPage() {
 
   return (
     <div className="parent-view">
-      <div className="page-title">
-        <h2>Week</h2>
-        <p className="lead">Your seven-day plan with assignment and completion status.</p>
-      </div>
+      <section className="card">
+        <div className="page-title">
+          <h2>Parent Chorespace</h2>
+          <p className="lead">Plan and track the upcoming week across all assigned chores in your family.</p>
+        </div>
+
+        <h3>Quick Actions</h3>
+        <div className="action-row">
+          <Link className="button-link" href="/admin/chores#new-chore">Create chore</Link>
+          <Link className="button-link" href="/admin/chores#new-chore">Assign chore</Link>
+          <Link className="button-link" href="/admin/chores#active-chores">Edit chore</Link>
+        </div>
+
+        <details className="admin-dropdown">
+          <summary>Admin</summary>
+          <div className="admin-links">
+            <Link href="/parent/review">Approve completed chores</Link>
+            <Link href="/admin/family">Family members and invites</Link>
+            <Link href="/admin/users">User management</Link>
+            <Link href="/admin/chores">Full chore admin</Link>
+          </div>
+        </details>
+      </section>
+
       <section className="card">
         <div className="week-header">
           <h3>Upcoming Week</h3>
@@ -92,7 +109,6 @@ export default function WeekPage() {
           </div>
         </div>
 
-        {!currentUser && <p className="lead">Select a user to see assigned chores.</p>}
         {error && <p className="error">{error}</p>}
 
         {viewMode === 'list' && (
@@ -107,7 +123,7 @@ export default function WeekPage() {
                         <div>
                           <p className="task-title">{item.chore.title_he} / {item.chore.title_en}</p>
                           <small className="task-meta">
-                            {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')}
+                            {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {item.assignments.map((a) => a.displayName).join(', ')}
                           </small>
                         </div>
                         <span className={`status-badge status-${item.status}`}>{statusLabel(item.status)}</span>

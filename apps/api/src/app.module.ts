@@ -11,9 +11,10 @@ import { RequireTenantGuard } from './common/dev-auth/require-tenant.guard';
 import { SystemAdminGuard } from './common/dev-auth/system-admin.guard';
 import { FamilyModule } from './family/family.module';
 import { SystemModule } from './system/system.module';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
-  imports: [PrismaModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, SystemModule],
+  imports: [PrismaModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, SystemModule, AuthModule],
   controllers: [HealthController],
   providers: [DevAuthMiddleware, AdminGuard, RequireUserGuard, RequireTenantGuard, SystemAdminGuard],
 })
