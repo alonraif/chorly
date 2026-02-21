@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   ApproveInstanceSchema,
@@ -72,5 +72,16 @@ export class InstancesController {
     @Body(new ZodValidationPipe(ApproveInstanceSchema)) body: any,
   ) {
     return this.instances.approve(tenantId, id, user, body);
+  }
+
+  @Delete(':id')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Delete one chore instance (family admin)' })
+  @ApiParam({ name: 'id' })
+  remove(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+  ) {
+    return this.instances.remove(tenantId, id);
   }
 }

@@ -9,6 +9,7 @@ type InstanceStatus = 'assigned' | 'done' | 'approved';
 
 type Instance = {
   id: string;
+  choreId: string;
   dueAt: string;
   status: InstanceStatus;
   chore: { title_en: string; title_he: string };
@@ -40,11 +41,42 @@ export default function ParentPage() {
     };
   }, []);
 
+  async function load() {
+    try {
+      const data = await api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`);
+      setItems(data);
+    } catch (e: any) {
+      setError(e.message || String(e));
+    }
+  }
+
   useEffect(() => {
-    api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`)
-      .then(setItems)
-      .catch((e) => setError(e.message || String(e)));
+    load();
   }, [range.from, range.to]);
+
+  async function onDeleteOccurrence(instanceId: string) {
+    const ok = window.confirm('Delete this chore occurrence?');
+    if (!ok) return;
+    setError('');
+    try {
+      await api.delete(`/instances/${instanceId}`);
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Failed to delete occurrence');
+    }
+  }
+
+  async function onDeleteRecurring(choreId: string) {
+    const ok = window.confirm('Delete this recurring chore and remove upcoming unapproved occurrences?');
+    if (!ok) return;
+    setError('');
+    try {
+      await api.delete(`/chores/${choreId}`);
+      await load();
+    } catch (e: any) {
+      setError(e.message || 'Failed to delete recurring chore');
+    }
+  }
 
   const dayKeys = useMemo(() => {
     const start = DateTime.fromISO(range.from || '').startOf('day');
@@ -125,6 +157,10 @@ export default function ParentPage() {
                           <small className="task-meta">
                             {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {item.assignments.map((a) => a.displayName).join(', ')}
                           </small>
+                          <div className="action-row">
+                            <button type="button" className="ghost-button" onClick={() => onDeleteOccurrence(item.id)}>Delete occurrence</button>
+                            <button type="button" className="ghost-button" onClick={() => onDeleteRecurring(item.choreId)}>Delete recurring chore</button>
+                          </div>
                         </div>
                         <span className={`status-badge status-${item.status}`}>{statusLabel(item.status)}</span>
                       </li>
@@ -151,6 +187,10 @@ export default function ParentPage() {
                         <small className="task-meta">
                           {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {statusLabel(item.status)}
                         </small>
+                        <div className="action-row">
+                          <button type="button" className="ghost-button" onClick={() => onDeleteOccurrence(item.id)}>Delete occurrence</button>
+                          <button type="button" className="ghost-button" onClick={() => onDeleteRecurring(item.choreId)}>Delete recurring chore</button>
+                        </div>
                       </li>
                     ))}
                   </ul>

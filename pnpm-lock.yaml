@@ -32,9 +32,15 @@ importers:
       '@prisma/client':
         specifier: ^5.22.0
         version: 5.22.0(prisma@5.22.0)
+      luxon:
+        specifier: ^3.7.2
+        version: 3.7.2
       reflect-metadata:
         specifier: ^0.2.2
         version: 0.2.2
+      rrule:
+        specifier: ^2.8.1
+        version: 2.8.1
       rxjs:
         specifier: ^7.8.1
         version: 7.8.2
@@ -54,6 +60,9 @@ importers:
       '@types/express':
         specifier: ^4.17.21
         version: 4.17.25
+      '@types/luxon':
+        specifier: ^3.7.1
+        version: 3.7.1
       '@types/node':
         specifier: ^20.11.30
         version: 20.19.33

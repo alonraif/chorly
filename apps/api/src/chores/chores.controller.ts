@@ -23,8 +23,8 @@ const ChoreDefinitionBodySchema: any = {
     schedule: {
       oneOf: [
         { type: 'object', required: ['type', 'oneTimeDueAt'], properties: { type: { type: 'string', enum: ['one_time'] }, oneTimeDueAt: { type: 'string', format: 'date-time' }, gracePeriodMinutes: { type: 'number' } } },
-        { type: 'object', required: ['type', 'rrule'], properties: { type: { type: 'string', enum: ['repeating_calendar'] }, rrule: { type: 'string', example: 'FREQ=WEEKLY;BYDAY=SU,WE' }, dueTime: { type: 'string', example: '20:00' }, gracePeriodMinutes: { type: 'number' } } },
-        { type: 'object', required: ['type', 'intervalDays'], properties: { type: { type: 'string', enum: ['repeating_after_completion'] }, intervalDays: { type: 'number' }, dueTime: { type: 'string', example: '20:00' }, gracePeriodMinutes: { type: 'number' } } },
+        { type: 'object', required: ['type', 'rrule'], properties: { type: { type: 'string', enum: ['repeating_calendar'] }, rrule: { type: 'string', example: 'FREQ=WEEKLY;BYDAY=SU,WE' }, dueTime: { type: 'string', example: '20:00' }, endsAt: { type: 'string', format: 'date-time' }, gracePeriodMinutes: { type: 'number' } } },
+        { type: 'object', required: ['type', 'intervalDays'], properties: { type: { type: 'string', enum: ['repeating_after_completion'] }, intervalDays: { type: 'number' }, dueTime: { type: 'string', example: '20:00' }, endsAt: { type: 'string', format: 'date-time' }, gracePeriodMinutes: { type: 'number' } } },
       ],
     },
     assignment: {

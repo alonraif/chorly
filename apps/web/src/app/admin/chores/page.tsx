@@ -1,10 +1,12 @@
 'use client';
 
 import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { api } from '../../../lib/api';
 
 type User = { id: string; displayName: string; role: 'parent' | 'child' };
 type Chore = { id: string; title_en: string; title_he: string; hasReward: boolean; rewardAmount: string | null };
+type SuccessSummary = { title: string; scheduleLabel: string; assignees: string; shared: boolean; favorite: boolean };
 
 const REPEATING_CALENDAR_OPTIONS = [
   { label: 'Every day', value: 'FREQ=DAILY' },
@@ -21,6 +23,7 @@ const REPEATING_CALENDAR_OPTIONS = [
 ] as const;
 
 export default function AdminChoresPage() {
+  const router = useRouter();
   const [users, setUsers] = useState<User[]>([]);
   const [chores, setChores] = useState<Chore[]>([]);
   const [error, setError] = useState('');
@@ -31,6 +34,8 @@ export default function AdminChoresPage() {
   const [oneTimeDueAt, setOneTimeDueAt] = useState('');
   const [rrule, setRrule] = useState<string>(REPEATING_CALENDAR_OPTIONS[1].value);
   const [intervalDays, setIntervalDays] = useState(2);
+  const [recurrenceEndMode, setRecurrenceEndMode] = useState<'indefinite' | 'end_date'>('indefinite');
+  const [recurrenceEndDate, setRecurrenceEndDate] = useState('');
   const [dueTime, setDueTime] = useState('20:00');
   const [grace, setGrace] = useState(60);
   const [shared, setShared] = useState(false);
@@ -39,6 +44,7 @@ export default function AdminChoresPage() {
   const [hasReward, setHasReward] = useState(false);
   const [rewardAmount, setRewardAmount] = useState('');
   const [addToFavorites, setAddToFavorites] = useState(false);
+  const [successSummary, setSuccessSummary] = useState<SuccessSummary | null>(null);
   const assignableUsers = useMemo(() => users.filter((user) => user.role === 'child'), [users]);
 
   async function load() {
@@ -75,13 +81,16 @@ export default function AdminChoresPage() {
   }, [assigneeId, assignableUsers]);
 
   function buildSchedule() {
+    const endsAt = recurrenceEndMode === 'end_date' && recurrenceEndDate
+      ? new Date(`${recurrenceEndDate}T23:59:59`).toISOString()
+      : undefined;
     if (scheduleType === 'one_time') {
       return { type: 'one_time', oneTimeDueAt: new Date(oneTimeDueAt).toISOString(), gracePeriodMinutes: grace };
     }
     if (scheduleType === 'repeating_calendar') {
-      return { type: 'repeating_calendar', rrule, dueTime: dueTime || undefined, gracePeriodMinutes: grace };
+      return { type: 'repeating_calendar', rrule, dueTime: dueTime || undefined, endsAt, gracePeriodMinutes: grace };
     }
-    return { type: 'repeating_after_completion', intervalDays, dueTime: dueTime || undefined, gracePeriodMinutes: grace };
+    return { type: 'repeating_after_completion', intervalDays, dueTime: dueTime || undefined, endsAt, gracePeriodMinutes: grace };
   }
 
   async function onCreate(e: FormEvent) {
@@ -105,6 +114,27 @@ export default function AdminChoresPage() {
       if (addToFavorites) {
         await api.post('/templates', payload);
       }
+      const chosenAssignees = (shared ? sharedAssigneeIds : [assigneeId])
+        .map((id) => users.find((user) => user.id === id)?.displayName)
+        .filter(Boolean)
+        .join(', ');
+      const scheduleLabel = scheduleType === 'one_time'
+        ? 'One time'
+        : scheduleType === 'repeating_calendar'
+          ? (REPEATING_CALENDAR_OPTIONS.find((opt) => opt.value === rrule)?.label || 'Repeating calendar')
+          : `Every ${intervalDays} day(s) after completion`;
+      const scheduleWithEnd = scheduleType === 'one_time'
+        ? scheduleLabel
+        : recurrenceEndMode === 'end_date' && recurrenceEndDate
+        ? `${scheduleLabel} (until ${recurrenceEndDate})`
+        : `${scheduleLabel} (indefinite)`;
+      setSuccessSummary({
+        title: titleEngHe,
+        scheduleLabel: scheduleWithEnd,
+        assignees: chosenAssignees || 'None',
+        shared,
+        favorite: addToFavorites,
+      });
       setTitleEngHe('');
       await load();
     } catch (err: any) {
@@ -166,6 +196,20 @@ export default function AdminChoresPage() {
           </label>
         )}
 
+        {scheduleType !== 'one_time' && (
+          <label>Recurrence end
+            <select value={recurrenceEndMode} onChange={(e) => setRecurrenceEndMode(e.target.value as 'indefinite' | 'end_date')}>
+              <option value="indefinite">Indefinite</option>
+              <option value="end_date">End date</option>
+            </select>
+          </label>
+        )}
+        {scheduleType !== 'one_time' && recurrenceEndMode === 'end_date' && (
+          <label>End date
+            <input type="date" value={recurrenceEndDate} onChange={(e) => setRecurrenceEndDate(e.target.value)} required />
+          </label>
+        )}
+
         <label>Grace minutes
           <input type="number" min={0} value={grace} onChange={(e) => setGrace(Number(e.target.value))} />
         </label>
@@ -224,6 +268,20 @@ export default function AdminChoresPage() {
           ))}
         </ul>
       </section>
+
+      {successSummary && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="chore-created-title">
+          <div className="modal-card">
+            <h3 id="chore-created-title">Chore created successfully</h3>
+            <p><strong>Title:</strong> {successSummary.title || '-'}</p>
+            <p><strong>Schedule:</strong> {successSummary.scheduleLabel}</p>
+            <p><strong>Assignee(s):</strong> {successSummary.assignees}</p>
+            <p><strong>Shared:</strong> {successSummary.shared ? 'Yes' : 'No'}</p>
+            <p><strong>Saved to favorites:</strong> {successSummary.favorite ? 'Yes' : 'No'}</p>
+            <button type="button" onClick={() => router.push('/chorespace')}>OK</button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

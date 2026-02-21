@@ -202,4 +202,10 @@ export class InstancesService {
 
     return result;
   }
+
+  async remove(tenantId: string, instanceId: string) {
+    await this.getInstanceOrThrow(tenantId, instanceId);
+    await this.prisma.choreInstance.delete({ where: { id: instanceId } });
+    return { ok: true };
+  }
 }

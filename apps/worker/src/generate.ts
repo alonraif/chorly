@@ -23,9 +23,11 @@ async function generateForChore(tenantId: string, chore: any, usersById: Map<str
     });
 
     let cursor = lastApproved?.approvedAt ? DateTime.fromJSDate(lastApproved.approvedAt).setZone(TZ) : DateTime.now().setZone(TZ);
+    const endsAtUtc = afterCompletion.endsAt ? DateTime.fromISO(afterCompletion.endsAt, { zone: 'utc' }).toJSDate() : null;
     while (true) {
       const candidate = parseDueTime(cursor.plus({ days: afterCompletion.intervalDays }), afterCompletion.dueTime);
       const candidateUtc = candidate.toUTC().toJSDate();
+      if (endsAtUtc && candidateUtc > endsAtUtc) break;
       if (candidateUtc > to) break;
       if (candidateUtc >= from) dueDates.add(candidateUtc.getTime());
       cursor = candidate;
