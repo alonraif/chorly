@@ -1,0 +1,177 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Locale {
+  en
+  he
+}
+
+enum InstanceStatus {
+  assigned
+  done
+  approved
+}
+
+enum MoneyLedgerType {
+  earn
+}
+
+enum InviteStatus {
+  pending
+  accepted
+  revoked
+  expired
+}
+
+model Tenant {
+  id            String   @id
+  name          String
+  currencyCode  String   @default("ILS")
+  defaultLocale Locale   @default(he)
+  createdAt     DateTime @default(now())
+
+  users       User[]
+  chores      ChoreDefinition[]
+  instances   ChoreInstance[]
+  moneyLedger MoneyLedger[]
+  invites     FamilyInvite[]
+}
+
+model User {
+  id             String   @id @default(cuid())
+  tenantId       String
+  tenant         Tenant   @relation(fields: [tenantId], references: [id])
+  email          String?  @unique
+  displayName    String
+  isAdmin        Boolean  @default(false)
+  isSystemAdmin  Boolean  @default(false)
+  locale         Locale   @default(he)
+  isActive       Boolean  @default(true)
+  isAway         Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  assignments       InstanceAssignment[]
+  completions       ChoreCompletion[]
+  approvedInstances ChoreInstance[]   @relation("InstanceApprover")
+  ledgerEntries     MoneyLedger[]
+  sentInvites       FamilyInvite[]    @relation("InviteCreator")
+
+  @@index([tenantId, isActive])
+  @@index([tenantId, isAway])
+  @@index([isSystemAdmin])
+}
+
+model FamilyInvite {
+  id            String      @id @default(cuid())
+  tenantId      String
+  tenant        Tenant      @relation(fields: [tenantId], references: [id])
+  inviterUserId String
+  inviter       User        @relation("InviteCreator", fields: [inviterUserId], references: [id])
+  email         String
+  token         String      @unique
+  status        InviteStatus @default(pending)
+  expiresAt     DateTime
+  acceptedAt    DateTime?
+  createdAt     DateTime    @default(now())
+
+  @@index([tenantId, status])
+  @@index([email, status])
+}
+
+model ChoreDefinition {
+  id                String   @id @default(cuid())
+  tenantId          String
+  tenant            Tenant   @relation(fields: [tenantId], references: [id])
+  title_en          String
+  title_he          String
+  hasReward         Boolean  @default(false)
+  rewardAmount      Decimal?
+  allowNotes        Boolean  @default(true)
+  allowPhotoProof   Boolean  @default(false)
+  scheduleJson      Json
+  assignmentJson    Json
+  lastAssignedUserId String?
+  isTemplate        Boolean  @default(false)
+  deletedAt         DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  instances ChoreInstance[]
+
+  @@index([tenantId, isTemplate])
+  @@index([tenantId, deletedAt])
+}
+
+model ChoreInstance {
+  id               String          @id @default(cuid())
+  tenantId         String
+  tenant           Tenant          @relation(fields: [tenantId], references: [id])
+  choreId          String
+  chore            ChoreDefinition @relation(fields: [choreId], references: [id])
+  dueAt            DateTime
+  status           InstanceStatus  @default(assigned)
+  approvedAt       DateTime?
+  approvedByUserId String?
+  approvedBy       User?           @relation("InstanceApprover", fields: [approvedByUserId], references: [id])
+  rewardAmount     Decimal?
+  notes            Json?
+  photoKeys        Json?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  assignments   InstanceAssignment[]
+  completions   ChoreCompletion[]
+  ledgerEntries MoneyLedger[]
+
+  @@unique([tenantId, choreId, dueAt])
+  @@index([tenantId, dueAt])
+  @@index([tenantId, status, dueAt])
+}
+
+model InstanceAssignment {
+  id         String        @id @default(cuid())
+  instanceId String
+  instance   ChoreInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedAt DateTime      @default(now())
+
+  @@unique([instanceId, userId])
+  @@index([userId, instanceId])
+}
+
+model ChoreCompletion {
+  id         String        @id @default(cuid())
+  instanceId String
+  instance   ChoreInstance @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  doneAt     DateTime      @default(now())
+  undoneAt   DateTime?
+
+  @@unique([instanceId, userId])
+  @@index([userId, doneAt])
+  @@index([instanceId, undoneAt])
+}
+
+model MoneyLedger {
+  id         String         @id @default(cuid())
+  tenantId   String
+  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  userId     String
+  user       User           @relation(fields: [userId], references: [id])
+  type       MoneyLedgerType
+  amount     Decimal
+  instanceId String?
+  instance   ChoreInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  createdAt  DateTime       @default(now())
+
+  @@index([tenantId, userId, createdAt])
+  @@index([instanceId])
+}

@@ -1,0 +1,26 @@
+{
+  "name": "chorly-worker",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "generate": "tsx src/generate.ts",
+    "reminders:morning": "tsx src/reminders-morning.ts",
+    "reminders:overdue": "tsx src/overdue-nags.ts",
+    "summary:weekly": "tsx src/weekly-summary.ts"
+  },
+  "dependencies": {
+    "@chorly/shared": "workspace:*",
+    "@prisma/client": "^5.22.0",
+    "luxon": "^3.7.2",
+    "nodemailer": "^7.0.5",
+    "rrule": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/luxon": "^3.7.1",
+    "@types/node": "^20.11.30",
+    "@types/nodemailer": "^7.0.3",
+    "typescript": "^5.4.5",
+    "tsx": "^4.19.2"
+  }
+}
