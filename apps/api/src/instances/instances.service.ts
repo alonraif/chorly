@@ -126,10 +126,10 @@ export class InstancesService {
     });
 
     if (status === 'done' && instance.status !== 'done') {
-      void this.push.sendToParents(tenantId, (locale) => ({
+      void this.push.sendToParents(tenantId, 'readyForApproval', (locale) => ({
         ...notificationText.readyForApproval(locale, actor.displayName, choreName(refreshed.chore, locale)),
         url: '/parent/review',
-      }));
+      }), actor.id);
     }
 
     return updated;
@@ -217,7 +217,8 @@ export class InstancesService {
     });
 
     const reward = hasReward && rewardAmountDecimal ? rewardAmountDecimal.toString() : null;
-    void this.push.sendToUsers(creditedUsers, (locale) => ({
+    // A parent approving their own chore doesn't need to be told.
+    void this.push.sendToUsers(creditedUsers.filter((id) => id !== actor.id), 'approved', (locale) => ({
       ...notificationText.approved(locale, choreName(instance.chore, locale), reward),
       url: '/child',
     }));

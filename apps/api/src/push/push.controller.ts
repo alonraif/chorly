@@ -44,7 +44,7 @@ export class PushController {
   @Post('/test')
   @ApiOperation({ summary: 'Send a test notification to my devices' })
   async test(@CurrentUser() user: RequestUser) {
-    await this.push.sendToUsers([user.id], { ...notificationText.test(user.locale, user.displayName), url: '/' });
+    await this.push.sendToUsers([user.id], null, { ...notificationText.test(user.locale, user.displayName), url: '/' });
     return { ok: true };
   }
 }

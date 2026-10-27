@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import webpush from 'web-push';
 import type { Locale } from '@prisma/client';
+import { wantsNotification, type NotificationPref } from '@chorly/shared';
 import { PrismaService } from '../prisma.service';
 
 export type PushPayload = { title: string; body: string; url?: string };
@@ -35,35 +36,38 @@ export class PushService {
     await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
   }
 
-  async sendToUsers(userIds: string[], payload: PayloadFor) {
+  // `pref` is the notification type; users who turned it off are skipped. Null always sends (e.g. the test push).
+  async sendToUsers(userIds: string[], pref: NotificationPref | null, payload: PayloadFor) {
     if (!this.enabled || userIds.length === 0) return;
     const subs = await this.prisma.pushSubscription.findMany({
       where: { userId: { in: userIds } },
-      include: { user: { select: { locale: true } } },
+      include: { user: { select: { locale: true, notifyPrefs: true } } },
     });
     await Promise.all(
-      subs.map(async (sub) => {
-        try {
-          await webpush.sendNotification(
-            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            JSON.stringify(typeof payload === 'function' ? payload(sub.user.locale) : payload),
-          );
-        } catch (err: any) {
-          if (err?.statusCode === 404 || err?.statusCode === 410) {
-            await this.prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => undefined);
-          } else {
-            this.logger.warn(`push failed: ${err?.statusCode || err?.message}`);
+      subs
+        .filter((sub) => !pref || wantsNotification(sub.user.notifyPrefs, pref))
+        .map(async (sub) => {
+          try {
+            await webpush.sendNotification(
+              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+              JSON.stringify(typeof payload === 'function' ? payload(sub.user.locale) : payload),
+            );
+          } catch (err: any) {
+            if (err?.statusCode === 404 || err?.statusCode === 410) {
+              await this.prisma.pushSubscription.delete({ where: { id: sub.id } }).catch(() => undefined);
+            } else {
+              this.logger.warn(`push failed: ${err?.statusCode || err?.message}`);
+            }
           }
-        }
-      }),
+        }),
     );
   }
 
-  async sendToParents(tenantId: string, payload: PayloadFor) {
+  async sendToParents(tenantId: string, pref: NotificationPref, payload: PayloadFor, excludeUserId?: string) {
     const parents = await this.prisma.user.findMany({
-      where: { tenantId, isActive: true, isAdmin: true },
+      where: { tenantId, isActive: true, isAdmin: true, id: excludeUserId ? { not: excludeUserId } : undefined },
       select: { id: true },
     });
-    await this.sendToUsers(parents.map((p) => p.id), payload);
+    await this.sendToUsers(parents.map((p) => p.id), pref, payload);
   }
 }

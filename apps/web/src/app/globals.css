@@ -2624,6 +2624,22 @@ textarea.input {
   position: relative;
 }
 
+.setting-chevron {
+  display: grid;
+  color: var(--ink-2);
+  transition: transform 0.2s var(--ease);
+}
+
+.setting-chevron.is-open {
+  transform: rotate(180deg);
+}
+
+.notif-prefs {
+  display: grid;
+  gap: 14px;
+  padding: 4px 14px 16px;
+}
+
 .setting-row-wrap {
   flex-wrap: wrap;
 }

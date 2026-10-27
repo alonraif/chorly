@@ -11,6 +11,7 @@ import { Avatar } from './avatar';
 import { Icon, type IconName } from './icon';
 import { LanguageRow, PublicLanguageSwitch } from './language-picker';
 import { NotificationsRow } from './notifications-button';
+import { NotificationPrefsRow } from './notification-prefs';
 import { Sheet, Spinner, UiProvider } from './ui';
 
 const PUBLIC_PATHS = ['/', '/register'];
@@ -119,6 +120,7 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
       <div className="settings-list">
         <LanguageRow />
         <NotificationsRow />
+        <NotificationPrefsRow />
         <button type="button" className="setting-row setting-button" onClick={logout}>
           <span className="setting-icon">
             <Icon name="logout" size={18} />

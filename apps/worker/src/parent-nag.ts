@@ -31,7 +31,7 @@ async function runForTenant(tenantId: string) {
     }
     if (lines.length === 0) continue;
 
-    await notifyUser(prisma, parent, {
+    await notifyUser(prisma, parent, 'parentDigest', {
       ...notificationText.parentOverdue(parent.locale, lines),
       url: `${APP_BASE_URL}/parent`,
     });

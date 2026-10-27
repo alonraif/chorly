@@ -90,7 +90,9 @@ Notifications sent:
 - 30 minutes before a chore's due time → the kid (once per chore; only chores with a time set, none during quiet hours `21:00-07:00`).
 - 17:00 + 20:00 overdue chores → the kid. Each chore at most once a day, and only for 3 days after it was due.
 - 20:00 overdue chores across the family → parents.
-- Saturday 19:00 weekly summary.
+- Saturday 19:00 weekly summary: kids get their own week, parents get the family's.
+
+Nobody is notified about their own action (a parent approving their own chore, say). Each member can turn any type off under **Account → Choose notifications**; this applies to email too.
 
 Times are configurable with `CRON_*` env vars on the worker (see `apps/worker/src/scheduler.ts`), plus `DUE_SOON_MINUTES`, `OVERDUE_MAX_DAYS` and `QUIET_HOURS`.
 

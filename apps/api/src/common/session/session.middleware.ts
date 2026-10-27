@@ -25,6 +25,7 @@ export class SessionMiddleware implements NestMiddleware {
               locale: true,
               isAway: true,
               isActive: true,
+              notifyPrefs: true,
             },
           },
         },

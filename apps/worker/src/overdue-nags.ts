@@ -14,11 +14,11 @@ async function runForTenant(tenantId: string) {
   const overdue = await findOverdue(prisma, tenantId);
   const sent = await sentKeys(prisma, 'overdue', day, overdue.map((o) => o.instance.id));
 
-  const nagsByUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; lines: string[]; instanceIds: string[] }>();
+  const nagsByUser = new Map<string, { id: string; email: string | null; notifyPrefs: unknown; displayName: string; locale: Locale; lines: string[]; instanceIds: string[] }>();
   for (const { instance, pending } of overdue) {
     for (const user of pending) {
       if (sent.has(user.id, instance.id)) continue;
-      const entry = nagsByUser.get(user.id) || { id: user.id, email: user.email, displayName: user.displayName, locale: user.locale, lines: [], instanceIds: [] };
+      const entry = nagsByUser.get(user.id) || { id: user.id, email: user.email, notifyPrefs: user.notifyPrefs, displayName: user.displayName, locale: user.locale, lines: [], instanceIds: [] };
       entry.lines.push(choreName(instance.chore, user.locale));
       entry.instanceIds.push(instance.id);
       nagsByUser.set(user.id, entry);
@@ -26,7 +26,7 @@ async function runForTenant(tenantId: string) {
   }
 
   for (const [, entry] of nagsByUser) {
-    await notifyUser(prisma, entry, {
+    await notifyUser(prisma, entry, 'overdue', {
       ...notificationText.overdue(entry.locale, entry.displayName, entry.lines),
       url: `${APP_BASE_URL}/child`,
     });

@@ -14,19 +14,19 @@ async function runForTenant(tenantId: string) {
     orderBy: { dueAt: 'asc' },
   });
 
-  const choresByUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; lines: string[] }>();
+  const choresByUser = new Map<string, { id: string; email: string | null; notifyPrefs: unknown; displayName: string; locale: Locale; lines: string[] }>();
   for (const instance of instances) {
     const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
     for (const assignment of instance.assignments) {
       if (activeDone.has(assignment.userId)) continue;
-      const entry = choresByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, locale: assignment.user.locale, lines: [] };
+      const entry = choresByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, notifyPrefs: assignment.user.notifyPrefs, displayName: assignment.user.displayName, locale: assignment.user.locale, lines: [] };
       entry.lines.push(choreName(instance.chore, assignment.user.locale));
       choresByUser.set(assignment.userId, entry);
     }
   }
 
   for (const [, entry] of choresByUser) {
-    await notifyUser(prisma, entry, {
+    await notifyUser(prisma, entry, 'morning', {
       ...notificationText.morning(entry.locale, entry.displayName, entry.lines.length, entry.lines),
       url: `${APP_BASE_URL}/child`,
     });

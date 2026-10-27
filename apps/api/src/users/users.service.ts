@@ -1,7 +1,7 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { MoneyLedgerType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
-import type { CreateUser, UpdateUser } from '@chorly/shared';
+import type { CreateUser, NotificationPrefs, UpdateUser } from '@chorly/shared';
 import type { RequestUser } from '../common/session/session.types';
 import { hashPassword } from '../common/auth/password';
 
@@ -19,6 +19,7 @@ export class UsersService {
     locale: true,
     isActive: true,
     isAway: true,
+    notifyPrefs: true,
     createdAt: true,
   } satisfies Prisma.UserSelect;
 
@@ -55,6 +56,16 @@ export class UsersService {
         locale: data.locale ?? 'he',
         isAway: data.isAway ?? false,
       },
+      select: this.publicUserSelect,
+    });
+  }
+
+  // Merges into the stored preferences, so a client can flip one type at a time.
+  async updateNotifyPrefs(tenantId: string, id: string, prefs: NotificationPrefs) {
+    const user = await this.get(tenantId, id);
+    return this.prisma.user.update({
+      where: { id },
+      data: { notifyPrefs: { ...((user.notifyPrefs as NotificationPrefs | null) ?? {}), ...prefs } },
       select: this.publicUserSelect,
     });
   }

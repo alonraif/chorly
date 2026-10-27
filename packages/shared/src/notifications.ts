@@ -45,6 +45,20 @@ export const notificationText = {
       ? { title: '📋 עוד פתוח', body: lines.join(' · ') }
       : { title: '📋 Still open', body: lines.join(' · ') },
 
+  // Parents get the whole family's week; `kids` lines are "name count".
+  weeklyFamily: (locale: Locale, approved: number, earned: string, missed: number, kids: string[]) => {
+    const tail = kids.length ? ` ${kids.join(' · ')}` : '';
+    return locale === 'he'
+      ? {
+          title: '📊 השבוע של המשפחה',
+          body: `${approved === 1 ? 'מטלה אחת אושרה' : `${approved} מטלות אושרו`}, ${earned} הורווחו, ${missed} לא בוצעו.${tail}`,
+        }
+      : {
+          title: '📊 Family week',
+          body: `${approved} ${approved === 1 ? 'chore' : 'chores'} approved, ${earned} earned, ${missed} missed.${tail}`,
+        };
+  },
+
   weekly: (locale: Locale, name: string, approved: number, earned: string, upcoming: number) =>
     locale === 'he'
       ? {

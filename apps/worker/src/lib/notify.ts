@@ -1,4 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
+import { wantsNotification, type NotificationPref } from '@chorly/shared';
 import webpush from 'web-push';
 import { sendEmail } from './email';
 
@@ -9,11 +10,13 @@ if (pushEnabled) {
   webpush.setVapidDetails(process.env.VAPID_SUBJECT || 'mailto:admin@example.com', vapidPublic, vapidPrivate);
 }
 
-type Recipient = { id: string; email: string | null };
+type Recipient = { id: string; email: string | null; notifyPrefs: unknown };
 type Message = { title: string; body: string; url: string };
 
 // Push to every registered device of the user; email too when SMTP is configured.
-export async function notifyUser(prisma: PrismaClient, user: Recipient, msg: Message) {
+// Nothing is sent when the user turned this notification type off.
+export async function notifyUser(prisma: PrismaClient, user: Recipient, pref: NotificationPref, msg: Message) {
+  if (!wantsNotification(user.notifyPrefs, pref)) return;
   if (pushEnabled) {
     const subs = await prisma.pushSubscription.findMany({ where: { userId: user.id } });
     for (const sub of subs) {

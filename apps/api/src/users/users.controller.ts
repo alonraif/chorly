@@ -1,6 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { CreateUserSchema, LocaleSchema, UpdateUserSchema } from '@chorly/shared';
+import { CreateUserSchema, LocaleSchema, NOTIFICATION_PREFS, NotificationPrefsSchema, UpdateUserSchema } from '@chorly/shared';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { UsersService } from './users.service';
@@ -11,7 +11,9 @@ import { CurrentTenant } from '../common/session/current-tenant.decorator';
 import { RequireTenantGuard } from '../common/session/require-tenant.guard';
 import { RequireUserGuard } from '../common/session/require-user.guard';
 
-const UpdateMeSchema = z.object({ locale: LocaleSchema });
+const UpdateMeSchema = z
+  .object({ locale: LocaleSchema.optional(), notifyPrefs: NotificationPrefsSchema.optional() })
+  .refine((b) => b.locale !== undefined || b.notifyPrefs !== undefined, 'Nothing to update');
 
 @ApiTags('users')
 @Controller('/users')
@@ -29,9 +31,19 @@ export class UsersController {
   @Patch('me')
   @UseGuards(RequireUserGuard)
   @ApiOperation({ summary: 'Update my own preferences (any family member)' })
-  @ApiBody({ schema: { type: 'object', required: ['locale'], properties: { locale: { type: 'string', enum: ['en', 'he'] } } } })
-  updateMe(@CurrentTenant() tenantId: string, @CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(UpdateMeSchema)) body: any) {
-    return this.users.update(tenantId, user.id, { locale: body.locale });
+  @ApiBody({
+    schema: {
+      type: 'object',
+      properties: {
+        locale: { type: 'string', enum: ['en', 'he'] },
+        notifyPrefs: { type: 'object', properties: Object.fromEntries(NOTIFICATION_PREFS.map((k) => [k, { type: 'boolean' }])) },
+      },
+    },
+  })
+  async updateMe(@CurrentTenant() tenantId: string, @CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(UpdateMeSchema)) body: any) {
+    if (body.notifyPrefs) await this.users.updateNotifyPrefs(tenantId, user.id, body.notifyPrefs);
+    if (body.locale) return this.users.update(tenantId, user.id, { locale: body.locale });
+    return this.users.get(tenantId, user.id);
   }
 
   @Get(':id')

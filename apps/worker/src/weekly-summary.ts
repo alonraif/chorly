@@ -6,25 +6,39 @@ import { notifyUser } from './lib/notify';
 
 const prisma = new PrismaClient();
 
+// Kids get their own week; parents get the family's.
 async function runForTenant(tenantId: string) {
   const lastWeek = weekRangeLast7Days();
   const nextWeek = next7DaysRange();
 
-  const [users, approvedInstances, ledger, upcoming] = await Promise.all([
-    prisma.user.findMany({ where: { tenantId, isActive: true } }),
-    prisma.choreInstance.findMany({ where: { tenantId, status: 'approved', approvedAt: { gte: lastWeek.from, lte: lastWeek.to } }, include: { chore: true, completions: true } }),
-    prisma.moneyLedger.findMany({ where: { tenantId, createdAt: { gte: lastWeek.from, lte: lastWeek.to } } }),
-    prisma.choreInstance.findMany({ where: { tenantId, dueAt: { gte: nextWeek.from, lte: nextWeek.to } }, include: { chore: true, assignments: true }, orderBy: { dueAt: 'asc' } }),
+  const [users, approvedInstances, earnings, missed, upcoming] = await Promise.all([
+    prisma.user.findMany({ where: { tenantId, isActive: true }, orderBy: { createdAt: 'asc' } }),
+    prisma.choreInstance.findMany({ where: { tenantId, status: 'approved', approvedAt: { gte: lastWeek.from, lte: lastWeek.to } }, include: { completions: true } }),
+    prisma.moneyLedger.findMany({ where: { tenantId, type: 'earn', createdAt: { gte: lastWeek.from, lte: lastWeek.to } } }),
+    prisma.choreInstance.count({ where: { tenantId, status: 'assigned', dueAt: { gte: lastWeek.from, lt: new Date() } } }),
+    prisma.choreInstance.findMany({ where: { tenantId, dueAt: { gte: nextWeek.from, lte: nextWeek.to } }, include: { assignments: true } }),
   ]);
 
-  for (const user of users) {
-    const completed = approvedInstances.filter((instance) => instance.completions.some((c) => c.userId === user.id && !c.undoneAt));
-    const earned = ledger.filter((row) => row.userId === user.id).reduce((sum, row) => sum.plus(row.amount), new Prisma.Decimal(0));
-    const upcomingCount = upcoming.filter((instance) => instance.assignments.some((a) => a.userId === user.id)).length;
+  const sum = (rows: typeof earnings) => rows.reduce((total, row) => total.plus(row.amount), new Prisma.Decimal(0));
+  const approvedCount = (userId: string) =>
+    approvedInstances.filter((instance) => instance.completions.some((c) => c.userId === userId && !c.undoneAt)).length;
 
-    await notifyUser(prisma, user, {
-      ...notificationText.weekly(user.locale, user.displayName, completed.length, earned.toString(), upcomingCount),
-      url: `${APP_BASE_URL}/${user.role === 'child' ? 'child' : 'parent'}`,
+  const kidLines = users.filter((u) => u.role === 'child').map((kid) => `${kid.displayName} ${approvedCount(kid.id)}`);
+  const familyEarned = sum(earnings).toString();
+
+  for (const user of users) {
+    const msg = user.isAdmin
+      ? notificationText.weeklyFamily(user.locale, approvedInstances.length, familyEarned, missed, kidLines)
+      : notificationText.weekly(
+          user.locale,
+          user.displayName,
+          approvedCount(user.id),
+          sum(earnings.filter((row) => row.userId === user.id)).toString(),
+          upcoming.filter((instance) => instance.assignments.some((a) => a.userId === user.id)).length,
+        );
+    await notifyUser(prisma, user, 'weekly', {
+      ...msg,
+      url: `${APP_BASE_URL}/${user.isAdmin ? 'parent' : 'child'}`,
     });
   }
 

@@ -22,13 +22,13 @@ async function runForTenant(tenantId: string) {
   const days = new Set(instances.map((i) => localDay(i.dueAt)));
   const sentByDay = new Map(await Promise.all([...days].map(async (d) => [d, await sentKeys(prisma, 'due_soon', d, instances.map((i) => i.id))] as const)));
 
-  const byUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; firstDue: Date; lines: string[]; sent: Array<{ instanceId: string; day: string }> }>();
+  const byUser = new Map<string, { id: string; email: string | null; notifyPrefs: unknown; displayName: string; locale: Locale; firstDue: Date; lines: string[]; sent: Array<{ instanceId: string; day: string }> }>();
   for (const instance of instances) {
     const day = localDay(instance.dueAt);
     const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
     for (const { user } of instance.assignments) {
       if (!user.isActive || activeDone.has(user.id) || sentByDay.get(day)!.has(user.id, instance.id)) continue;
-      const entry = byUser.get(user.id) || { id: user.id, email: user.email, displayName: user.displayName, locale: user.locale, firstDue: instance.dueAt, lines: [], sent: [] };
+      const entry = byUser.get(user.id) || { id: user.id, email: user.email, notifyPrefs: user.notifyPrefs, displayName: user.displayName, locale: user.locale, firstDue: instance.dueAt, lines: [], sent: [] };
       entry.lines.push(choreName(instance.chore, user.locale));
       entry.sent.push({ instanceId: instance.id, day });
       byUser.set(user.id, entry);
@@ -37,7 +37,7 @@ async function runForTenant(tenantId: string) {
 
   for (const [, entry] of byUser) {
     const minutes = Math.max(1, Math.round((entry.firstDue.getTime() - now.getTime()) / 60000));
-    await notifyUser(prisma, entry, {
+    await notifyUser(prisma, entry, 'dueSoon', {
       ...notificationText.dueSoon(entry.locale, entry.displayName, minutes, entry.lines),
       url: `${APP_BASE_URL}/child`,
     });

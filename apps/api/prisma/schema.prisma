@@ -61,6 +61,8 @@ model User {
   locale         Locale   @default(he)
   isActive       Boolean  @default(true)
   isAway         Boolean  @default(false)
+  // Notification types this member turned off, e.g. {"overdue": false}. See NOTIFICATION_PREFS.
+  notifyPrefs    Json     @default("{}")
   createdAt      DateTime @default(now())
 
   assignments       InstanceAssignment[]
