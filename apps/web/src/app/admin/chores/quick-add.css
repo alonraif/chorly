@@ -1,0 +1,75 @@
+/* Quick add suggestions: manage mode + suggestion sheet. Uses globals.css tokens. */
+
+.qa-section .section-head {
+  flex-wrap: wrap;
+}
+
+.qa-hint {
+  margin-block: -6px 12px;
+}
+
+.qa-grid {
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+}
+
+.qa-item {
+  position: relative;
+  min-width: 0;
+  display: grid;
+}
+
+.qa-item .template-card {
+  min-width: 0;
+  width: 100%;
+}
+
+.qa-item .row-title,
+.qa-item .small {
+  overflow-wrap: anywhere;
+}
+
+.qa-managing .template-card {
+  border-style: solid;
+  background: var(--surface);
+  padding-inline-end: 96px;
+  cursor: default;
+}
+
+.qa-actions {
+  position: absolute;
+  inset-inline-end: 6px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  gap: 2px;
+}
+
+.qa-actions .icon-btn.qa-delete:hover {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.qa-add-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 64px;
+  padding: 14px 16px;
+  border-radius: var(--radius);
+  border: 1px dashed var(--brand);
+  background: transparent;
+  color: var(--brand);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.qa-add-card:hover {
+  background: var(--surface);
+}
+
+.qa-form {
+  display: grid;
+  gap: 22px;
+}

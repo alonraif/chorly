@@ -1,9 +1,10 @@
 'use client';
 
+import { DateTime } from 'luxon';
 import Link from 'next/link';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import { choreTitle, dayKey, firstName, friendlyDay, greeting, longDate, now, timeOf, weekdayCodeOf, weekdayName } from '../../lib/format';
+import { choreTitle, dayKey, firstName, friendlyDay, greeting, longDate, now, timeOf, TZ, weekdayCodeOf, weekdayName } from '../../lib/format';
 import { joinNames, t, tn } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { rangeQuery, type Chore, type Instance } from '../../lib/types';
@@ -12,7 +13,44 @@ import { ChoreEditor } from '../../components/chore-editor';
 import { Icon } from '../../components/icon';
 import { InstanceSheet } from '../../components/instance-sheet';
 import { statusOf, StatusPill } from '../../components/status';
-import { EmptyState, errorMessage } from '../../components/ui';
+import { EmptyState, errorMessage, Segmented } from '../../components/ui';
+
+type View = 'day' | 'week' | 'month';
+const VIEWS: View[] = ['day', 'week', 'month'];
+const VIEW_STORAGE_KEY = 'chorly.parentHomeView';
+
+function readView(): View {
+  try {
+    const stored = window.localStorage.getItem(VIEW_STORAGE_KEY);
+    return VIEWS.includes(stored as View) ? (stored as View) : 'week';
+  } catch {
+    return 'week';
+  }
+}
+
+function saveView(view: View) {
+  try {
+    window.localStorage.setItem(VIEW_STORAGE_KEY, view);
+  } catch {
+    // Private mode or storage disabled: the view just isn't remembered.
+  }
+}
+
+function toDay(key: string) {
+  return DateTime.fromISO(key, { zone: TZ }).startOf('day');
+}
+
+function isoKey(day: DateTime) {
+  return day.toISODate() || '';
+}
+
+function daysBetween(from: DateTime, to: DateTime) {
+  return Math.round(to.startOf('day').diff(from.startOf('day'), 'days').days);
+}
+
+function eachDay(from: DateTime, count: number) {
+  return Array.from({ length: count }, (_, i) => from.plus({ days: i }));
+}
 
 export default function ParentHomePage() {
   const { me, kids, approvalsCount } = useSession();
@@ -21,47 +59,123 @@ export default function ParentHomePage() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [selectedDay, setSelectedDay] = useState(() => now().toISODate() || '');
+  const [view, setView] = useState<View>('week');
+  const [loadedRange, setLoadedRange] = useState('');
   const [kidFilter, setKidFilter] = useState<string | null>(null);
   const [openInstance, setOpenInstance] = useState<Instance | null>(null);
   const [editor, setEditor] = useState<{ open: boolean; choreId?: string | null }>({ open: false });
 
-  const days = useMemo(() => {
-    const start = now().startOf('day');
-    return Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
+  // Read the remembered view after mount so server and client render the same markup first.
+  useEffect(() => {
+    setView(readView());
   }, []);
 
+  const changeView = (next: View) => {
+    setView(next);
+    saveView(next);
+  };
+
+  const today = now().startOf('day');
+  const todayKey = isoKey(today);
+  const selected = toDay(selectedDay);
+
+  // Weeks page in 7-day steps from today, so the default week still starts today.
+  const weekStart = today.plus({ days: Math.floor(daysBetween(today, selected) / 7) * 7 });
+  const weekDays = eachDay(weekStart, 7);
+
+  // Month grid: whole weeks, Sunday first (luxon weekday 7 = Sunday).
+  const monthStart = selected.startOf('month');
+  const gridStart = monthStart.minus({ days: monthStart.weekday % 7 });
+  const monthEnd = selected.endOf('month').startOf('day');
+  const gridEnd = monthEnd.plus({ days: 6 - (monthEnd.weekday % 7) });
+  const gridDays = eachDay(gridStart, daysBetween(gridStart, gridEnd) + 1);
+
+  const [rangeFrom, rangeTo] =
+    view === 'day'
+      ? [selectedDay, selectedDay]
+      : view === 'week'
+        ? [isoKey(weekStart), isoKey(weekDays[6])]
+        : [isoKey(gridStart), isoKey(gridEnd)];
+  const rangeKey = `${rangeFrom}|${rangeTo}`;
+
+  const requestId = useRef(0);
   const load = useCallback(async () => {
+    const id = ++requestId.current;
     try {
       const start = now().startOf('day');
-      const [instances, choreList] = await Promise.all([
-        api.get(rangeQuery(start.minus({ days: 7 }).toUTC().toISO() || '', start.plus({ days: 6 }).endOf('day').toUTC().toISO() || '')),
+      const from = toDay(rangeFrom);
+      const to = toDay(rangeTo).endOf('day');
+      // The last 7 days and today are always needed (overdue alert, kid progress).
+      const baseFrom = start.minus({ days: 7 });
+      const baseTo = start.endOf('day');
+      const iso = (d: DateTime) => d.toUTC().toISO() || '';
+      const windows: Array<[DateTime, DateTime]> =
+        from <= baseTo && to >= baseFrom
+          ? [[DateTime.min(from, baseFrom), DateTime.max(to, baseTo)]]
+          : [[baseFrom, baseTo], [from, to]];
+      const [choreList, ...lists] = await Promise.all([
         api.get('/chores'),
+        ...windows.map(([a, b]) => api.get(rangeQuery(iso(a), iso(b)))),
       ]);
-      setItems(instances);
+      if (id !== requestId.current) return;
+      const merged = new Map<string, Instance>();
+      for (const list of lists as Instance[][]) for (const item of list) merged.set(item.id, item);
+      setItems([...merged.values()].sort((a, b) => a.dueAt.localeCompare(b.dueAt)));
       setChores(choreList);
+      setLoadedRange(`${rangeFrom}|${rangeTo}`);
       setError('');
     } catch (err) {
+      if (id !== requestId.current) return;
       setError(errorMessage(err, t('common.couldNotLoadChores')));
+      setLoadedRange(`${rangeFrom}|${rangeTo}`);
     } finally {
-      setLoaded(true);
+      if (id === requestId.current) setLoaded(true);
     }
-  }, []);
+  }, [rangeFrom, rangeTo]);
 
   useEffect(() => {
     load();
   }, [load]);
 
-  const todayKey = days[0].toISODate() || '';
-  const overdue = items.filter((i) => statusOf(i) === 'overdue');
+  const fetching = !loaded || loadedRange !== rangeKey;
+  const overdueFrom = isoKey(today.minus({ days: 7 }));
+  const overdue = items.filter((i) => statusOf(i) === 'overdue' && dayKey(i.dueAt) >= overdueFrom);
+  const forKid = useCallback(
+    (list: Instance[]) => (kidFilter ? list.filter((i) => i.assignments.some((a) => a.userId === kidFilter)) : list),
+    [kidFilter],
+  );
   const byDay = useMemo(() => {
     const map: Record<string, Instance[]> = {};
-    for (const item of items) (map[dayKey(item.dueAt)] ||= []).push(item);
+    for (const item of forKid(items)) (map[dayKey(item.dueAt)] ||= []).push(item);
     return map;
-  }, [items]);
+  }, [items, forKid]);
 
-  const todayItems = byDay[todayKey] || [];
-  const agenda = (byDay[selectedDay] || []).filter((i) => !kidFilter || i.assignments.some((a) => a.userId === kidFilter));
+  const todayItems = items.filter((i) => dayKey(i.dueAt) === todayKey);
+  const agenda = byDay[selectedDay] || [];
   const rewardFor = (choreId: string) => chores.find((c) => c.id === choreId)?.rewardAmount ?? null;
+
+  const step = (dir: 1 | -1) => {
+    if (view === 'day') return setSelectedDay(isoKey(selected.plus({ days: dir })));
+    if (view === 'week') return setSelectedDay(isoKey(selected.plus({ days: 7 * dir })));
+    const target = monthStart.plus({ months: dir });
+    setSelectedDay(target.hasSame(today, 'month') ? todayKey : isoKey(target));
+  };
+  const showsToday =
+    view === 'day' ? selectedDay === todayKey : view === 'week' ? weekStart.equals(today) : selected.hasSame(today, 'month');
+  const navTitle =
+    view === 'day'
+      ? selectedDay === todayKey
+        ? t('common.today')
+        : longDate(selected)
+      : view === 'week'
+        ? `${weekStart.toLocaleString({ month: 'short', day: 'numeric' })} – ${weekDays[6].toLocaleString({ month: 'short', day: 'numeric' })}`
+        : selected.toLocaleString({ month: 'long', year: 'numeric' });
+  const navLabels =
+    view === 'day'
+      ? [t('home.prevDay'), t('home.nextDay')]
+      : view === 'week'
+        ? [t('home.prevWeek'), t('home.nextWeek')]
+        : [t('home.prevMonth'), t('home.nextMonth')];
 
   const openEditor = (choreId?: string | null) => {
     setOpenInstance(null);
@@ -182,32 +296,108 @@ export default function ParentHomePage() {
 
       {kids.length > 0 && (
         <section className="section">
-          <div className="day-strip" role="tablist" aria-label={t('parent.day')}>
-            {days.map((d) => {
-              const key = d.toISODate() || '';
-              const count = (byDay[key] || []).length;
-              const active = key === selectedDay;
-              return (
-                <button
-                  key={key}
-                  type="button"
-                  role="tab"
-                  aria-selected={active}
-                  className={`day-cell ${active ? 'is-active' : ''}`}
-                  onClick={() => setSelectedDay(key)}
-                >
-                  <span className="day-cell-name">{key === todayKey ? t('common.today') : weekdayName(weekdayCodeOf(d), 'label')}</span>
-                  <span className="day-cell-num">{d.day}</span>
-                  <span className="day-cell-dots" aria-label={tn('chores.count', count)}>
-                    {Array.from({ length: Math.min(count, 4) }, (_, i) => <i key={i} />)}
-                  </span>
+          <div className="home-cal-head">
+            <Segmented<View>
+              label={t('home.view')}
+              value={view}
+              onChange={changeView}
+              options={[
+                { value: 'day', label: t('home.viewDay') },
+                { value: 'week', label: t('home.viewWeek') },
+                { value: 'month', label: t('home.viewMonth') },
+              ]}
+            />
+            <div className="cal-nav">
+              <button type="button" className="icon-btn" onClick={() => step(-1)} aria-label={navLabels[0]}>
+                <Icon name="chevronLeft" size={20} />
+              </button>
+              <h2 className="cal-nav-title" aria-live="polite">{navTitle}</h2>
+              <button type="button" className="icon-btn" onClick={() => step(1)} aria-label={navLabels[1]}>
+                <Icon name="chevronRight" size={20} />
+              </button>
+              {!showsToday && (
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => setSelectedDay(todayKey)}>
+                  {t('common.today')}
                 </button>
-              );
-            })}
+              )}
+            </div>
           </div>
 
+          {view === 'week' && (
+            <div className="day-strip" role="tablist" aria-label={t('parent.day')}>
+              {weekDays.map((d) => {
+                const key = isoKey(d);
+                const count = (byDay[key] || []).length;
+                const active = key === selectedDay;
+                return (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    className={`day-cell ${active ? 'is-active' : ''}`}
+                    onClick={() => setSelectedDay(key)}
+                  >
+                    <span className="day-cell-name">{key === todayKey ? t('common.today') : weekdayName(weekdayCodeOf(d), 'label')}</span>
+                    <span className="day-cell-num">{d.day}</span>
+                    <span className="day-cell-dots" aria-label={tn('chores.count', count)}>
+                      {Array.from({ length: Math.min(count, 4) }, (_, i) => <i key={i} />)}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
+          {view === 'month' && (
+            <div className="month-grid" role="grid" aria-label={t('home.calendar')}>
+              <div className="month-row month-weekdays" role="row">
+                {gridDays.slice(0, 7).map((d) => (
+                  <span key={d.weekday} role="columnheader" className="month-weekday" title={weekdayName(weekdayCodeOf(d), 'long')}>
+                    {d.toLocaleString({ weekday: 'narrow' })}
+                  </span>
+                ))}
+              </div>
+              {Array.from({ length: gridDays.length / 7 }, (_, w) => (
+                <div key={w} className="month-row" role="row">
+                  {gridDays.slice(w * 7, w * 7 + 7).map((d) => {
+                    const key = isoKey(d);
+                    const count = (byDay[key] || []).length;
+                    const active = key === selectedDay;
+                    const classes = [
+                      'month-cell',
+                      active ? 'is-active' : '',
+                      key === todayKey ? 'is-today' : '',
+                      d.hasSame(monthStart, 'month') ? '' : 'is-outside',
+                    ]
+                      .filter(Boolean)
+                      .join(' ');
+                    return (
+                      <button
+                        key={key}
+                        type="button"
+                        role="gridcell"
+                        aria-selected={active}
+                        aria-label={`${longDate(d)}, ${tn('chores.count', count)}`}
+                        className={classes}
+                        onClick={() => setSelectedDay(key)}
+                      >
+                        <span className="month-cell-num">{d.day}</span>
+                        <span className="day-cell-dots" aria-hidden="true">
+                          {Array.from({ length: Math.min(count, 3) }, (_, i) => <i key={i} />)}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {view === 'month' && <h3 className="agenda-title">{friendlyDay(selected)}</h3>}
+
           <div className="list-card">
-            {!loaded ? (
+            {fetching && agenda.length === 0 ? (
               <div className="skeleton-list">
                 <span /><span /><span />
               </div>
@@ -217,7 +407,7 @@ export default function ParentHomePage() {
                 title={
                   selectedDay === todayKey
                     ? t('parent.nothingOnToday')
-                    : t('parent.nothingOn', { day: friendlyDay(days.find((d) => d.toISODate() === selectedDay) || days[0]) })
+                    : t('parent.nothingOn', { day: friendlyDay(selected) })
                 }
                 action={
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEditor(null)}>
@@ -262,7 +452,13 @@ export default function ParentHomePage() {
         onEditSeries={(id) => openEditor(id)}
         rewardFor={rewardFor}
       />
-      <ChoreEditor open={editor.open} choreId={editor.choreId} onClose={() => setEditor({ open: false })} onSaved={load} />
+      <ChoreEditor
+        open={editor.open}
+        choreId={editor.choreId}
+        defaultDate={selectedDay}
+        onClose={() => setEditor({ open: false })}
+        onSaved={load}
+      />
     </div>
   );
 }

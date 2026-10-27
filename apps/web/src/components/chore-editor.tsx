@@ -52,21 +52,26 @@ type Draft = {
   rawRrule: string | null;
 };
 
-function todayCode(): WeekdayCode {
-  return weekdayCodeOf(now());
+// A new chore starts on the day the parent was looking at (never in the past), else today.
+function startDay(defaultDate?: string | null): DateTime {
+  const today = now().startOf('day');
+  if (!defaultDate) return today;
+  const day = DateTime.fromISO(defaultDate, { zone: TZ });
+  return day.isValid && day > today ? day : today;
 }
 
-function emptyDraft(defaultAssignees: string[]): Draft {
+function emptyDraft(defaultAssignees: string[], defaultDate?: string | null): Draft {
+  const day = startDay(defaultDate);
   return {
     title: '',
     assigneeIds: defaultAssignees,
     split: 'each',
     freq: 'daily',
-    days: [todayCode()],
+    days: [weekdayCodeOf(day)],
     monthlyPos: 1,
     monthlyDay: 'SU',
     intervalDays: 2,
-    onceDate: now().toISODate() || '',
+    onceDate: day.toISODate() || '',
     onceTime: '18:00',
     dueTime: '18:00',
     hasReward: false,
@@ -126,12 +131,15 @@ export function ChoreEditor({
   onClose,
   choreId,
   template,
+  defaultDate,
   onSaved,
 }: {
   open: boolean;
   onClose: () => void;
   choreId?: string | null;
   template?: Chore | null;
+  /** ISO date (yyyy-mm-dd) to start a new chore on; ignored when editing. */
+  defaultDate?: string | null;
   onSaved: () => void;
 }) {
   const { kids, currency } = useSession();
@@ -158,7 +166,7 @@ export function ChoreEditor({
     setShowMore(false);
     setSaveFavorite(false);
     const currentKids = kidsRef.current;
-    const base = emptyDraft(currentKids.length === 1 ? [currentKids[0].id] : []);
+    const base = emptyDraft(currentKids.length === 1 ? [currentKids[0].id] : [], choreId ? null : defaultDate);
     if (choreId) {
       setLoading(true);
       api
@@ -181,12 +189,15 @@ export function ChoreEditor({
       return;
     }
     if (template) {
-      setDraft({ ...applySchedule(base, template.scheduleJson), title: choreTitle(template) });
+      const fromTemplate = applySchedule(base, template.scheduleJson);
+      // A one-time template's own date is stale; start it on the chosen day instead.
+      if (defaultDate && fromTemplate.freq === 'once') fromTemplate.onceDate = base.onceDate;
+      setDraft({ ...fromTemplate, title: choreTitle(template) });
     } else {
       setDraft(base);
     }
     api.get('/templates').then(setTemplates).catch(() => setTemplates([]));
-  }, [open, choreId, template]);
+  }, [open, choreId, template, defaultDate]);
 
   const schedule = useMemo(() => buildSchedule(draft), [draft]);
   const chosenKids = kids.filter((k) => draft.assigneeIds.includes(k.id));
@@ -216,7 +227,12 @@ export function ChoreEditor({
   }
 
   function pickTemplate(t: Chore) {
-    setDraft((prev) => ({ ...applySchedule(prev, t.scheduleJson), title: choreTitle(t), assigneeIds: prev.assigneeIds }));
+    setDraft((prev) => {
+      const next = applySchedule(prev, t.scheduleJson);
+      // Keep the date already picked for one-time chores; the template's own date is stale.
+      if (next.freq === 'once' && prev.onceDate) next.onceDate = prev.onceDate;
+      return { ...next, title: choreTitle(t), assigneeIds: prev.assigneeIds };
+    });
   }
 
   async function onSubmit(e: FormEvent) {

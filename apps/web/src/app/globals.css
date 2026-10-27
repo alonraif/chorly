@@ -1577,6 +1577,128 @@ select.input {
   background: var(--bg);
 }
 
+/* Home calendar: view switch, prev/next nav, month grid */
+
+.home-cal-head {
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.cal-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.cal-nav-title {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 1.05rem;
+  text-align: center;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-nav .btn-sm {
+  margin-inline-start: 4px;
+  flex-shrink: 0;
+}
+
+@media (min-width: 640px) {
+  .home-cal-head {
+    grid-template-columns: minmax(240px, 300px) 1fr;
+    align-items: center;
+  }
+
+  .cal-nav-title {
+    text-align: start;
+    order: -1;
+    padding-inline-start: 8px;
+  }
+}
+
+.month-grid {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.month-row {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.month-weekday {
+  text-align: center;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  padding-bottom: 2px;
+}
+
+.month-cell {
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 3px;
+  min-height: 46px;
+  padding: 6px 0;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: none;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.month-cell:hover {
+  background: var(--surface-2);
+}
+
+.month-cell.is-outside {
+  color: var(--ink-3);
+}
+
+.month-cell.is-today {
+  border-color: var(--brand);
+}
+
+.month-cell.is-active {
+  background: var(--ink);
+  color: var(--bg);
+  border-color: var(--ink);
+}
+
+.month-cell.is-active .day-cell-dots i {
+  background: var(--bg);
+}
+
+.month-cell.is-outside .day-cell-dots i {
+  opacity: 0.5;
+}
+
+.month-cell-num {
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+@media (min-width: 900px) {
+  .month-cell {
+    min-height: 64px;
+  }
+}
+
+.agenda-title {
+  font-size: 1rem;
+  margin: 4px 0 10px;
+}
+
 /* ---------- Approvals ---------- */
 
 .approval-list {

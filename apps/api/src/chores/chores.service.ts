@@ -166,6 +166,40 @@ export class ChoresService {
     });
   }
 
+  private async getTemplate(tenantId: string, id: string) {
+    const template = await this.prisma.choreDefinition.findFirst({
+      where: { tenantId, id, isTemplate: true, deletedAt: null },
+    });
+    if (!template) throw new NotFoundException('Template not found');
+    return template;
+  }
+
+  // Templates never have instances, so editing/removing one touches only the definition row.
+  async updateTemplate(tenantId: string, id: string, patch: UpdateChoreDefinition) {
+    await this.getTemplate(tenantId, id);
+    return this.prisma.choreDefinition.update({
+      where: { id },
+      data: {
+        title_en: patch.title_en,
+        title_he: patch.title_he,
+        hasReward: patch.hasReward,
+        rewardAmount: patch.hasReward === false
+          ? null
+          : patch.rewardAmount
+            ? new Prisma.Decimal(patch.rewardAmount)
+            : undefined,
+        scheduleJson: patch.schedule ? ChoreScheduleSchema.parse(patch.schedule) : undefined,
+        assignmentJson: patch.assignment ? AssignmentConfigSchema.parse(patch.assignment) : undefined,
+      },
+    });
+  }
+
+  async removeTemplate(tenantId: string, id: string) {
+    await this.getTemplate(tenantId, id);
+    await this.prisma.choreDefinition.update({ where: { id }, data: { deletedAt: new Date() } });
+    return { ok: true };
+  }
+
   async get(tenantId: string, id: string) {
     const chore = await this.prisma.choreDefinition.findFirst({
       where: { tenantId, id, deletedAt: null },

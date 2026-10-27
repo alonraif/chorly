@@ -1,14 +1,27 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
+  AssignmentConfigSchema,
+  ChoreScheduleSchema,
   CreateChoreDefinitionSchema,
   UpdateChoreDefinitionSchema,
 } from '@chorly/shared';
+import { z } from 'zod';
 import { AdminGuard } from '../common/session/admin.guard';
 import { CurrentTenant } from '../common/session/current-tenant.decorator';
 import { RequireTenantGuard } from '../common/session/require-tenant.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ChoresService } from './chores.service';
+
+// Quick-add suggestions: only the fields a parent manages from the Chores page.
+const UpdateTemplateSchema = z.object({
+  title_en: z.string().trim().min(1).optional(),
+  title_he: z.string().trim().min(1).optional(),
+  hasReward: z.boolean().optional(),
+  rewardAmount: z.string().regex(/^\d+(\.\d{1,2})?$/).optional(),
+  schedule: ChoreScheduleSchema.optional(),
+  assignment: AssignmentConfigSchema.optional(),
+});
 
 const ChoreDefinitionBodySchema: any = {
   type: 'object',
@@ -115,5 +128,26 @@ export class ChoresController {
   @ApiParam({ name: 'id' })
   clone(@CurrentTenant() tenantId: string, @Param('id') id: string) {
     return this.chores.cloneTemplate(tenantId, id);
+  }
+
+  @Patch('/templates/:id')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Update a quick-add template (family admin)' })
+  @ApiParam({ name: 'id' })
+  @ApiBody({ schema: { ...ChoreDefinitionBodySchema, required: [] } as any })
+  updateTemplate(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(UpdateTemplateSchema)) body: any,
+  ) {
+    return this.chores.updateTemplate(tenantId, id, body);
+  }
+
+  @Delete('/templates/:id')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Soft delete a quick-add template (family admin)' })
+  @ApiParam({ name: 'id' })
+  removeTemplate(@CurrentTenant() tenantId: string, @Param('id') id: string) {
+    return this.chores.removeTemplate(tenantId, id);
   }
 }

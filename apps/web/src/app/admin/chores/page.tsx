@@ -9,9 +9,12 @@ import type { Chore } from '../../../lib/types';
 import { Avatar, AvatarStack } from '../../../components/avatar';
 import { ChoreEditor } from '../../../components/chore-editor';
 import { Icon } from '../../../components/icon';
-import { EmptyState, errorMessage } from '../../../components/ui';
+import { TemplateSheet } from '../../../components/template-sheet';
+import { EmptyState, errorMessage, useUi } from '../../../components/ui';
+import './quick-add.css';
 
 type EditorState = { open: boolean; choreId?: string | null; template?: Chore | null };
+type SuggestionState = { open: boolean; template?: Chore | null };
 
 export default function ChoresPage() {
   const { kids, currency } = useSession();
@@ -21,6 +24,9 @@ export default function ChoresPage() {
   const [error, setError] = useState('');
   const [kidFilter, setKidFilter] = useState<string | null>(null);
   const [editor, setEditor] = useState<EditorState>({ open: false });
+  const [managing, setManaging] = useState(false);
+  const [suggestion, setSuggestion] = useState<SuggestionState>({ open: false });
+  const { confirm, toast } = useUi();
 
   const load = useCallback(async () => {
     try {
@@ -47,6 +53,24 @@ export default function ChoresPage() {
   const closeEditor = () => {
     setEditor({ open: false });
     if (window.location.search || window.location.hash) window.history.replaceState(null, '', '/admin/chores');
+  };
+
+  const removeTemplate = async (tpl: Chore) => {
+    const title = choreTitle(tpl);
+    const ok = await confirm({
+      title: t('quickAdd.deleteTitle', { title }),
+      body: t('quickAdd.deleteBody'),
+      confirmLabel: t('quickAdd.deleteConfirm'),
+      danger: true,
+    });
+    if (!ok) return;
+    try {
+      await api.delete(`/templates/${tpl.id}`);
+      setTemplates((prev) => prev.filter((x) => x.id !== tpl.id));
+      toast(t('quickAdd.deleted'));
+    } catch (err) {
+      toast(errorMessage(err, t('quickAdd.couldNotDelete')), 'error');
+    }
   };
 
   const kidName = (id: string) => kids.find((k) => k.id === id);
@@ -134,22 +158,80 @@ export default function ChoresPage() {
         )}
       </div>
 
-      {loaded && templates.length > 0 && chores.length < 6 && (
-        <section className="section">
+      {loaded && (
+        <section className={`section qa-section ${managing ? 'qa-managing' : ''}`}>
           <div className="section-head">
             <h2>{t('choresPage.quickAdd')}</h2>
+            <button type="button" className="btn btn-secondary btn-sm" aria-pressed={managing} onClick={() => setManaging((v) => !v)}>
+              {managing ? (
+                <><Icon name="check" size={16} /> {t('quickAdd.done')}</>
+              ) : (
+                <><Icon name="edit" size={16} /> {t('quickAdd.manage')}</>
+              )}
+            </button>
           </div>
-          <div className="template-grid">
-            {templates.slice(0, 9).map((t) => (
-              <button key={t.id} type="button" className="template-card" onClick={() => setEditor({ open: true, template: t })}>
-                <span className="row-title">{choreTitle(t)}</span>
-                <span className="small muted">{scheduleSummary(t.scheduleJson)}</span>
-                <Icon name="plus" size={18} className="template-plus" />
+          <p className="small muted qa-hint">
+            {managing ? t('quickAdd.manageHint') : templates.length === 0 ? t('quickAdd.empty') : t('quickAdd.hint')}
+          </p>
+          <div className="template-grid qa-grid">
+            {templates.map((tpl) => {
+              const title = choreTitle(tpl);
+              const body = (
+                <>
+                  <span className="row-title">{title}</span>
+                  <span className="small muted">{scheduleSummary(tpl.scheduleJson)}</span>
+                </>
+              );
+              return (
+                <div key={tpl.id} className="qa-item">
+                  {managing ? (
+                    <>
+                      <div className="template-card">{body}</div>
+                      <div className="qa-actions">
+                        <button
+                          type="button"
+                          className="icon-btn"
+                          aria-label={t('quickAdd.editItem', { title })}
+                          title={t('quickAdd.editItem', { title })}
+                          onClick={() => setSuggestion({ open: true, template: tpl })}
+                        >
+                          <Icon name="edit" size={18} />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn qa-delete"
+                          aria-label={t('quickAdd.deleteItem', { title })}
+                          title={t('quickAdd.deleteItem', { title })}
+                          onClick={() => removeTemplate(tpl)}
+                        >
+                          <Icon name="trash" size={18} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button type="button" className="template-card" onClick={() => setEditor({ open: true, template: tpl })}>
+                      {body}
+                      <Icon name="plus" size={18} className="template-plus" />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+            {(managing || templates.length === 0) && (
+              <button type="button" className="qa-add-card" onClick={() => setSuggestion({ open: true })}>
+                <Icon name="plus" size={18} /> {t('quickAdd.add')}
               </button>
-            ))}
+            )}
           </div>
         </section>
       )}
+
+      <TemplateSheet
+        open={suggestion.open}
+        template={suggestion.template}
+        onClose={() => setSuggestion({ open: false })}
+        onSaved={load}
+      />
 
       <ChoreEditor
         open={editor.open}
