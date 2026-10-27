@@ -1,11 +1,15 @@
 import { CanActivate, ExecutionContext, ForbiddenException, Injectable, UnauthorizedException } from '@nestjs/common';
 
 @Injectable()
-export class SystemAdminGuard implements CanActivate {
+export class AdminGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest();
-    if (!req.user) throw new UnauthorizedException('x-user-id header is required');
-    if (!req.user.isSystemAdmin) throw new ForbiddenException('System admin access required');
+    if (!req.user) {
+      throw new UnauthorizedException('Login required');
+    }
+    if (!req.user.isAdmin) {
+      throw new ForbiddenException('Parent access required');
+    }
     return true;
   }
 }

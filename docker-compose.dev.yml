@@ -1,0 +1,17 @@
+# Local development database only. Run the apps with `pnpm dev`.
+name: chorly-dev
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: chorly
+      POSTGRES_PASSWORD: chorly
+      POSTGRES_DB: chorly
+    ports:
+      - "5432:5432"
+    volumes:
+      - chorly_dev_pg:/var/lib/postgresql/data
+
+volumes:
+  chorly_dev_pg:

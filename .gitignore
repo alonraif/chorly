@@ -9,3 +9,8 @@ coverage
 *.log
 .prisma
 .pnpm-store/
+!.env.example
+backups/
+deploy/ddns/*
+!deploy/ddns/*.example.json
+*.tsbuildinfo

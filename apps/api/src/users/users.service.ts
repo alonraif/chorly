@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { MoneyLedgerType, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import type { CreateUser, UpdateUser } from '@chorly/shared';
-import type { RequestUser } from '../common/dev-auth/dev-auth.types';
+import type { RequestUser } from '../common/session/session.types';
 import { hashPassword } from '../common/auth/password';
 
 @Injectable()
@@ -16,7 +16,6 @@ export class UsersService {
     displayName: true,
     role: true,
     isAdmin: true,
-    isSystemAdmin: true,
     locale: true,
     isActive: true,
     isAway: true,
@@ -52,7 +51,7 @@ export class UsersService {
         passwordHash,
         displayName: data.displayName,
         role: data.role,
-        isAdmin: data.isAdmin ?? false,
+        isAdmin: data.role === 'parent',
         locale: data.locale ?? 'he',
         isAway: data.isAway ?? false,
       },
@@ -63,6 +62,9 @@ export class UsersService {
   async update(tenantId: string, id: string, data: UpdateUser) {
     await this.get(tenantId, id);
     const passwordHash = data.password !== undefined ? await hashPassword(data.password) : undefined;
+    if (passwordHash) {
+      await this.prisma.session.deleteMany({ where: { userId: id } });
+    }
     return this.prisma.user.update({
       where: { id },
       data: {
@@ -70,7 +72,7 @@ export class UsersService {
         passwordHash,
         displayName: data.displayName,
         role: data.role,
-        isAdmin: data.isAdmin,
+        isAdmin: data.role === undefined ? undefined : data.role === 'parent',
         locale: data.locale,
         isAway: data.isAway,
       },
@@ -79,7 +81,7 @@ export class UsersService {
   }
 
   async earnings(tenantId: string, userId: string, actor: RequestUser) {
-    if (actor.id !== userId && !actor.isAdmin && !actor.isSystemAdmin) {
+    if (actor.id !== userId && !actor.isAdmin) {
       throw new ForbiddenException('Cannot view earnings for this user');
     }
 
@@ -134,7 +136,7 @@ export class UsersService {
   }
 
   async payoutReset(tenantId: string, userId: string, actor: RequestUser) {
-    if (!actor.isAdmin && !actor.isSystemAdmin) {
+    if (!actor.isAdmin) {
       throw new ForbiddenException('Admin required');
     }
 

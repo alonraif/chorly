@@ -1,29 +1,27 @@
 'use client';
 
-import { getCurrentTenantId, getCurrentUserId } from './user';
+import { clearCurrentLocale, clearCurrentUserId } from './user';
 
-function apiBase() {
-  if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
-  if (typeof window !== 'undefined') {
-    return `${window.location.protocol}//${window.location.hostname}:4000`;
-  }
-  return 'http://localhost:4000';
-}
+// Same origin in every environment: Caddy (prod) or the Next.js rewrite (dev) forwards /api to the API.
+const API_BASE = '/api';
 
 async function request(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers || {});
   headers.set('Content-Type', 'application/json');
 
-  const userId = getCurrentUserId();
-  if (userId) headers.set('x-user-id', userId);
-
-  const tenantId = getCurrentTenantId();
-  if (tenantId) headers.set('x-tenant-id', tenantId);
-
-  const res = await fetch(`${apiBase()}${path}`, {
+  const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers,
+    credentials: 'same-origin',
   });
+
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    clearCurrentUserId();
+    clearCurrentLocale();
+    if (typeof window !== 'undefined' && window.location.pathname !== '/') {
+      window.location.replace('/');
+    }
+  }
 
   if (!res.ok) {
     let msg = `Request failed (${res.status})`;

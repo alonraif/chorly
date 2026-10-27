@@ -1,0 +1,13 @@
+{
+  "settings": [
+    {
+      "provider": "cloudflare",
+      "zone_identifier": "YOUR_CLOUDFLARE_ZONE_ID",
+      "domain": "chores.the-raifs.me",
+      "ttl": 600,
+      "token": "YOUR_CLOUDFLARE_API_TOKEN",
+      "proxied": false,
+      "ip_version": "ipv4"
+    }
+  ]
+}

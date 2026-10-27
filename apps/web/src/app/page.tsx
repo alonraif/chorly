@@ -1,10 +1,14 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../lib/api';
-import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../lib/user';
+import { setCurrentLocale, setCurrentUserId } from '../lib/user';
+
+function homeFor(user: { role: string }) {
+  return user.role === 'child' ? '/child' : '/parent';
+}
 
 export default function LoginPage() {
   const router = useRouter();
@@ -12,6 +16,19 @@ export default function LoginPage() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [needsSetup, setNeedsSetup] = useState(false);
+
+  useEffect(() => {
+    api.get('/auth/me')
+      .then((user) => {
+        setCurrentUserId(user.id);
+        setCurrentLocale(user.locale);
+        router.replace(homeFor(user));
+      })
+      .catch(() => {
+        api.get('/auth/status').then((s) => setNeedsSetup(!!s.needsSetup)).catch(() => undefined);
+      });
+  }, [router]);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -25,8 +42,7 @@ export default function LoginPage() {
       const user = await api.post('/auth/login', { email, password });
       setCurrentUserId(user.id);
       setCurrentLocale(user.locale);
-      clearCurrentTenantId();
-      router.push('/chorespace');
+      router.push(homeFor(user));
     } catch (err: any) {
       setError(err.message || 'Login failed');
     } finally {
@@ -63,9 +79,11 @@ export default function LoginPage() {
 
         <button type="submit" disabled={loading}>{loading ? 'Logging in…' : 'Login'}</button>
 
-        <p className="auth-secondary">
-          First time here? <Link href="/register">Register</Link>
-        </p>
+        {needsSetup && (
+          <p className="auth-secondary">
+            First time here? <Link href="/register">Set up your family</Link>
+          </p>
+        )}
       </form>
     </section>
   );

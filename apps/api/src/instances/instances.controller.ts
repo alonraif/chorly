@@ -1,5 +1,5 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   ApproveInstanceSchema,
   InstanceListQuerySchema,
@@ -7,12 +7,12 @@ import {
   UndoDoneSchema,
 } from '@chorly/shared';
 import { z } from 'zod';
-import { AdminGuard } from '../common/dev-auth/admin.guard';
-import { CurrentTenant } from '../common/dev-auth/current-tenant.decorator';
-import { CurrentUser } from '../common/dev-auth/current-user.decorator';
-import type { RequestUser } from '../common/dev-auth/dev-auth.types';
-import { RequireTenantGuard } from '../common/dev-auth/require-tenant.guard';
-import { RequireUserGuard } from '../common/dev-auth/require-user.guard';
+import { AdminGuard } from '../common/session/admin.guard';
+import { CurrentTenant } from '../common/session/current-tenant.decorator';
+import { CurrentUser } from '../common/session/current-user.decorator';
+import type { RequestUser } from '../common/session/session.types';
+import { RequireTenantGuard } from '../common/session/require-tenant.guard';
+import { RequireUserGuard } from '../common/session/require-user.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { InstancesService } from './instances.service';
 
@@ -24,8 +24,6 @@ const UpdateInstanceSchema = z.object({
 });
 
 @ApiTags('instances')
-@ApiHeader({ name: 'x-user-id', required: false })
-@ApiHeader({ name: 'x-tenant-id', required: false, description: 'System admin tenant override' })
 @Controller('/instances')
 @UseGuards(RequireTenantGuard)
 export class InstancesController {

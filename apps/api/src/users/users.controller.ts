@@ -1,18 +1,16 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CreateUserSchema, UpdateUserSchema } from '@chorly/shared';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { UsersService } from './users.service';
-import { AdminGuard } from '../common/dev-auth/admin.guard';
-import { CurrentUser } from '../common/dev-auth/current-user.decorator';
-import type { RequestUser } from '../common/dev-auth/dev-auth.types';
-import { CurrentTenant } from '../common/dev-auth/current-tenant.decorator';
-import { RequireTenantGuard } from '../common/dev-auth/require-tenant.guard';
-import { RequireUserGuard } from '../common/dev-auth/require-user.guard';
+import { AdminGuard } from '../common/session/admin.guard';
+import { CurrentUser } from '../common/session/current-user.decorator';
+import type { RequestUser } from '../common/session/session.types';
+import { CurrentTenant } from '../common/session/current-tenant.decorator';
+import { RequireTenantGuard } from '../common/session/require-tenant.guard';
+import { RequireUserGuard } from '../common/session/require-user.guard';
 
 @ApiTags('users')
-@ApiHeader({ name: 'x-user-id', required: false })
-@ApiHeader({ name: 'x-tenant-id', required: false, description: 'System admin tenant override' })
 @Controller('/users')
 @UseGuards(RequireTenantGuard)
 export class UsersController {
@@ -43,7 +41,6 @@ export class UsersController {
         password: { type: 'string', minLength: 8 },
         displayName: { type: 'string' },
         role: { type: 'string', enum: ['parent', 'child'] },
-        isAdmin: { type: 'boolean' },
         locale: { type: 'string', enum: ['en', 'he'] },
         isAway: { type: 'boolean' },
       },
@@ -65,7 +62,6 @@ export class UsersController {
         password: { type: 'string', minLength: 8 },
         displayName: { type: 'string' },
         role: { type: 'string', enum: ['parent', 'child'] },
-        isAdmin: { type: 'boolean' },
         locale: { type: 'string', enum: ['en', 'he'] },
         isAway: { type: 'boolean' },
       },

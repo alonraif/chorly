@@ -212,8 +212,7 @@ export default function ParentPage() {
           <summary>Admin</summary>
           <div className="admin-links">
             <Link href="/parent/review">Approve completed chores</Link>
-            <Link href="/admin/family">Family members and invites</Link>
-            <Link href="/admin/users">User management</Link>
+            <Link href="/admin/users">Family members</Link>
             <Link href="/admin/chores">Full chore admin</Link>
           </div>
         </details>

@@ -1,10 +1,9 @@
 import { PrismaClient } from '@prisma/client';
 import { DateTime } from 'luxon';
-import { TENANT_ID_FILTER, GENERATE_DAYS_AHEAD, APP_BASE_URL, TZ } from './lib/config';
+import { TENANT_ID_FILTER, GENERATE_DAYS_AHEAD, TZ } from './lib/config';
 import { eligibleUsers, selectAssigneeIds } from './lib/assignment';
 import { dueDatesInRange, repeatingAfterCompletionConfig } from './lib/schedule';
 import { rangeDaysAhead, parseDueTime } from './lib/time';
-import { sendEmail } from './lib/email';
 
 const prisma = new PrismaClient();
 
@@ -60,15 +59,6 @@ async function generateForChore(tenantId: string, chore: any, usersById: Map<str
     }
 
     createdCount += 1;
-    const assignedUsers = users.filter((u) => selection.assigneeIds.includes(u.id));
-    for (const user of assignedUsers) {
-      await sendEmail(
-        user.email,
-        `Chorly assignment: ${chore.title_en}`,
-        `Hi ${user.displayName},\n\nYou were assigned a chore.\n- ${chore.title_en} / ${chore.title_he}\n- Due: ${dueAt.toISOString()}\n\nOpen Chorly: ${APP_BASE_URL}/today`,
-      );
-    }
-
     console.log('[worker:generate] created', { tenantId, choreId: chore.id, instanceId: created.id, dueAt: dueAt.toISOString() });
   }
 

@@ -17,21 +17,18 @@ Validate end-to-end behavior for family setup, role-based assignment, chore crea
 
 ## Suite: SMOKE
 
-### SMOKE-01 Create family with required role
-1. Open `/register` or `/family/create`.
-2. Create family with valid required fields including `role`.
-3. Verify user is created and role is persisted.
-Expected:
-- Request succeeds.
-- Created admin has `role` set (`parent` or `child` per selection).
+### SMOKE-01 First-run family setup
+1. On an empty database, open `/` and follow "Set up your family" to `/register`.
+2. Create the family and first parent.
+3. Verify you land on `/admin/users` and are logged in.
+4. Log out; verify `/` no longer offers setup and `POST /api/family/create` returns 403.
 
-### SMOKE-02 Invite requires role
-1. Open `/admin/family`.
-2. Send invite with role `child`.
-3. Attempt invite without role via API.
+### SMOKE-02 Add kids and log in as a kid
+1. On `/admin/users`, add a child with email + password.
+2. Log in as the child.
 Expected:
-- With role: success.
-- Without role: validation error.
+- Child lands on `/child` and cannot open parent pages.
+- Parent-only API calls (e.g. approve, create user) return 403 for the child.
 
 ### SMOKE-03 Create chore and assign child
 1. Open `/admin/chores#new-chore`.

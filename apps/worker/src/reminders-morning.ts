@@ -1,7 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 import { TENANT_ID_FILTER, APP_BASE_URL } from './lib/config';
 import { todayBounds } from './lib/time';
-import { sendEmail } from './lib/email';
+import { notifyUser } from './lib/notify';
 
 const prisma = new PrismaClient();
 
@@ -13,19 +13,23 @@ async function runForTenant(tenantId: string) {
     orderBy: { dueAt: 'asc' },
   });
 
-  const choresByUser = new Map<string, { email: string | null; displayName: string; lines: string[] }>();
+  const choresByUser = new Map<string, { id: string; email: string | null; displayName: string; lines: string[] }>();
   for (const instance of instances) {
     const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
     for (const assignment of instance.assignments) {
       if (activeDone.has(assignment.userId)) continue;
-      const entry = choresByUser.get(assignment.userId) || { email: assignment.user.email, displayName: assignment.user.displayName, lines: [] };
-      entry.lines.push(`- ${instance.chore.title_en} / ${instance.chore.title_he} (due ${instance.dueAt.toISOString()})`);
+      const entry = choresByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, lines: [] };
+      entry.lines.push(assignment.user.locale === 'he' ? instance.chore.title_he : instance.chore.title_en);
       choresByUser.set(assignment.userId, entry);
     }
   }
 
   for (const [, entry] of choresByUser) {
-    await sendEmail(entry.email, 'Chorly morning reminder', `Good morning ${entry.displayName},\n\nYour chores for today:\n${entry.lines.join('\n')}\n\nOpen: ${APP_BASE_URL}/today`);
+    await notifyUser(prisma, entry, {
+      title: `☀️ ${entry.displayName}: ${entry.lines.length} chore(s) today`,
+      body: entry.lines.join(' · '),
+      url: `${APP_BASE_URL}/child`,
+    });
   }
 
   console.log('[worker:reminders-morning] tenant done', { tenantId, users: choresByUser.size, instances: instances.length });

@@ -1,79 +1,114 @@
 # Chorly
 
-Monorepo apps:
-- `apps/api`: NestJS 10 + Prisma + Swagger
-- `apps/web`: Next.js 14
-- `apps/worker`: tsx scripts for generation/reminders/summary
-- `packages/shared`: shared Zod schemas + TS types (compiled to `dist`)
+A family chores hub: parents create chores, kids mark them done on their phones, parents approve, kids earn.
 
-## Multi-tenant model
-- Each family is a `Tenant`.
-- Every user belongs to one family (`User.tenantId`).
-- Requests are tenant-scoped by `x-user-id`.
-- System admin can troubleshoot any family by adding `x-tenant-id`.
+- `apps/api`: NestJS + Prisma (Postgres). Served under `/api`.
+- `apps/web`: Next.js 14, installable as an app (PWA) with push notifications.
+- `apps/worker`: scheduler that generates chore occurrences and sends reminders.
+- `packages/shared`: shared Zod schemas + types.
 
-## Install + Run
+Single family per install. The first visitor sets up the family (`/register`); after that, setup is locked and parents add members on **Family members** (`/admin/users`). Kids need an email + password to log in (any address works, it's only a username).
+
+Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their chores.
+
+## Production on this Mac (Docker Desktop)
+
+The stack in `docker-compose.yml`:
+
+| service  | what it does |
+|----------|--------------|
+| caddy    | HTTPS with automatic Let's Encrypt certs, routes `/api` → api, everything else → web |
+| api, web, worker | the app (one image built from `Dockerfile`) |
+| postgres | database (not exposed outside Docker) |
+| backup   | nightly `pg_dump` into `./backups`, keeps 14 days |
+| ddns     | keeps the DNS record pointed at your home IP (opt-in profile) |
+
+### 1. DNS + dynamic IP
+
+Pick a hostname, e.g. `chores.the-raifs.me`.
+
+**Recommended: move DNS to Cloudflare (free).** GoDaddy only allows API access (needed for DDNS) on accounts with 10+ domains, so their API usually returns 403 for personal accounts. You keep the domain registered at GoDaddy and only change its nameservers:
+
+1. Create a free Cloudflare account → *Add a site* → `the-raifs.me` → Free plan. It imports your existing records.
+2. In GoDaddy → *Domain* → *DNS* → *Nameservers* → *Change* → enter the two Cloudflare nameservers.
+3. In Cloudflare, add an `A` record `chores` → your current public IP, **DNS only** (grey cloud).
+4. Create an API token: *My Profile → API Tokens → Create Token → Edit zone DNS* template, zone `the-raifs.me`.
+5. `cp deploy/ddns/config.cloudflare.example.json deploy/ddns/config.json` and fill in the token and the Zone ID (on the domain's Overview page).
+
+If you do have GoDaddy API access, use `deploy/ddns/config.godaddy.example.json` instead (keys from developer.godaddy.com, *Production*).
+
+The ddns updater has a status page on its own port only inside Docker; check `docker compose logs ddns`.
+
+### 2. Router
+
+Forward TCP **80** and **443** (and UDP 443 optionally) to this Mac's LAN IP. Give the Mac a DHCP reservation so its LAN IP doesn't change.
+
+### 3. Configure and start
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env`: set `POSTGRES_PASSWORD` (`openssl rand -hex 24`) and VAPID keys (`npx web-push generate-vapid-keys`). Then:
+
+```bash
+docker compose --profile ddns up -d --build
+```
+
+Open `https://chores.the-raifs.me` and set up the family. Caddy gets the certificate on first request (DNS must already point at you and ports must be forwarded).
+
+### 4. Keep the Mac serving
+
+- Docker Desktop → Settings → General → *Start Docker Desktop when you sign in*.
+- System Settings → Energy → *Prevent automatic sleeping when the display is off* (or `sudo pmset -a sleep 0`).
+- All containers use `restart: unless-stopped`.
+
+### Updating
+
+```bash
+git pull
+docker compose --profile ddns up -d --build
+```
+
+Database migrations run automatically when the api container starts.
+
+### Restore a backup
+
+```bash
+gunzip -c backups/chorly-YYYY-MM-DD.sql.gz | docker compose exec -T postgres psql -U chorly chorly
+```
+
+## Phones (install + notifications)
+
+- **Android / Chrome:** open the site → menu → *Install app*. Tap **🔔 Turn on notifications** in the header.
+- **iPhone (iOS 16.4+):** open in Safari → Share → *Add to Home Screen*, open Chorly from the icon, then tap **🔔 Turn on notifications**. iOS only allows web push for home-screen apps.
+
+Notifications sent:
+- Kid marks a chore done → parents ("ready for approval").
+- Parent approves → kid (with reward).
+- 07:00 today's chores, 17:00 + 20:00 still-to-do, Saturday 19:00 weekly summary. Times are configurable with `CRON_*` env vars on the worker (see `apps/worker/src/scheduler.ts`).
+
+## Local development
+
 ```bash
 pnpm install
-docker compose up -d
+docker compose -f docker-compose.dev.yml up -d
 cp apps/api/.env.example apps/api/.env
 cp apps/worker/.env.example apps/worker/.env
 pnpm db:generate
 pnpm db:migrate
-pnpm db:seed
+pnpm db:seed   # optional sample family; password Password123!
 pnpm dev
 ```
 
-Endpoints:
-- Web: `http://localhost:3000`
-- API: `http://localhost:4000`
-- Swagger: `http://localhost:4000/docs`
-- MailHog UI: `http://localhost:8025`
+- Web: http://localhost:3000 (proxies `/api` to the API on :4000)
+- Swagger: http://localhost:4000/api/docs (when `ENABLE_SWAGGER=true`)
 
-## Worker jobs
+Run a worker job once:
+
 ```bash
 pnpm --filter chorly-worker generate
 pnpm --filter chorly-worker reminders:morning
 pnpm --filter chorly-worker reminders:overdue
 pnpm --filter chorly-worker summary:weekly
-```
-
-By default worker runs for all tenants. To limit tenant: set `DEV_TENANT_ID` or `TENANT_ID` in `apps/worker/.env`.
-
-## Family onboarding and invites
-Create family (first sign-in):
-```bash
-curl -X POST http://localhost:4000/family/create \
-  -H 'content-type: application/json' \
-  -d '{"familyName":"Cohen Family","displayName":"Yael","email":"yael@example.com","locale":"he"}'
-```
-
-Invite family member (admin):
-```bash
-curl -X POST http://localhost:4000/family/invites \
-  -H 'content-type: application/json' \
-  -H 'x-user-id: <FAMILY_ADMIN_USER_ID>' \
-  -d '{"email":"kid@example.com","expiresInDays":7}'
-```
-
-Accept invite:
-```bash
-curl -X POST http://localhost:4000/family/invites/accept \
-  -H 'content-type: application/json' \
-  -d '{"token":"<INVITE_TOKEN>","displayName":"Noam","locale":"en"}'
-```
-
-## System admin troubleshooting
-Seed creates a system admin user: `root@chorly.local`.
-
-System admin list all tenants:
-```bash
-curl http://localhost:4000/system/tenants -H 'x-user-id: <ROOT_USER_ID>'
-```
-
-System admin inspect a specific tenant context:
-```bash
-curl http://localhost:4000/users \
-  -H 'x-user-id: <ROOT_USER_ID>' \
-  -H 'x-tenant-id: <TENANT_ID>'
 ```

@@ -2,7 +2,7 @@ import type { User } from '@prisma/client';
 
 export type RequestUser = Pick<
   User,
-  'id' | 'tenantId' | 'email' | 'displayName' | 'isAdmin' | 'isSystemAdmin' | 'locale' | 'isAway' | 'isActive'
+  'id' | 'tenantId' | 'email' | 'displayName' | 'role' | 'isAdmin' | 'locale' | 'isAway' | 'isActive'
 >;
 
 export type AuthenticatedRequest = {

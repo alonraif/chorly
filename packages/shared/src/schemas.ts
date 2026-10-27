@@ -8,7 +8,6 @@ export const CreateUserSchema = z.object({
   displayName: z.string().min(1),
   password: z.string().min(8).optional(),
   role: FamilyRoleSchema,
-  isAdmin: z.boolean().default(false),
   locale: LocaleSchema.default('he'),
   isAway: z.boolean().default(false),
 });

@@ -60,38 +60,18 @@ async function seedTenant(tenantId: string, tenantName: string, passwordHash: st
   return { tenantId: tenant.id, adminId: admin.id, users: [member1.id, member2.id] };
 }
 
+// Dev-only sample data. Production starts empty and uses the first-run setup screen.
 async function main() {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('Refusing to seed sample users in production');
+  }
   const devTenantId = process.env.DEV_TENANT_ID || 'dev-tenant';
   const seedPassword = process.env.SEED_USER_PASSWORD || 'Password123!';
   const passwordHash = await hashPassword(seedPassword);
 
-  await prisma.tenant.upsert({
-    where: { id: devTenantId },
-    update: { name: 'Dev Family' },
-    create: { id: devTenantId, name: 'Dev Family', currencyCode: 'ILS', defaultLocale: 'he' },
-  });
+  const seeded = await seedTenant(devTenantId, 'Dev Family', passwordHash);
 
-  const system = await prisma.user.upsert({
-    where: { email: 'root@chorly.local' },
-    update: { isSystemAdmin: true, isAdmin: true, isActive: true, passwordHash, role: 'parent' },
-    create: {
-      tenantId: devTenantId,
-      email: 'root@chorly.local',
-      passwordHash,
-      displayName: 'Chorly Root',
-      role: 'parent',
-      isAdmin: true,
-      isSystemAdmin: true,
-      locale: 'en',
-    },
-  });
-
-  const seededA = await seedTenant(devTenantId, 'Dev Family', passwordHash);
-  const seededB = await seedTenant('demo-tenant', 'Demo Family', passwordHash);
-
-  await prisma.user.update({ where: { id: system.id }, data: { tenantId: devTenantId } });
-
-  console.log('Seed complete', { systemAdminId: system.id, tenants: [seededA, seededB], templates: TEMPLATE_CHORES.length, seedPassword });
+  console.log('Seed complete', { tenant: seeded, templates: TEMPLATE_CHORES.length, seedPassword });
 }
 
 main().catch((e) => {

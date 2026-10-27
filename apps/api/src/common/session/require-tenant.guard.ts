@@ -5,7 +5,7 @@ export class RequireTenantGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const req = context.switchToHttp().getRequest();
     if (!req.tenantId) {
-      throw new UnauthorizedException('Tenant context missing. Provide x-user-id or x-tenant-id for system admin');
+      throw new UnauthorizedException('Login required');
     }
     return true;
   }

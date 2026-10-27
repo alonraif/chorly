@@ -1,19 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
-import { clearCurrentTenantId, setCurrentLocale, setCurrentUserId } from '../../lib/user';
-
-type FamilyRole = 'parent' | 'child';
-
-type CreatedInvite = {
-  id: string;
-  email: string;
-  role: FamilyRole;
-  token: string;
-};
+import { setCurrentLocale, setCurrentUserId } from '../../lib/user';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -25,19 +16,18 @@ export default function RegisterPage() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [familyName, setFamilyName] = useState('');
-  const [signupRole, setSignupRole] = useState<FamilyRole>('parent');
-
-  const [inviteEmail, setInviteEmail] = useState('');
-  const [inviteRole, setInviteRole] = useState<FamilyRole>('parent');
-  const [createdInvites, setCreatedInvites] = useState<CreatedInvite[]>([]);
-
-  const [step, setStep] = useState<'register' | 'invite'>('register');
   const [loading, setLoading] = useState(false);
-  const [inviteLoading, setInviteLoading] = useState(false);
   const [error, setError] = useState('');
 
   const displayName = useMemo(() => `${firstName} ${lastName}`.trim(), [firstName, lastName]);
-  const appBaseUrl = typeof window === 'undefined' ? '' : window.location.origin;
+
+  useEffect(() => {
+    api.get('/auth/status')
+      .then((status: { needsSetup: boolean }) => {
+        if (!status.needsSetup) router.replace('/');
+      })
+      .catch(() => undefined);
+  }, [router]);
 
   async function onRegister(e: FormEvent) {
     e.preventDefault();
@@ -56,16 +46,14 @@ export default function RegisterPage() {
       const data = await api.post('/family/create', {
         familyName,
         displayName,
-        role: signupRole,
         email,
         password,
       });
       if (data?.admin?.id) {
         setCurrentUserId(data.admin.id);
         setCurrentLocale(data.admin.locale || 'en');
-        clearCurrentTenantId();
       }
-      setStep('invite');
+      router.push('/admin/users');
     } catch (err: any) {
       setError(err.message || 'Failed to register');
     } finally {
@@ -73,119 +61,12 @@ export default function RegisterPage() {
     }
   }
 
-  async function onInvite(e: FormEvent) {
-    e.preventDefault();
-    setError('');
-    if (!inviteEmail.trim()) {
-      setError('Please enter an email address.');
-      return;
-    }
-
-    setInviteLoading(true);
-    try {
-      const invite = await api.post('/family/invites', { email: inviteEmail, role: inviteRole });
-      setCreatedInvites((prev) => [
-        ...prev,
-        {
-          id: invite.id,
-          email: invite.email,
-          role: invite.role as FamilyRole,
-          token: invite.token,
-        },
-      ]);
-      setInviteEmail('');
-      setInviteRole('parent');
-    } catch (err: any) {
-      setError(err.message || 'Failed to send invite');
-    } finally {
-      setInviteLoading(false);
-    }
-  }
-
-  function finishSetup() {
-    router.push('/chorespace');
-  }
-
-  if (step === 'invite') {
-    return (
-      <section className="auth-shell">
-        <div className="card auth-card">
-          <div className="page-title">
-            <h2>Invite Family Members</h2>
-            <p className="lead">Send registration links by email and set their role. You can skip this and do it later.</p>
-          </div>
-
-          {error && <p className="error">{error}</p>}
-
-          <form className="invite-form" onSubmit={onInvite}>
-            <label>
-              Family member email
-              <input
-                type="email"
-                placeholder="family@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                required
-              />
-            </label>
-
-            <label>
-              Role
-              <select value={inviteRole} onChange={(e) => setInviteRole(e.target.value as FamilyRole)}>
-                <option value="parent">Parent</option>
-                <option value="child">Child</option>
-              </select>
-            </label>
-
-            <button type="submit" disabled={inviteLoading}>
-              {inviteLoading ? 'Sending…' : 'Send Registration Link'}
-            </button>
-          </form>
-
-          {createdInvites.length > 0 && (
-            <div className="card invite-list">
-              <h3>Invites Sent</h3>
-              <ul className="list compact">
-                {createdInvites.map((invite) => (
-                  <li key={invite.id}>
-                    <strong>{invite.email}</strong> as {invite.role}
-                    {appBaseUrl && (
-                      <p className="task-meta">
-                        Link:{' '}
-                        <a href={`${appBaseUrl}/family/accept?token=${invite.token}`}>
-                          {appBaseUrl}/family/accept?token={invite.token}
-                        </a>
-                      </p>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <p className="auth-secondary">
-            Roles are collected now for onboarding flow and can be finalized after each member accepts their invite.
-          </p>
-
-          <div className="action-row">
-            <button type="button" onClick={finishSetup}>
-              Continue to Chorespace
-            </button>
-            <button type="button" className="ghost-button" onClick={finishSetup}>
-              Skip for Now
-            </button>
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   return (
     <section className="auth-shell">
       <form className="card auth-card" onSubmit={onRegister}>
         <div className="page-title">
-          <h2>Register</h2>
-          <p className="lead">Create your account and the family you will be part of.</p>
+          <h2>Set up your family</h2>
+          <p className="lead">First-time setup: create the first parent account. You can add the kids next.</p>
         </div>
 
         {error && <p className="error">{error}</p>}
@@ -237,14 +118,6 @@ export default function RegisterPage() {
               {showPassword ? 'Hide' : 'Show'}
             </button>
           </div>
-        </label>
-
-        <label>
-          Role
-          <select value={signupRole} onChange={(e) => setSignupRole(e.target.value as FamilyRole)}>
-            <option value="parent">Parent</option>
-            <option value="child">Child</option>
-          </select>
         </label>
 
         <label>

@@ -1,8 +1,9 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type InstanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
+import { PushService } from '../push/push.service';
 import { AssignmentConfigSchema, type ApproveInstanceDto, type MarkDoneDto } from '@chorly/shared';
-import type { RequestUser } from '../common/dev-auth/dev-auth.types';
+import type { RequestUser } from '../common/session/session.types';
 
 function activeDoneUserIds(instance: { completions: Array<{ userId: string; undoneAt: Date | null }> }) {
   return new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
@@ -24,7 +25,10 @@ function instanceStatusFromCompletion(
 
 @Injectable()
 export class InstancesService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly push: PushService,
+  ) {}
 
   async list(tenantId: string, from: Date, to: Date, userId?: string) {
     const instances = await this.prisma.choreInstance.findMany({
@@ -109,7 +113,7 @@ export class InstancesService {
       activeDoneUserIds(refreshed),
     );
 
-    return this.prisma.choreInstance.update({
+    const updated = await this.prisma.choreInstance.update({
       where: { id: instanceId },
       data: {
         status,
@@ -117,6 +121,16 @@ export class InstancesService {
         photoKeys: photoObj,
       },
     });
+
+    if (status === 'done' && instance.status !== 'done') {
+      void this.push.sendToParents(tenantId, {
+        title: `✅ ${actor.displayName}`,
+        body: `${refreshed.chore.title_he} / ${refreshed.chore.title_en} — ready for approval`,
+        url: '/parent/review',
+      });
+    }
+
+    return updated;
   }
 
   async undo(tenantId: string, instanceId: string, actor: RequestUser) {
@@ -148,7 +162,7 @@ export class InstancesService {
 
   async approve(tenantId: string, instanceId: string, actor: RequestUser, body: ApproveInstanceDto) {
     const instance = await this.getInstanceOrThrow(tenantId, instanceId);
-    if (!actor.isAdmin && !actor.isSystemAdmin) throw new ForbiddenException('Admin is required to approve');
+    if (!actor.isAdmin) throw new ForbiddenException('Admin is required to approve');
     if (instance.approvedAt) throw new BadRequestException('Instance already approved');
     if (instance.status !== 'done') throw new BadRequestException('Only done instances can be approved');
 
@@ -198,6 +212,13 @@ export class InstancesService {
       }
 
       return updated;
+    });
+
+    const reward = hasReward && rewardAmountDecimal ? ` (+${rewardAmountDecimal.toString()})` : '';
+    void this.push.sendToUsers(creditedUsers, {
+      title: '⭐ Approved!',
+      body: `${instance.chore.title_he} / ${instance.chore.title_en}${reward}`,
+      url: '/child',
     });
 
     return result;

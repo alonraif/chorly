@@ -1,12 +1,12 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
-import { ApiBody, ApiHeader, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
+import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
   CreateChoreDefinitionSchema,
   UpdateChoreDefinitionSchema,
 } from '@chorly/shared';
-import { AdminGuard } from '../common/dev-auth/admin.guard';
-import { CurrentTenant } from '../common/dev-auth/current-tenant.decorator';
-import { RequireTenantGuard } from '../common/dev-auth/require-tenant.guard';
+import { AdminGuard } from '../common/session/admin.guard';
+import { CurrentTenant } from '../common/session/current-tenant.decorator';
+import { RequireTenantGuard } from '../common/session/require-tenant.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ChoresService } from './chores.service';
 
@@ -41,8 +41,6 @@ const ChoreDefinitionBodySchema: any = {
 };
 
 @ApiTags('chores')
-@ApiHeader({ name: 'x-user-id', required: false })
-@ApiHeader({ name: 'x-tenant-id', required: false, description: 'System admin tenant override' })
 @Controller()
 @UseGuards(RequireTenantGuard)
 export class ChoresController {

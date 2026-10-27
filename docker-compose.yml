@@ -1,42 +1,111 @@
-services:
-  api:
-    image: node:20
-    working_dir: /app
-    command: sh -lc "corepack enable && pnpm install && pnpm --filter chorly-api prisma:generate && pnpm --filter chorly-api dev"
-    environment:
-      DATABASE_URL: postgresql://chorly:chorly@postgres:5432/chorly
-      PORT: 4000
-      DEV_TENANT_ID: dev-tenant
-    depends_on:
-      - postgres
-      - redis
-    ports:
-      - "4000:4000"
-    volumes:
-      - ./:/app
-      - /app/node_modules
+# Production stack. Copy .env.example to .env, fill it in, then: docker compose up -d --build
+name: chorly
 
+x-app-env: &app-env
+  DATABASE_URL: postgresql://chorly:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@postgres:5432/chorly
+  NODE_ENV: production
+  TZ: ${TIMEZONE:-Asia/Jerusalem}
+  TIMEZONE: ${TIMEZONE:-Asia/Jerusalem}
+  VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
+  VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
+  VAPID_SUBJECT: mailto:${ACME_EMAIL:-admin@example.com}
+
+services:
   postgres:
     image: postgres:16
+    restart: unless-stopped
     environment:
       POSTGRES_USER: chorly
-      POSTGRES_PASSWORD: chorly
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: chorly
-    ports:
-      - "5432:5432"
     volumes:
       - chorly_pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chorly -d chorly"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
 
-  redis:
-    image: redis:7
-    ports:
-      - "6379:6379"
+  api:
+    build: .
+    image: chorly-app:latest
+    restart: unless-stopped
+    command: sh -c "pnpm --filter chorly-api exec prisma migrate deploy && node apps/api/dist/main.js"
+    environment:
+      <<: *app-env
+      PORT: 4000
+    depends_on:
+      postgres:
+        condition: service_healthy
 
-  mailhog:
-    image: mailhog/mailhog:v1.0.1
+  web:
+    build: .
+    image: chorly-app:latest
+    restart: unless-stopped
+    command: pnpm --filter chorly-web exec next start -p 3000
+    environment:
+      NODE_ENV: production
+    depends_on:
+      - api
+
+  worker:
+    build: .
+    image: chorly-app:latest
+    restart: unless-stopped
+    command: pnpm --filter chorly-worker start
+    environment:
+      <<: *app-env
+      APP_BASE_URL: https://${DOMAIN}
+    depends_on:
+      - api
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
     ports:
-      - "1025:1025"
-      - "8025:8025"
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:?set DOMAIN in .env}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+      - api
+
+  # Keeps the DNS A record pointed at this network's public IP. Config: deploy/ddns/config.json
+  ddns:
+    image: qmcgaw/ddns-updater:v2
+    restart: unless-stopped
+    environment:
+      PERIOD: 5m
+      TZ: ${TIMEZONE:-Asia/Jerusalem}
+    volumes:
+      - ./deploy/ddns:/updater/data
+    profiles: ["ddns"]
+
+  # Nightly pg_dump into ./backups, keeping 14 days.
+  backup:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ./backups:/backups
+    entrypoint: >
+      sh -c 'while true; do
+        pg_dump -h postgres -U chorly chorly | gzip > /backups/chorly-$$(date +%F).sql.gz &&
+        find /backups -name "chorly-*.sql.gz" -mtime +14 -delete;
+        sleep 86400; done'
+    depends_on:
+      postgres:
+        condition: service_healthy
 
 volumes:
   chorly_pg:
+  caddy_data:
+  caddy_config:

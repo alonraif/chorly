@@ -24,13 +24,6 @@ enum MoneyLedgerType {
   payout
 }
 
-enum InviteStatus {
-  pending
-  accepted
-  revoked
-  expired
-}
-
 enum FamilyRole {
   parent
   child
@@ -48,7 +41,6 @@ model Tenant {
   chores      ChoreDefinition[]
   instances   ChoreInstance[]
   moneyLedger MoneyLedger[]
-  invites     FamilyInvite[]
 }
 
 model User {
@@ -60,7 +52,6 @@ model User {
   displayName    String
   role           FamilyRole @default(parent)
   isAdmin        Boolean  @default(false)
-  isSystemAdmin  Boolean  @default(false)
   locale         Locale   @default(he)
   isActive       Boolean  @default(true)
   isAway         Boolean  @default(false)
@@ -70,29 +61,34 @@ model User {
   completions       ChoreCompletion[]
   approvedInstances ChoreInstance[]   @relation("InstanceApprover")
   ledgerEntries     MoneyLedger[]
-  sentInvites       FamilyInvite[]    @relation("InviteCreator")
+  sessions          Session[]
+  pushSubscriptions PushSubscription[]
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
-  @@index([isSystemAdmin])
 }
 
-model FamilyInvite {
-  id            String      @id @default(cuid())
-  tenantId      String
-  tenant        Tenant      @relation(fields: [tenantId], references: [id])
-  inviterUserId String
-  inviter       User        @relation("InviteCreator", fields: [inviterUserId], references: [id])
-  email         String
-  role          FamilyRole  @default(parent)
-  token         String      @unique
-  status        InviteStatus @default(pending)
-  expiresAt     DateTime
-  acceptedAt    DateTime?
-  createdAt     DateTime    @default(now())
+model Session {
+  id         String   @id @default(cuid())
+  tokenHash  String   @unique
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
 
-  @@index([tenantId, status])
-  @@index([email, status])
+  @@index([userId])
+}
+
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
 }
 
 model ChoreDefinition {

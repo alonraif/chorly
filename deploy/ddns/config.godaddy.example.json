@@ -1,0 +1,11 @@
+{
+  "settings": [
+    {
+      "provider": "godaddy",
+      "domain": "chores.the-raifs.me",
+      "key": "YOUR_GODADDY_API_KEY",
+      "secret": "YOUR_GODADDY_API_SECRET",
+      "ip_version": "ipv4"
+    }
+  ]
+}
