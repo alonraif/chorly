@@ -24,9 +24,13 @@ import { errorMessage, Segmented, Sheet, Switch, useUi } from './ui';
 
 type Freq = 'once' | 'daily' | 'weekly' | 'monthly' | 'interval';
 
+// With several kids: 'each' = everyone does their own (one chore per kid), 'turns' = rotate between them.
+type Split = 'each' | 'turns';
+
 type Draft = {
   title: string;
   assigneeIds: string[];
+  split: Split;
   freq: Freq;
   days: WeekdayCode[];
   monthlyPos: 1 | -1;
@@ -52,6 +56,7 @@ function emptyDraft(defaultAssignees: string[]): Draft {
   return {
     title: '',
     assigneeIds: defaultAssignees,
+    split: 'each',
     freq: 'daily',
     days: [todayCode()],
     monthlyPos: 1,
@@ -161,6 +166,7 @@ export function ChoreEditor({
             ...withSchedule,
             title: choreTitle(chore),
             assigneeIds: chore.assignmentJson?.assigneeIds || [],
+            split: (chore.assignmentJson?.assigneeIds?.length ?? 0) > 1 ? 'turns' : 'each',
             hasReward: chore.hasReward,
             rewardAmount: chore.rewardAmount ? String(Number(chore.rewardAmount)) : '',
             skipAway: chore.assignmentJson?.skipAwayUsers ?? true,
@@ -181,7 +187,10 @@ export function ChoreEditor({
   const schedule = useMemo(() => buildSchedule(draft), [draft]);
   const chosenKids = kids.filter((k) => draft.assigneeIds.includes(k.id));
   const summary = [
-    chosenKids.length ? chosenKids.map((k) => firstName(k.displayName)).join(chosenKids.length > 1 ? ' → ' : '') : 'Nobody yet',
+    chosenKids.length
+      ? chosenKids.map((k) => firstName(k.displayName)).join(chosenKids.length > 1 && draft.split === 'turns' ? ' → ' : ' & ')
+      : 'Nobody yet',
+    chosenKids.length > 1 ? (draft.split === 'turns' ? 'taking turns' : 'each their own') : null,
     scheduleSummary(schedule),
     draft.hasReward && Number(draft.rewardAmount) > 0 ? `${currencySymbol(currency)}${draft.rewardAmount} reward` : null,
   ]
@@ -215,33 +224,41 @@ export function ChoreEditor({
     if (draft.hasReward && !(Number(draft.rewardAmount) > 0)) return setError('Enter a reward amount, or turn the reward off.');
     if (draft.freq !== 'once' && draft.endsMode === 'on' && !draft.endsDate) return setError('Pick an end date.');
 
-    const shared = draft.assigneeIds.length > 1;
     // Keep separately-stored Hebrew/English names unless the parent actually renamed the chore.
     const titleChanged = !isEdit || title !== originalTitle;
-    const payload = {
-      ...(titleChanged ? { title_en: title, title_he: title } : {}),
-      hasReward: draft.hasReward,
-      rewardAmount: draft.hasReward ? String(Number(draft.rewardAmount)) : undefined,
-      allowNotes: true,
-      allowPhotoProof: false,
-      schedule,
-      assignment: {
-        shared,
-        mode: shared ? 'round_robin' : 'fixed',
-        skipAwayUsers: draft.skipAway,
-        assigneeIds: draft.assigneeIds,
-      },
+    const payloadFor = (assigneeIds: string[]) => {
+      const shared = assigneeIds.length > 1;
+      return {
+        ...(titleChanged ? { title_en: title, title_he: title } : {}),
+        hasReward: draft.hasReward,
+        rewardAmount: draft.hasReward ? String(Number(draft.rewardAmount)) : undefined,
+        allowNotes: true,
+        allowPhotoProof: false,
+        schedule,
+        assignment: {
+          shared,
+          mode: shared ? 'round_robin' : 'fixed',
+          skipAwayUsers: draft.skipAway,
+          assigneeIds,
+        },
+      };
     };
+    // Each occurrence has a single kid, so "each does it" becomes one chore per kid.
+    const groups =
+      draft.split === 'each' && draft.assigneeIds.length > 1 ? draft.assigneeIds.map((id) => [id]) : [draft.assigneeIds];
+    const [first, ...rest] = groups;
+    const withTitle = (assigneeIds: string[]) => ({ ...payloadFor(assigneeIds), title_en: title, title_he: title });
 
     setSaving(true);
     try {
       if (isEdit) {
-        await api.patch(`/chores/${choreId}`, payload);
-        toast('Chore updated');
+        await api.patch(`/chores/${choreId}`, payloadFor(first));
+        for (const ids of rest) await api.post('/chores', withTitle(ids));
+        toast(rest.length ? `Chore updated · added copies for ${rest.length} more` : 'Chore updated');
       } else {
-        await api.post('/chores', payload);
-        if (saveFavorite) await api.post('/templates', payload).catch(() => undefined);
-        toast(`“${title}” added`);
+        for (const ids of groups) await api.post('/chores', withTitle(ids));
+        if (saveFavorite) await api.post('/templates', withTitle(first)).catch(() => undefined);
+        toast(groups.length > 1 ? `“${title}” added for ${groups.length} kids` : `“${title}” added`);
       }
       onSaved();
       onClose();
@@ -345,9 +362,31 @@ export function ChoreEditor({
             </div>
           )}
           {draft.assigneeIds.length > 1 && (
-            <p className="field-hint">
-              <Icon name="repeat" size={14} /> They’ll take turns — each time goes to the next kid.
-            </p>
+            <>
+              <Segmented<Split>
+                label="How kids share it"
+                value={draft.split}
+                onChange={(v) => set('split', v)}
+                options={[
+                  { value: 'each', label: 'Each does it' },
+                  { value: 'turns', label: 'Take turns' },
+                ]}
+              />
+              <p className="field-hint">
+                {draft.split === 'each' ? (
+                  <>
+                    <Icon name="users" size={14} />
+                    {isEdit
+                      ? 'Everyone gets their own. Saving adds a separate copy of this chore for each extra kid.'
+                      : 'Everyone gets their own — e.g. “clean your room”. Each kid checks off and earns separately.'}
+                  </>
+                ) : (
+                  <>
+                    <Icon name="repeat" size={14} /> One kid per time, rotating — e.g. dishes or trash.
+                  </>
+                )}
+              </p>
+            </>
           )}
         </div>
 
