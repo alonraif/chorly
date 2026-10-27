@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { firstName, money } from '../../../lib/format';
+import { getLocale, t, tn } from '../../../lib/i18n';
 import { useSession, type Member } from '../../../lib/session';
+import { setCurrentLocale } from '../../../lib/user';
 import type { Earnings } from '../../../lib/types';
 import { Avatar } from '../../../components/avatar';
 import { Icon } from '../../../components/icon';
@@ -43,17 +45,17 @@ export default function FamilyPage() {
   async function markPaid(kid: Member) {
     const due = earnings[kid.id]?.dueAmount;
     const ok = await confirm({
-      title: `Pay ${firstName(kid.displayName)} ${money(due, currency)}?`,
-      body: 'Marks the full balance as paid and resets it to zero.',
-      confirmLabel: 'Mark as paid',
+      title: t('common.payConfirmTitle', { name: firstName(kid.displayName), amount: money(due, currency) }),
+      body: t('common.payConfirmBody'),
+      confirmLabel: t('common.markAsPaid'),
     });
     if (!ok) return;
     try {
       await api.post(`/users/${kid.id}/payout-reset`, {});
-      toast(`${firstName(kid.displayName)}’s balance is paid`);
+      toast(t('family.balancePaid', { name: firstName(kid.displayName) }));
       loadEarnings();
     } catch (err) {
-      toast(errorMessage(err, 'Could not mark as paid'), 'error');
+      toast(errorMessage(err, t('common.couldNotMarkPaid')), 'error');
     }
   }
 
@@ -61,24 +63,26 @@ export default function FamilyPage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <h1>Family</h1>
-          <p className="muted">{family?.name || 'Your family'} · {members.length} {members.length === 1 ? 'member' : 'members'}</p>
+          <h1>{t('family.title')}</h1>
+          <p className="muted">
+            {family?.name || t('family.yourFamily')} · {tn('family.members', members.length)}
+          </p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setEditing('new')}>
-          <Icon name="userPlus" size={18} /> Add member
+          <Icon name="userPlus" size={18} /> {t('family.addMember')}
         </button>
       </header>
 
       <section className="section">
         <div className="section-head">
-          <h2>Kids</h2>
+          <h2>{t('family.kids')}</h2>
         </div>
         {kids.length === 0 ? (
           <button type="button" className="add-tile" onClick={() => setEditing('new')}>
             <Icon name="userPlus" size={22} />
             <span>
-              <strong>Add your first kid</strong>
-              <span className="small muted">They’ll sign in on their own phone to see and check off chores.</span>
+              <strong>{t('family.addFirstKid')}</strong>
+              <span className="small muted">{t('family.addFirstKidHint')}</span>
             </span>
           </button>
         ) : (
@@ -88,33 +92,33 @@ export default function FamilyPage() {
               const due = Number(e?.dueAmount || 0);
               return (
                 <article key={kid.id} className="member-card">
-                  <button type="button" className="member-head" onClick={() => setEditing(kid)} aria-label={`Edit ${kid.displayName}`}>
+                  <button type="button" className="member-head" onClick={() => setEditing(kid)} aria-label={t('family.edit', { name: kid.displayName })}>
                     <Avatar user={kid} size={48} />
                     <span className="member-id">
                       <strong>{kid.displayName}</strong>
-                      <span className="small muted">{kid.email || 'No login yet'}</span>
+                      <span className="small muted">{kid.email || t('family.noLoginYet')}</span>
                     </span>
                     {kid.isAway && (
-                      <span className="pill pill-neutral"><Icon name="plane" size={14} /> Away</span>
+                      <span className="pill pill-neutral"><Icon name="plane" size={14} /> {t('common.away')}</span>
                     )}
                     <Icon name="edit" size={18} className="member-edit" />
                   </button>
                   <div className="member-balance">
                     <span>
-                      <span className="small muted">Balance</span>
+                      <span className="small muted">{t('family.balance')}</span>
                       <span className="balance-amount">{e ? money(e.dueAmount, e.currencyCode) : '—'}</span>
                       {e && Number(e.paidOutTotal) > 0 && (
-                        <span className="small muted">{money(e.paidOutTotal, e.currencyCode)} paid so far</span>
+                        <span className="small muted">{t('family.paidSoFar', { amount: money(e.paidOutTotal, e.currencyCode) })}</span>
                       )}
                     </span>
                     {due > 0 && (
                       <button type="button" className="btn btn-secondary btn-sm" onClick={() => markPaid(kid)}>
-                        <Icon name="wallet" size={16} /> Mark paid
+                        <Icon name="wallet" size={16} /> {t('family.markPaid')}
                       </button>
                     )}
                   </div>
                   <Link className="member-link" href={`/child?user=${kid.id}`}>
-                    See {firstName(kid.displayName)}’s view <Icon name="arrowRight" size={16} />
+                    {t('family.seeView', { name: firstName(kid.displayName) })} <Icon name="arrowRight" size={16} />
                   </Link>
                 </article>
               );
@@ -125,7 +129,7 @@ export default function FamilyPage() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Parents</h2>
+          <h2>{t('family.parents')}</h2>
         </div>
         <div className="list-card">
           <ul className="rows">
@@ -135,10 +139,10 @@ export default function FamilyPage() {
                   <Avatar user={p} size={36} />
                   <span className="row-main">
                     <span className="row-title">
-                      {p.displayName}
-                      {p.id === me.id && <span className="muted"> (you)</span>}
+                      <bdi>{p.displayName}</bdi>
+                      {p.id === me.id && <span className="muted"> {t('family.you')}</span>}
                     </span>
-                    <span className="row-sub">{p.email || 'No login'}</span>
+                    <span className="row-sub">{p.email || t('family.noLogin')}</span>
                   </span>
                   <Icon name="chevronRight" size={18} className="row-chevron" />
                 </button>
@@ -161,6 +165,7 @@ export default function FamilyPage() {
 }
 
 function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | null; onClose: () => void; onSaved: () => void }) {
+  const { me } = useSession();
   const { toast } = useUi();
   const isNew = member === 'new';
   const [draft, setDraft] = useState<MemberDraft>(blankDraft);
@@ -174,7 +179,7 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
     setShowPassword(false);
     setDraft(
       member === 'new'
-        ? blankDraft
+        ? { ...blankDraft, locale: getLocale() }
         : {
             displayName: member.displayName,
             email: member.email || '',
@@ -191,9 +196,9 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setError('');
-    if (!draft.displayName.trim()) return setError('Enter a name.');
-    if (draft.password && draft.password.length < 8) return setError('Passwords need at least 8 characters.');
-    if (isNew && draft.email && !draft.password) return setError('Set a password so they can sign in.');
+    if (!draft.displayName.trim()) return setError(t('family.enterName'));
+    if (draft.password && draft.password.length < 8) return setError(t('family.passwordShort'));
+    if (isNew && draft.email && !draft.password) return setError(t('family.needPassword'));
     const body = {
       displayName: draft.displayName.trim(),
       email: draft.email.trim() || undefined,
@@ -206,15 +211,17 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
     try {
       if (isNew) {
         await api.post('/users', body);
-        toast(`${firstName(body.displayName)} added`);
+        toast(t('family.added', { name: firstName(body.displayName) }));
       } else if (member) {
         await api.patch(`/users/${member.id}`, body);
-        toast('Saved');
+        toast(t('family.saved'));
+        // Editing yourself here changes your own interface language too.
+        if (member.id === me.id) setCurrentLocale(body.locale);
       }
       onSaved();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Could not save'));
+      setError(errorMessage(err, t('family.couldNotSave')));
     } finally {
       setSaving(false);
     }
@@ -226,12 +233,12 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
     <Sheet
       open={!!member}
       onClose={onClose}
-      title={member === 'new' ? 'Add a family member' : `Edit ${member ? firstName(member.displayName) : ''}`}
+      title={member === 'new' ? t('family.addTitle') : t('family.edit', { name: member ? firstName(member.displayName) : '' })}
       footer={
         <>
-          <button type="button" className="btn btn-secondary" onClick={onClose}>Cancel</button>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>{t('common.cancel')}</button>
           <button type="submit" form="member-form" className="btn btn-primary" disabled={saving}>
-            {saving ? 'Saving…' : isNew ? 'Add' : 'Save'}
+            {saving ? t('common.saving') : isNew ? t('common.add') : t('common.save')}
           </button>
         </>
       }
@@ -239,26 +246,26 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
       <form id="member-form" className="stack-lg" onSubmit={onSubmit} noValidate>
         {isNew && (
           <Segmented
-            label="Role"
+            label={t('family.role')}
             value={draft.role}
             onChange={(v) => set('role', v)}
             options={[
-              { value: 'child', label: 'Kid' },
-              { value: 'parent', label: 'Parent' },
+              { value: 'child', label: t('common.kid') },
+              { value: 'parent', label: t('common.parent') },
             ]}
           />
         )}
         <label className="field">
-          <span className="field-label">Name</span>
-          <input className="input" value={draft.displayName} onChange={(e) => set('displayName', e.target.value)} placeholder={isKid ? 'e.g. Noa' : 'e.g. Dana'} data-autofocus />
+          <span className="field-label">{t('family.name')}</span>
+          <input className="input" value={draft.displayName} onChange={(e) => set('displayName', e.target.value)} placeholder={isKid ? t('family.kidPlaceholder') : t('family.parentPlaceholder')} data-autofocus />
         </label>
 
         <fieldset className="fieldset">
           <legend className="field-label">
-            <Icon name="lock" size={16} /> Sign-in
+            <Icon name="lock" size={16} /> {t('family.signIn')}
           </legend>
           <label className="field">
-            <span className="field-label-sm">Email or username</span>
+            <span className="field-label-sm">{t('common.emailOrUsername')}</span>
             <input
               className="input"
               type="email"
@@ -267,10 +274,10 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
               onChange={(e) => set('email', e.target.value)}
               placeholder={isKid ? 'noa@family.home' : 'you@example.com'}
             />
-            {isKid && <span className="field-hint">Doesn’t need to be a real inbox — it’s just what they type to sign in.</span>}
+            {isKid && <span className="field-hint">{t('family.emailHint')}</span>}
           </label>
           <label className="field">
-            <span className="field-label-sm">{isNew ? 'Password' : 'New password'}</span>
+            <span className="field-label-sm">{isNew ? t('common.password') : t('family.newPassword')}</span>
             <span className="input-with-btn">
               <input
                 className="input"
@@ -278,9 +285,9 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
                 autoComplete="new-password"
                 value={draft.password}
                 onChange={(e) => set('password', e.target.value)}
-                placeholder={isNew ? 'At least 8 characters' : 'Leave blank to keep the current one'}
+                placeholder={isNew ? t('common.atLeast8') : t('family.keepPassword')}
               />
-              <button type="button" className="icon-btn" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              <button type="button" className="icon-btn" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? t('common.hidePassword') : t('common.showPassword')}>
                 <Icon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
               </button>
             </span>
@@ -288,9 +295,9 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
         </fieldset>
 
         <div className="field">
-          <span className="field-label-sm">Chore names in</span>
+          <span className="field-label-sm">{t('lang.label')}</span>
           <Segmented
-            label="Language"
+            label={t('lang.label')}
             value={draft.locale}
             onChange={(v) => set('locale', v)}
             options={[
@@ -298,14 +305,15 @@ function MemberSheet({ member, onClose, onSaved }: { member: Member | 'new' | nu
               { value: 'en', label: 'English' },
             ]}
           />
+          <span className="field-hint">{t('lang.hint')}</span>
         </div>
 
         {isKid && (
           <Switch
             checked={draft.isAway}
             onChange={(v) => set('isAway', v)}
-            label="Away"
-            hint="On a trip or at camp? New chores skip them until you turn this off."
+            label={t('common.away')}
+            hint={t('family.awayHint')}
           />
         )}
 

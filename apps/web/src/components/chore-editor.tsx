@@ -8,14 +8,18 @@ import {
   choreTitle,
   currencySymbol,
   firstName,
+  money,
   now,
   parseRrule,
   scheduleSummary,
   TZ,
+  weekdayCodeOf,
+  weekdayName,
   WEEKDAYS,
   type ScheduleJson,
   type WeekdayCode,
 } from '../lib/format';
+import { joinNames, listJoin, t, tn } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import type { Chore } from '../lib/types';
 import { Avatar } from './avatar';
@@ -49,7 +53,7 @@ type Draft = {
 };
 
 function todayCode(): WeekdayCode {
-  return WEEKDAYS[now().weekday % 7].code;
+  return weekdayCodeOf(now());
 }
 
 function emptyDraft(defaultAssignees: string[]): Draft {
@@ -172,7 +176,7 @@ export function ChoreEditor({
             skipAway: chore.assignmentJson?.skipAwayUsers ?? true,
           });
         })
-        .catch((err) => setError(errorMessage(err, 'Could not load this chore')))
+        .catch((err) => setError(errorMessage(err, t('editor.couldNotLoad'))))
         .finally(() => setLoading(false));
       return;
     }
@@ -188,11 +192,13 @@ export function ChoreEditor({
   const chosenKids = kids.filter((k) => draft.assigneeIds.includes(k.id));
   const summary = [
     chosenKids.length
-      ? chosenKids.map((k) => firstName(k.displayName)).join(chosenKids.length > 1 && draft.split === 'turns' ? ' → ' : ' & ')
-      : 'Nobody yet',
-    chosenKids.length > 1 ? (draft.split === 'turns' ? 'taking turns' : 'each their own') : null,
+      ? draft.split === 'turns'
+        ? joinNames(chosenKids.map((k) => firstName(k.displayName)), t('editor.turnsArrow'))
+        : listJoin(chosenKids.map((k) => firstName(k.displayName)))
+      : t('editor.nobody'),
+    chosenKids.length > 1 ? (draft.split === 'turns' ? t('editor.takingTurns') : t('editor.eachOwn')) : null,
     scheduleSummary(schedule),
-    draft.hasReward && Number(draft.rewardAmount) > 0 ? `${currencySymbol(currency)}${draft.rewardAmount} reward` : null,
+    draft.hasReward && Number(draft.rewardAmount) > 0 ? t('editor.reward', { amount: money(draft.rewardAmount, currency) }) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -217,12 +223,12 @@ export function ChoreEditor({
     e.preventDefault();
     setError('');
     const title = draft.title.trim();
-    if (!title) return setError('Give the chore a name.');
-    if (draft.assigneeIds.length === 0) return setError('Choose who does this chore.');
-    if (draft.freq === 'weekly' && draft.days.length === 0 && !draft.rawRrule) return setError('Pick at least one day.');
-    if (draft.freq === 'once' && !draft.onceDate) return setError('Pick a date.');
-    if (draft.hasReward && !(Number(draft.rewardAmount) > 0)) return setError('Enter a reward amount, or turn the reward off.');
-    if (draft.freq !== 'once' && draft.endsMode === 'on' && !draft.endsDate) return setError('Pick an end date.');
+    if (!title) return setError(t('editor.errName'));
+    if (draft.assigneeIds.length === 0) return setError(t('editor.errWho'));
+    if (draft.freq === 'weekly' && draft.days.length === 0 && !draft.rawRrule) return setError(t('editor.errDay'));
+    if (draft.freq === 'once' && !draft.onceDate) return setError(t('editor.errDate'));
+    if (draft.hasReward && !(Number(draft.rewardAmount) > 0)) return setError(t('editor.errReward'));
+    if (draft.freq !== 'once' && draft.endsMode === 'on' && !draft.endsDate) return setError(t('editor.errEnd'));
 
     // Keep separately-stored Hebrew/English names unless the parent actually renamed the chore.
     const titleChanged = !isEdit || title !== originalTitle;
@@ -254,16 +260,16 @@ export function ChoreEditor({
       if (isEdit) {
         await api.patch(`/chores/${choreId}`, payloadFor(first));
         for (const ids of rest) await api.post('/chores', withTitle(ids));
-        toast(rest.length ? `Chore updated · added copies for ${rest.length} more` : 'Chore updated');
+        toast(rest.length ? tn('editor.updatedCopies', rest.length) : t('editor.updated'));
       } else {
         for (const ids of groups) await api.post('/chores', withTitle(ids));
         if (saveFavorite) await api.post('/templates', withTitle(first)).catch(() => undefined);
-        toast(groups.length > 1 ? `“${title}” added for ${groups.length} kids` : `“${title}” added`);
+        toast(groups.length > 1 ? t('editor.addedFor', { title, count: groups.length }) : t('editor.added', { title }));
       }
       onSaved();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Could not save the chore'));
+      setError(errorMessage(err, t('editor.couldNotSave')));
     } finally {
       setSaving(false);
     }
@@ -272,19 +278,19 @@ export function ChoreEditor({
   async function onDelete() {
     if (!choreId) return;
     const ok = await confirm({
-      title: 'Delete this chore?',
-      body: 'It stops repeating and upcoming unapproved occurrences are removed. Earnings already approved stay.',
-      confirmLabel: 'Delete chore',
+      title: t('editor.deleteTitle'),
+      body: t('editor.deleteBody'),
+      confirmLabel: t('editor.deleteConfirm'),
       danger: true,
     });
     if (!ok) return;
     try {
       await api.delete(`/chores/${choreId}`);
-      toast('Chore deleted');
+      toast(t('editor.deleted'));
       onSaved();
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Could not delete the chore'));
+      setError(errorMessage(err, t('editor.couldNotDelete')));
     }
   }
 
@@ -294,40 +300,40 @@ export function ChoreEditor({
     <Sheet
       open={open}
       onClose={onClose}
-      title={isEdit ? 'Edit chore' : 'New chore'}
-      subtitle={isEdit ? 'Changes apply to upcoming occurrences.' : undefined}
+      title={isEdit ? t('editor.editTitle') : t('common.newChore')}
+      subtitle={isEdit ? t('editor.editSubtitle') : undefined}
       size="lg"
       footer={
         <>
           {isEdit && (
             <button type="button" className="btn btn-ghost-danger" onClick={onDelete}>
-              <Icon name="trash" size={18} /> Delete
+              <Icon name="trash" size={18} /> {t('common.delete')}
             </button>
           )}
           <span className="spacer" />
           <button type="button" className="btn btn-secondary" onClick={onClose}>
-            Cancel
+            {t('common.cancel')}
           </button>
           <button type="submit" form="chore-editor" className="btn btn-primary" disabled={saving || loading}>
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add chore'}
+            {saving ? t('common.saving') : isEdit ? t('editor.saveChanges') : t('editor.addChore')}
           </button>
         </>
       }
     >
       <form id="chore-editor" className="stack-lg" onSubmit={onSubmit} noValidate>
         <div className="field">
-          <label className="field-label" htmlFor="chore-title">What needs doing?</label>
+          <label className="field-label" htmlFor="chore-title">{t('editor.what')}</label>
           <input
             id="chore-title"
             className="input input-lg"
-            placeholder="e.g. Empty the dishwasher"
+            placeholder={t('editor.whatPlaceholder')}
             value={draft.title}
             onChange={(e) => set('title', e.target.value)}
             autoComplete="off"
             data-autofocus
           />
           {!isEdit && !draft.title && suggestions.length > 0 && (
-            <div className="chip-row" aria-label="Suggestions">
+            <div className="chip-row" aria-label={t('editor.suggestions')}>
               {suggestions.map((t) => (
                 <button key={t.id} type="button" className="chip chip-suggest" onClick={() => pickTemplate(t)}>
                   {choreTitle(t)}
@@ -338,9 +344,9 @@ export function ChoreEditor({
         </div>
 
         <div className="field">
-          <span className="field-label">Who does it?</span>
+          <span className="field-label">{t('editor.who')}</span>
           {kids.length === 0 ? (
-            <p className="callout callout-warn">Add a kid on the Family page first.</p>
+            <p className="callout callout-warn">{t('editor.addKidFirst')}</p>
           ) : (
             <div className="chip-row">
               {kids.map((kid) => {
@@ -364,25 +370,23 @@ export function ChoreEditor({
           {draft.assigneeIds.length > 1 && (
             <>
               <Segmented<Split>
-                label="How kids share it"
+                label={t('editor.howShare')}
                 value={draft.split}
                 onChange={(v) => set('split', v)}
                 options={[
-                  { value: 'each', label: 'Each does it' },
-                  { value: 'turns', label: 'Take turns' },
+                  { value: 'each', label: t('editor.each') },
+                  { value: 'turns', label: t('editor.turns') },
                 ]}
               />
               <p className="field-hint">
                 {draft.split === 'each' ? (
                   <>
                     <Icon name="users" size={14} />
-                    {isEdit
-                      ? 'Everyone gets their own. Saving adds a separate copy of this chore for each extra kid.'
-                      : 'Everyone gets their own — e.g. “clean your room”. Each kid checks off and earns separately.'}
+                    {isEdit ? t('editor.eachHintEdit') : t('editor.eachHintNew')}
                   </>
                 ) : (
                   <>
-                    <Icon name="repeat" size={14} /> One kid per time, rotating — e.g. dishes or trash.
+                    <Icon name="repeat" size={14} /> {t('editor.turnsHint')}
                   </>
                 )}
               </p>
@@ -391,22 +395,22 @@ export function ChoreEditor({
         </div>
 
         <div className="field">
-          <span className="field-label">How often?</span>
+          <span className="field-label">{t('editor.howOften')}</span>
           <Segmented<Freq>
-            label="How often"
+            label={t('editor.howOftenLabel')}
             value={draft.freq}
             onChange={(v) => set('freq', v)}
             options={[
-              { value: 'once', label: 'Once' },
-              { value: 'daily', label: 'Daily' },
-              { value: 'weekly', label: 'Weekly' },
-              { value: 'monthly', label: 'Monthly' },
-              { value: 'interval', label: 'After done' },
+              { value: 'once', label: t('editor.once') },
+              { value: 'daily', label: t('editor.daily') },
+              { value: 'weekly', label: t('editor.weekly') },
+              { value: 'monthly', label: t('editor.monthly') },
+              { value: 'interval', label: t('editor.afterDone') },
             ]}
           />
 
           {draft.freq === 'weekly' && (
-            <div className="day-picker" role="group" aria-label="Days">
+            <div className="day-picker" role="group" aria-label={t('editor.days')}>
               {WEEKDAYS.map((d) => {
                 const on = draft.days.includes(d.code);
                 return (
@@ -415,10 +419,10 @@ export function ChoreEditor({
                     type="button"
                     className={`day-dot ${on ? 'is-on' : ''}`}
                     aria-pressed={on}
-                    aria-label={d.long}
+                    aria-label={weekdayName(d.code, 'long')}
                     onClick={() => toggleDay(d.code)}
                   >
-                    {d.short}
+                    {weekdayName(d.code, 'short')}
                   </button>
                 );
               })}
@@ -427,13 +431,13 @@ export function ChoreEditor({
 
           {draft.freq === 'monthly' && (
             <div className="row-2">
-              <select className="input" value={draft.monthlyPos} onChange={(e) => set('monthlyPos', Number(e.target.value) as 1 | -1)} aria-label="Which week">
-                <option value={1}>First</option>
-                <option value={-1}>Last</option>
+              <select className="input" value={draft.monthlyPos} onChange={(e) => set('monthlyPos', Number(e.target.value) as 1 | -1)} aria-label={t('editor.whichWeek')}>
+                <option value={1}>{t('editor.first')}</option>
+                <option value={-1}>{t('editor.last')}</option>
               </select>
-              <select className="input" value={draft.monthlyDay} onChange={(e) => set('monthlyDay', e.target.value as WeekdayCode)} aria-label="Weekday">
+              <select className="input" value={draft.monthlyDay} onChange={(e) => set('monthlyDay', e.target.value as WeekdayCode)} aria-label={t('editor.weekday')}>
                 {WEEKDAYS.map((d) => (
-                  <option key={d.code} value={d.code}>{d.long}</option>
+                  <option key={d.code} value={d.code}>{weekdayName(d.code, 'long')}</option>
                 ))}
               </select>
             </div>
@@ -441,34 +445,34 @@ export function ChoreEditor({
 
           {draft.freq === 'interval' && (
             <div className="inline-sentence">
-              Next one is due
+              {t('editor.intervalBefore')}
               <span className="stepper">
-                <button type="button" className="icon-btn" aria-label="Fewer days" onClick={() => set('intervalDays', Math.max(1, draft.intervalDays - 1))}>
+                <button type="button" className="icon-btn" aria-label={t('editor.fewerDays')} onClick={() => set('intervalDays', Math.max(1, draft.intervalDays - 1))}>
                   −
                 </button>
                 <span className="stepper-value">{draft.intervalDays}</span>
-                <button type="button" className="icon-btn" aria-label="More days" onClick={() => set('intervalDays', draft.intervalDays + 1)}>
+                <button type="button" className="icon-btn" aria-label={t('editor.moreDays')} onClick={() => set('intervalDays', draft.intervalDays + 1)}>
                   +
                 </button>
               </span>
-              {draft.intervalDays === 1 ? 'day' : 'days'} after it’s done
+              {tn('editor.intervalAfter', draft.intervalDays)}
             </div>
           )}
 
           {draft.freq === 'once' ? (
             <div className="row-2">
               <label className="field">
-                <span className="field-label-sm">Date</span>
+                <span className="field-label-sm">{t('editor.date')}</span>
                 <input className="input" type="date" value={draft.onceDate} onChange={(e) => set('onceDate', e.target.value)} />
               </label>
               <label className="field">
-                <span className="field-label-sm">Due by</span>
+                <span className="field-label-sm">{t('editor.dueBy')}</span>
                 <input className="input" type="time" value={draft.onceTime} onChange={(e) => set('onceTime', e.target.value)} />
               </label>
             </div>
           ) : (
             <label className="field">
-              <span className="field-label-sm">Due by</span>
+              <span className="field-label-sm">{t('editor.dueBy')}</span>
               <input className="input input-time" type="time" value={draft.dueTime} onChange={(e) => set('dueTime', e.target.value)} />
             </label>
           )}
@@ -478,8 +482,8 @@ export function ChoreEditor({
           <Switch
             checked={draft.hasReward}
             onChange={(v) => set('hasReward', v)}
-            label="Pays a reward"
-            hint="Added to the kid’s balance when you approve it."
+            label={t('editor.paysReward')}
+            hint={t('editor.paysRewardHint')}
           />
           {draft.hasReward && (
             <div className="money-input">
@@ -490,7 +494,7 @@ export function ChoreEditor({
                 placeholder="5"
                 value={draft.rewardAmount}
                 onChange={(e) => set('rewardAmount', e.target.value.replace(/[^0-9.]/g, ''))}
-                aria-label="Reward amount"
+                aria-label={t('approvals.rewardAmount')}
               />
             </div>
           )}
@@ -498,51 +502,51 @@ export function ChoreEditor({
 
         <div className="disclosure">
           <button type="button" className="disclosure-toggle" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}>
-            More options
+            {t('common.moreOptions')}
             <Icon name="chevronDown" size={18} />
           </button>
           {showMore && (
             <div className="stack">
               {draft.freq !== 'once' && (
                 <div className="field">
-                  <span className="field-label-sm">Ends</span>
+                  <span className="field-label-sm">{t('editor.ends')}</span>
                   <Segmented
-                    label="Ends"
+                    label={t('editor.ends')}
                     value={draft.endsMode}
                     onChange={(v) => set('endsMode', v)}
                     options={[
-                      { value: 'never', label: 'Never' },
-                      { value: 'on', label: 'On a date' },
+                      { value: 'never', label: t('editor.never') },
+                      { value: 'on', label: t('editor.onDate') },
                     ]}
                   />
                   {draft.endsMode === 'on' && (
-                    <input className="input" type="date" value={draft.endsDate} onChange={(e) => set('endsDate', e.target.value)} aria-label="End date" />
+                    <input className="input" type="date" value={draft.endsDate} onChange={(e) => set('endsDate', e.target.value)} aria-label={t('editor.endDate')} />
                   )}
                 </div>
               )}
               <label className="field">
-                <span className="field-label-sm">Counts as late after</span>
+                <span className="field-label-sm">{t('editor.lateAfter')}</span>
                 <select className="input" value={draft.grace} onChange={(e) => set('grace', Number(e.target.value))}>
                   {[0, 15, 30, 60, 120, 240].map((m) => (
                     <option key={m} value={m}>
-                      {m === 0 ? 'Right at the due time' : m < 60 ? `${m} minutes` : `${m / 60} hour${m > 60 ? 's' : ''}`}
+                      {m === 0 ? t('editor.rightAtDue') : m < 60 ? tn('editor.minutes', m) : tn('editor.hours', m / 60)}
                     </option>
                   ))}
-                  {![0, 15, 30, 60, 120, 240].includes(draft.grace) && <option value={draft.grace}>{draft.grace} minutes</option>}
+                  {![0, 15, 30, 60, 120, 240].includes(draft.grace) && <option value={draft.grace}>{tn('editor.minutes', draft.grace)}</option>}
                 </select>
               </label>
               <Switch
                 checked={draft.skipAway}
                 onChange={(v) => set('skipAway', v)}
-                label="Skip kids who are away"
-                hint="Kids marked “Away” on the Family page won’t get this chore."
+                label={t('editor.skipAway')}
+                hint={t('editor.skipAwayHint')}
               />
               {!isEdit && (
                 <Switch
                   checked={saveFavorite}
                   onChange={setSaveFavorite}
-                  label="Save as a suggestion"
-                  hint="Shows up as a one-tap suggestion next time."
+                  label={t('editor.saveSuggestion')}
+                  hint={t('editor.saveSuggestionHint')}
                 />
               )}
             </div>
@@ -551,7 +555,9 @@ export function ChoreEditor({
 
         <div className="summary-card">
           <Icon name="sparkle" size={18} />
-          <span>{draft.title.trim() ? <strong>{draft.title.trim()}</strong> : 'New chore'} · {summary}</span>
+          <span>
+            {draft.title.trim() ? <bdi><strong>{draft.title.trim()}</strong></bdi> : t('common.newChore')} · {summary}
+          </span>
         </div>
 
         {error && <p className="callout callout-error" role="alert">{error}</p>}

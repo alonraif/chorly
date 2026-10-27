@@ -3,7 +3,8 @@
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { choreTitle, dayKey, firstName, friendlyDay, greeting, now, timeOf } from '../../lib/format';
+import { choreTitle, dayKey, firstName, friendlyDay, greeting, longDate, now, timeOf, weekdayCodeOf, weekdayName } from '../../lib/format';
+import { joinNames, t, tn } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { rangeQuery, type Chore, type Instance } from '../../lib/types';
 import { Avatar, AvatarStack, ProgressRing } from '../../components/avatar';
@@ -40,7 +41,7 @@ export default function ParentHomePage() {
       setChores(choreList);
       setError('');
     } catch (err) {
-      setError(errorMessage(err, 'Could not load chores'));
+      setError(errorMessage(err, t('common.couldNotLoadChores')));
     } finally {
       setLoaded(true);
     }
@@ -61,7 +62,6 @@ export default function ParentHomePage() {
   const todayItems = byDay[todayKey] || [];
   const agenda = (byDay[selectedDay] || []).filter((i) => !kidFilter || i.assignments.some((a) => a.userId === kidFilter));
   const rewardFor = (choreId: string) => chores.find((c) => c.id === choreId)?.rewardAmount ?? null;
-  const selectedLabel = friendlyDay(days.find((d) => d.toISODate() === selectedDay) || days[0]);
 
   const openEditor = (choreId?: string | null) => {
     setOpenInstance(null);
@@ -72,13 +72,11 @@ export default function ParentHomePage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <p className="eyebrow">{now().toFormat('EEEE, LLLL d')}</p>
-          <h1>
-            {greeting()}, {firstName(me.displayName)}
-          </h1>
+          <p className="eyebrow">{longDate(now())}</p>
+          <h1>{t('greeting.withName', { greeting: greeting(), name: firstName(me.displayName) })}</h1>
         </div>
         <button type="button" className="btn btn-primary hide-mobile" onClick={() => openEditor(null)}>
-          <Icon name="plus" size={18} /> New chore
+          <Icon name="plus" size={18} /> {t('common.newChore')}
         </button>
       </header>
 
@@ -86,28 +84,28 @@ export default function ParentHomePage() {
 
       {loaded && kids.length === 0 && (
         <section className="onboard">
-          <h2>Let’s get your family set up</h2>
+          <h2>{t('parent.onboardTitle')}</h2>
           <ol className="onboard-steps">
             <li className="is-next">
               <span className="step-num">1</span>
               <span>
-                <strong>Add your kids</strong>
-                <span className="muted small">Each kid gets their own login for their phone.</span>
+                <strong>{t('parent.onboardKids')}</strong>
+                <span className="muted small">{t('parent.onboardKidsHint')}</span>
               </span>
-              <Link href="/admin/users" className="btn btn-primary btn-sm">Add kids</Link>
+              <Link href="/admin/users" className="btn btn-primary btn-sm">{t('parent.onboardKidsCta')}</Link>
             </li>
             <li>
               <span className="step-num">2</span>
               <span>
-                <strong>Create a few chores</strong>
-                <span className="muted small">Pick from suggestions — dishes, trash, pets.</span>
+                <strong>{t('parent.onboardChores')}</strong>
+                <span className="muted small">{t('parent.onboardChoresHint')}</span>
               </span>
             </li>
             <li>
               <span className="step-num">3</span>
               <span>
-                <strong>Approve and pay</strong>
-                <span className="muted small">Kids check off chores, you approve, they earn.</span>
+                <strong>{t('parent.onboardApprove')}</strong>
+                <span className="muted small">{t('parent.onboardApproveHint')}</span>
               </span>
             </li>
           </ol>
@@ -120,8 +118,8 @@ export default function ParentHomePage() {
             <Link href="/parent/review" className="alert-card alert-waiting">
               <span className="alert-icon"><Icon name="approve" /></span>
               <span>
-                <strong>{approvalsCount} waiting for approval</strong>
-                <span className="small">Review and pay out</span>
+                <strong>{tn('parent.waiting', approvalsCount)}</strong>
+                <span className="small">{t('parent.reviewPay')}</span>
               </span>
               <Icon name="chevronRight" size={18} />
             </Link>
@@ -130,8 +128,8 @@ export default function ParentHomePage() {
             <Link href="/parent/review#overdue" className="alert-card alert-overdue">
               <span className="alert-icon"><Icon name="alert" /></span>
               <span>
-                <strong>{overdue.length} overdue</strong>
-                <span className="small">Reschedule or skip</span>
+                <strong>{tn('parent.overdue', overdue.length)}</strong>
+                <span className="small">{t('parent.rescheduleSkip')}</span>
               </span>
               <Icon name="chevronRight" size={18} />
             </Link>
@@ -142,9 +140,9 @@ export default function ParentHomePage() {
       {kids.length > 0 && (
         <section className="section">
           <div className="section-head">
-            <h2>Today</h2>
+            <h2>{t('common.today')}</h2>
             {kidFilter && (
-              <button type="button" className="link-btn" onClick={() => setKidFilter(null)}>Show everyone</button>
+              <button type="button" className="link-btn" onClick={() => setKidFilter(null)}>{t('parent.showEveryone')}</button>
             )}
           </div>
           <div className="kid-progress-grid">
@@ -166,7 +164,13 @@ export default function ParentHomePage() {
                   <span className="kid-progress-text">
                     <strong>{firstName(kid.displayName)}</strong>
                     <span className="small muted">
-                      {kid.isAway ? 'Away' : mine.length === 0 ? 'Nothing today' : done === mine.length ? 'All done 🎉' : `${done} of ${mine.length} done`}
+                      {kid.isAway
+                        ? t('common.away')
+                        : mine.length === 0
+                          ? t('parent.nothingToday')
+                          : done === mine.length
+                            ? t('parent.allDone')
+                            : t('parent.doneOf', { done, total: mine.length })}
                     </span>
                   </span>
                 </button>
@@ -178,7 +182,7 @@ export default function ParentHomePage() {
 
       {kids.length > 0 && (
         <section className="section">
-          <div className="day-strip" role="tablist" aria-label="Day">
+          <div className="day-strip" role="tablist" aria-label={t('parent.day')}>
             {days.map((d) => {
               const key = d.toISODate() || '';
               const count = (byDay[key] || []).length;
@@ -192,9 +196,9 @@ export default function ParentHomePage() {
                   className={`day-cell ${active ? 'is-active' : ''}`}
                   onClick={() => setSelectedDay(key)}
                 >
-                  <span className="day-cell-name">{key === todayKey ? 'Today' : d.toFormat('EEE')}</span>
+                  <span className="day-cell-name">{key === todayKey ? t('common.today') : weekdayName(weekdayCodeOf(d), 'label')}</span>
                   <span className="day-cell-num">{d.day}</span>
-                  <span className="day-cell-dots" aria-label={`${count} chores`}>
+                  <span className="day-cell-dots" aria-label={tn('chores.count', count)}>
                     {Array.from({ length: Math.min(count, 4) }, (_, i) => <i key={i} />)}
                   </span>
                 </button>
@@ -210,14 +214,18 @@ export default function ParentHomePage() {
             ) : agenda.length === 0 ? (
               <EmptyState
                 icon="calendar"
-                title={`Nothing on ${selectedLabel === 'Today' ? 'today' : selectedLabel}`}
+                title={
+                  selectedDay === todayKey
+                    ? t('parent.nothingOnToday')
+                    : t('parent.nothingOn', { day: friendlyDay(days.find((d) => d.toISODate() === selectedDay) || days[0]) })
+                }
                 action={
                   <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEditor(null)}>
-                    <Icon name="plus" size={16} /> Add a chore
+                    <Icon name="plus" size={16} /> {t('parent.addChore')}
                   </button>
                 }
               >
-                {kidFilter ? 'No chores for this kid on this day.' : 'Enjoy the free time.'}
+                {kidFilter ? t('parent.noChoresKidDay') : t('parent.enjoy')}
               </EmptyState>
             ) : (
               <ul className="rows">
@@ -229,7 +237,7 @@ export default function ParentHomePage() {
                         <span className="row-title">{choreTitle(item.chore)}</span>
                         <span className="row-sub">
                           <AvatarStack users={item.assignments.map((a) => ({ id: a.userId, displayName: a.displayName }))} size={20} />
-                          {item.assignments.map((a) => firstName(a.displayName)).join(', ')}
+                          {joinNames(item.assignments.map((a) => firstName(a.displayName)))}
                         </span>
                       </span>
                       <StatusPill instance={item} />
@@ -243,7 +251,7 @@ export default function ParentHomePage() {
         </section>
       )}
 
-      <button type="button" className="fab" onClick={() => openEditor(null)} aria-label="New chore">
+      <button type="button" className="fab" onClick={() => openEditor(null)} aria-label={t('common.newChore')}>
         <Icon name="plus" size={26} />
       </button>
 

@@ -17,6 +17,12 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   plus: <path d="M12 5v14M5 12h14" />,
+  globe: (
+    <>
+      <circle cx="12" cy="12" r="9" />
+      <path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18" />
+    </>
+  ),
   check: <path d="M20 6 9 17l-5-5" />,
   x: <path d="M18 6 6 18M6 6l12 12" />,
   chevronRight: <path d="m9 18 6-6-6-6" />,
@@ -98,10 +104,14 @@ const PATHS: Record<string, ReactNode> = {
 
 export type IconName = keyof typeof PATHS;
 
+// Icons that point along the reading direction get mirrored in RTL (see .icon-flip).
+const DIRECTIONAL = new Set<string>(['chevronRight', 'chevronLeft', 'arrowRight', 'logout']);
+
 export function Icon({ name, size = 20, className }: { name: IconName; size?: number; className?: string }) {
+  const classes = [className, DIRECTIONAL.has(name) ? 'icon-flip' : null].filter(Boolean).join(' ') || undefined;
   return (
     <svg
-      className={className}
+      className={classes}
       width={size}
       height={size}
       viewBox="0 0 24 24"

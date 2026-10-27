@@ -379,7 +379,7 @@ select.input {
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f8a81' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 12px center;
-  padding-right: 36px;
+  padding-inline-end: 36px;
 }
 
 .input-with-btn {
@@ -388,12 +388,12 @@ select.input {
 }
 
 .input-with-btn .input {
-  padding-right: 52px;
+  padding-inline-end: 52px;
 }
 
 .input-with-btn .icon-btn {
   position: absolute;
-  right: 4px;
+  inset-inline-end: 4px;
   top: 50%;
   transform: translateY(-50%);
 }
@@ -409,7 +409,7 @@ select.input {
 
 .fieldset legend {
   padding: 0 6px;
-  margin-left: -6px;
+  margin-inline-start: -6px;
 }
 
 .row-2 {
@@ -437,7 +437,7 @@ select.input {
 .money-input-sm .input {
   min-height: 44px;
   padding: 8px 10px;
-  text-align: right;
+  text-align: end;
 }
 
 /* Switch */
@@ -476,7 +476,7 @@ select.input {
   content: '';
   position: absolute;
   top: 3px;
-  left: 3px;
+  inset-inline-start: 3px;
   width: 24px;
   height: 24px;
   border-radius: 50%;
@@ -559,7 +559,7 @@ select.input {
 }
 
 .chip-person {
-  padding-left: 6px;
+  padding-inline-start: 6px;
 }
 
 .chip-suggest {
@@ -775,7 +775,7 @@ select.input {
 }
 
 .avatar-stack .avatar + .avatar {
-  margin-left: -8px;
+  margin-inline-start: -8px;
   box-shadow: 0 0 0 2px var(--surface);
 }
 
@@ -871,7 +871,7 @@ select.input {
 
   .auth-brand {
     justify-items: start;
-    text-align: left;
+    text-align: start;
   }
 
   .auth-brand h1 {
@@ -1023,13 +1023,13 @@ select.input {
 .tab-icon .nav-badge {
   position: absolute;
   top: -4px;
-  right: 6px;
+  inset-inline-end: 6px;
   box-shadow: 0 0 0 2px var(--surface);
 }
 
 .fab {
   position: fixed;
-  right: 16px;
+  inset-inline-end: 16px;
   bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 16px);
   z-index: 25;
   width: 58px;
@@ -1081,7 +1081,7 @@ select.input {
     flex-direction: column;
     gap: 24px;
     padding: 22px 14px;
-    border-right: 1px solid var(--line);
+    border-inline-end: 1px solid var(--line);
     background: var(--surface);
   }
 
@@ -1120,7 +1120,7 @@ select.input {
   }
 
   .sidebar-link .nav-badge {
-    margin-left: auto;
+    margin-inline-start: auto;
   }
 
   .sidebar-account {
@@ -1133,7 +1133,7 @@ select.input {
     border-radius: 12px;
     background: none;
     cursor: pointer;
-    text-align: left;
+    text-align: start;
     color: var(--ink-2);
   }
 
@@ -1216,7 +1216,7 @@ select.input {
 }
 
 .section-head .count-badge {
-  margin-right: auto;
+  margin-inline-end: auto;
 }
 
 .list-card {
@@ -1239,10 +1239,11 @@ select.input {
   align-items: center;
   gap: 12px;
   min-height: 64px;
-  padding: 10px 14px 10px 16px;
+  padding-block: 10px;
+  padding-inline: 16px 14px;
   border: 0;
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: background 0.12s;
 }
@@ -1503,7 +1504,7 @@ select.input {
   background: var(--surface);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-1);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
@@ -1592,7 +1593,7 @@ select.input {
   border-radius: var(--radius-lg);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 4px solid var(--waiting);
+  border-inline-start: 4px solid var(--waiting);
   box-shadow: var(--shadow-1);
 }
 
@@ -1612,7 +1613,7 @@ select.input {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-left: auto;
+  margin-inline-start: auto;
 }
 
 /* ---------- Chores library ---------- */
@@ -1627,11 +1628,12 @@ select.input {
   position: relative;
   display: grid;
   gap: 2px;
-  padding: 14px 44px 14px 16px;
+  padding-block: 14px;
+  padding-inline: 16px 44px;
   border-radius: var(--radius);
   border: 1px dashed var(--line-strong);
   background: transparent;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1642,7 +1644,7 @@ select.input {
 
 .template-plus {
   position: absolute;
-  right: 14px;
+  inset-inline-end: 14px;
   top: 50%;
   transform: translateY(-50%);
   color: var(--brand);
@@ -1672,7 +1674,7 @@ select.input {
   padding: 16px;
   border: 0;
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -1739,7 +1741,7 @@ select.input {
   border-radius: var(--radius-lg);
   border: 2px dashed var(--line-strong);
   background: transparent;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   color: var(--brand);
 }
@@ -1788,7 +1790,8 @@ select.input {
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px 8px 20px;
+  padding-block: 12px 8px;
+  padding-inline: 20px 16px;
 }
 
 .sheet-title {
@@ -1911,7 +1914,7 @@ select.input {
   padding: 0 14px;
   border: 0;
   background: none;
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   color: var(--ink);
   font-weight: 600;
@@ -1964,7 +1967,7 @@ select.input {
   padding: 12px 14px;
   min-height: 60px;
   width: 100%;
-  text-align: left;
+  text-align: start;
 }
 
 .setting-row + .setting-row {
@@ -2141,7 +2144,7 @@ select.input {
   border: 0;
   background: var(--coin-soft);
   color: var(--coin);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
 }
 
@@ -2244,7 +2247,7 @@ select.input {
   border-radius: var(--radius-lg);
   border: 2px solid var(--line);
   background: var(--surface);
-  text-align: left;
+  text-align: start;
   cursor: pointer;
   box-shadow: var(--shadow-1);
   transition: border-color 0.2s, background 0.2s, transform 0.1s;
@@ -2431,4 +2434,89 @@ select.input {
     animation-duration: 0.01ms !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+/* ---------- Right-to-left (Hebrew) ---------- */
+
+[dir='rtl'] select.input {
+  background-position: left 12px center;
+}
+
+[dir='rtl'] .switch:checked::after {
+  transform: translateX(-20px);
+}
+
+/* Arrows and chevrons point the way the reading flows. */
+[dir='rtl'] .icon-flip {
+  transform: scaleX(-1);
+}
+
+/* Counts like "2/5" are read left-to-right in Hebrew too. */
+[dir='rtl'] .hero-count {
+  direction: ltr;
+}
+
+/* Progress fills clockwise in LTR, counter-clockwise in RTL. */
+[dir='rtl'] .ring svg {
+  transform: scaleX(-1);
+}
+
+/* Emails and usernames are Latin text: keep them LTR, aligned with the RTL form. */
+[dir='rtl'] input[type='email'] {
+  direction: ltr;
+  text-align: right;
+}
+
+/* Names and chore titles may be in either language: order each by its own text
+   (so "Feed the dog!" keeps its "!" at the end) but keep the page's alignment.
+   Physical alignment on purpose: with plaintext, "start" would follow the text, not the page. */
+.row-title,
+.kid-chore-title,
+.account-name,
+.sheet-title,
+input.input:not([type]),
+input.input[type='text'],
+textarea.input {
+  unicode-bidi: plaintext;
+  text-align: left;
+}
+
+[dir='rtl'] .row-title,
+[dir='rtl'] .kid-chore-title,
+[dir='rtl'] .account-name,
+[dir='rtl'] .sheet-title,
+[dir='rtl'] input.input:not([type]),
+[dir='rtl'] input.input[type='text'],
+[dir='rtl'] textarea.input {
+  text-align: right;
+}
+
+.public-lang {
+  position: absolute;
+  top: calc(12px + env(safe-area-inset-top, 0px));
+  inset-inline-end: 16px;
+  z-index: 5;
+}
+
+.public-shell {
+  position: relative;
+}
+
+.setting-row-wrap {
+  flex-wrap: wrap;
+}
+
+.setting-row .setting-text {
+  flex: 1 1 140px;
+}
+
+.setting-row .segmented,
+.public-lang .segmented {
+  flex: 0 0 auto;
+}
+
+.public-lang .segmented button {
+  min-height: 32px;
+  padding: 0 10px;
+  font-size: 0.85rem;
 }

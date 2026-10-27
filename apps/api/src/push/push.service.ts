@@ -1,8 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import webpush from 'web-push';
+import type { Locale } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 
 export type PushPayload = { title: string; body: string; url?: string };
+// A function payload is rendered per recipient, in that user's language.
+type PayloadFor = PushPayload | ((locale: Locale) => PushPayload);
 
 @Injectable()
 export class PushService {
@@ -32,15 +35,18 @@ export class PushService {
     await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
   }
 
-  async sendToUsers(userIds: string[], payload: PushPayload) {
+  async sendToUsers(userIds: string[], payload: PayloadFor) {
     if (!this.enabled || userIds.length === 0) return;
-    const subs = await this.prisma.pushSubscription.findMany({ where: { userId: { in: userIds } } });
+    const subs = await this.prisma.pushSubscription.findMany({
+      where: { userId: { in: userIds } },
+      include: { user: { select: { locale: true } } },
+    });
     await Promise.all(
       subs.map(async (sub) => {
         try {
           await webpush.sendNotification(
             { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-            JSON.stringify(payload),
+            JSON.stringify(typeof payload === 'function' ? payload(sub.user.locale) : payload),
           );
         } catch (err: any) {
           if (err?.statusCode === 404 || err?.statusCode === 410) {
@@ -53,7 +59,7 @@ export class PushService {
     );
   }
 
-  async sendToParents(tenantId: string, payload: PushPayload) {
+  async sendToParents(tenantId: string, payload: PayloadFor) {
     const parents = await this.prisma.user.findMany({
       where: { tenantId, isActive: true, isAdmin: true },
       select: { id: true },

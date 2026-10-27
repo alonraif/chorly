@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { t } from '../lib/i18n';
 import { Icon } from './icon';
 
 type State = 'unsupported' | 'ios-install' | 'off' | 'on' | 'denied' | 'working';
@@ -61,7 +62,7 @@ export function NotificationsRow() {
         return;
       }
       const { publicKey } = await api.get('/push/public-key');
-      if (!publicKey) throw new Error('Push is not configured on the server');
+      if (!publicKey) throw new Error(t('notif.notConfigured'));
       const reg = await navigator.serviceWorker.ready;
       const sub =
         (await reg.pushManager.getSubscription()) ||
@@ -70,18 +71,18 @@ export function NotificationsRow() {
       await api.post('/push/test');
       setState('on');
     } catch (err: any) {
-      setError(err.message || 'Could not enable notifications');
+      setError(err.message || t('notif.couldNotEnable'));
       setState('off');
     }
   }
 
   const hint: Record<State, string> = {
-    on: 'On for this device',
-    off: 'Get reminders and approval alerts',
-    working: 'Checking…',
-    denied: 'Blocked in this browser’s settings',
-    unsupported: 'Not supported in this browser',
-    'ios-install': 'On iPhone: Share → Add to Home Screen, then open Chorly from the icon',
+    on: t('notif.on'),
+    off: t('notif.off'),
+    working: t('notif.working'),
+    denied: t('notif.denied'),
+    unsupported: t('notif.unsupported'),
+    'ios-install': t('notif.iosInstall'),
   };
 
   return (
@@ -90,17 +91,17 @@ export function NotificationsRow() {
         <Icon name="bell" size={18} />
       </span>
       <span className="setting-text">
-        <span className="setting-label">Notifications</span>
+        <span className="setting-label">{t('notif.label')}</span>
         <span className="field-hint">{error || hint[state]}</span>
       </span>
       {state === 'off' && (
         <button type="button" className="btn btn-secondary btn-sm" onClick={enable}>
-          Turn on
+          {t('notif.turnOn')}
         </button>
       )}
       {state === 'on' && (
         <span className="pill pill-success">
-          <Icon name="check" size={14} /> On
+          <Icon name="check" size={14} /> {t('notif.onPill')}
         </span>
       )}
     </div>

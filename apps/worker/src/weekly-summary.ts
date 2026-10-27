@@ -1,4 +1,5 @@
 import { PrismaClient, Prisma } from '@prisma/client';
+import { notificationText } from '@chorly/shared';
 import { TENANT_ID_FILTER, APP_BASE_URL } from './lib/config';
 import { next7DaysRange, weekRangeLast7Days } from './lib/time';
 import { notifyUser } from './lib/notify';
@@ -22,8 +23,7 @@ async function runForTenant(tenantId: string) {
     const upcomingCount = upcoming.filter((instance) => instance.assignments.some((a) => a.userId === user.id)).length;
 
     await notifyUser(prisma, user, {
-      title: `📊 ${user.displayName}: your week`,
-      body: `${completed.length} chores approved, earned ${earned.toString()}. ${upcomingCount} coming up this week.`,
+      ...notificationText.weekly(user.locale, user.displayName, completed.length, earned.toString(), upcomingCount),
       url: `${APP_BASE_URL}/${user.role === 'child' ? 'child' : 'parent'}`,
     });
   }

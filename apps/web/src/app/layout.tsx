@@ -2,7 +2,7 @@ import './globals.css';
 import type { Metadata, Viewport } from 'next';
 import type { ReactNode } from 'react';
 import { Assistant, Rubik } from 'next/font/google';
-import { LocaleDirection } from '../components/locale-direction';
+import { LocaleProvider } from '../components/locale-provider';
 import { AppFrame } from '../components/app-frame';
 
 export const metadata: Metadata = {
@@ -28,10 +28,11 @@ const body = Assistant({ subsets: ['latin', 'hebrew'], weight: ['400', '500', '6
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" dir="ltr" className={`${heading.variable} ${body.variable}`}>
+    <html lang="en" dir="ltr" className={`${heading.variable} ${body.variable}`} suppressHydrationWarning>
       <body>
-        <LocaleDirection />
-        <AppFrame>{children}</AppFrame>
+        <LocaleProvider>
+          <AppFrame>{children}</AppFrame>
+        </LocaleProvider>
       </body>
     </html>
   );

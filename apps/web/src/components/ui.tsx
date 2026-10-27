@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from 'react';
 import { createPortal } from 'react-dom';
+import { t } from '../lib/i18n';
 import { Icon, type IconName } from './icon';
 
 // ---- Sheet: bottom sheet on phones, centered dialog on wider screens ----
@@ -82,7 +83,7 @@ export function Sheet({
             <h2 id={titleId} className="sheet-title">{title}</h2>
             {subtitle && <p className="sheet-subtitle">{subtitle}</p>}
           </div>
-          <button type="button" className="icon-btn sheet-close" onClick={onClose} aria-label="Close">
+          <button type="button" className="icon-btn sheet-close" onClick={onClose} aria-label={t('common.close')}>
             <Icon name="x" />
           </button>
         </header>
@@ -158,7 +159,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
         footer={
           <>
             <button type="button" className="btn btn-secondary" onClick={() => settle(false)}>
-              Cancel
+              {t('common.cancel')}
             </button>
             <button
               type="button"
@@ -166,7 +167,7 @@ export function UiProvider({ children }: { children: ReactNode }) {
               onClick={() => settle(true)}
               data-autofocus
             >
-              {pending?.confirmLabel || 'Confirm'}
+              {pending?.confirmLabel || t('common.confirm')}
             </button>
           </>
         }
@@ -260,7 +261,7 @@ export function Segmented<T extends string>({
 }
 
 export function Spinner() {
-  return <span className="spinner" aria-label="Loading" />;
+  return <span className="spinner" aria-label={t('common.loading')} />;
 }
 
 export function errorMessage(err: unknown, fallback: string) {

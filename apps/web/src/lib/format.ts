@@ -1,15 +1,15 @@
 import { DateTime } from 'luxon';
-import { getCurrentLocale } from './user';
+import { getLocale, intlLocale, listJoin, t, tn, type Locale } from './i18n';
 
 export const TZ = 'Asia/Jerusalem';
 
-export type Locale = 'en' | 'he';
+export type { Locale };
 export type InstanceStatus = 'assigned' | 'done' | 'approved';
 
 export type ChoreTitle = { title_en: string; title_he: string };
 
 // Defaults to the signed-in member's language.
-export function choreTitle(chore: ChoreTitle, locale: Locale = getCurrentLocale() || 'en') {
+export function choreTitle(chore: ChoreTitle, locale: Locale = getLocale()) {
   if (locale === 'he') return chore.title_he || chore.title_en;
   return chore.title_en || chore.title_he;
 }
@@ -33,11 +33,21 @@ export function dayKey(iso: string) {
 export function friendlyDay(day: DateTime) {
   const today = now().startOf('day');
   const diff = Math.round(day.startOf('day').diff(today, 'days').days);
-  if (diff === 0) return 'Today';
-  if (diff === 1) return 'Tomorrow';
-  if (diff === -1) return 'Yesterday';
-  if (diff > 1 && diff < 7) return day.toFormat('EEEE');
-  return day.toFormat('EEE, LLL d');
+  if (diff === 0) return t('common.today');
+  if (diff === 1) return t('common.tomorrow');
+  if (diff === -1) return t('common.yesterday');
+  if (diff > 1 && diff < 7) return day.toLocaleString({ weekday: 'long' });
+  return shortDate(day);
+}
+
+// "Tue, Oct 27" / "יום ג׳, 27 באוק׳"
+export function shortDate(day: DateTime) {
+  return day.toLocaleString({ weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+// "Tuesday, October 27" / "יום שלישי, 27 באוקטובר"
+export function longDate(day: DateTime) {
+  return day.toLocaleString({ weekday: 'long', month: 'long', day: 'numeric' });
 }
 
 export function friendlyDue(iso: string) {
@@ -50,12 +60,17 @@ export function isOverdue(iso: string, status: InstanceStatus) {
 }
 
 export function relativeTime(iso: string) {
-  return DateTime.fromISO(iso).toRelative({ style: 'short' }) || '';
+  const dt = DateTime.fromISO(iso);
+  if (getLocale() === 'he') {
+    // Hebrew CLDR appends the count to singular/dual forms ("לפני שעה (1)"); drop it.
+    return (dt.toRelative({ style: 'long' }) || '').replace(/\s*\(\d+\)/, '');
+  }
+  return dt.toRelative({ style: 'short' }) || '';
 }
 
 export function money(amount: string | number | null | undefined, currencyCode = 'ILS') {
   const value = Number(amount || 0);
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(intlLocale(), {
     style: 'currency',
     currency: currencyCode,
     maximumFractionDigits: Number.isInteger(value) ? 0 : 2,
@@ -63,7 +78,7 @@ export function money(amount: string | number | null | undefined, currencyCode =
 }
 
 export function currencySymbol(currencyCode = 'ILS') {
-  const part = new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode })
+  const part = new Intl.NumberFormat(intlLocale(), { style: 'currency', currency: currencyCode })
     .formatToParts(0)
     .find((p) => p.type === 'currency');
   return part?.value || currencyCode;
@@ -71,10 +86,10 @@ export function currencySymbol(currencyCode = 'ILS') {
 
 export function greeting() {
   const hour = now().hour;
-  if (hour < 5) return 'Good night';
-  if (hour < 12) return 'Good morning';
-  if (hour < 18) return 'Good afternoon';
-  return 'Good evening';
+  if (hour < 5) return t('greeting.night');
+  if (hour < 12) return t('greeting.morning');
+  if (hour < 18) return t('greeting.afternoon');
+  return t('greeting.evening');
 }
 
 export function firstName(displayName: string) {
@@ -83,17 +98,32 @@ export function firstName(displayName: string) {
 
 // ---- Schedules ----
 
-export const WEEKDAYS = [
-  { code: 'SU', short: 'S', label: 'Sun', long: 'Sunday' },
-  { code: 'MO', short: 'M', label: 'Mon', long: 'Monday' },
-  { code: 'TU', short: 'T', label: 'Tue', long: 'Tuesday' },
-  { code: 'WE', short: 'W', label: 'Wed', long: 'Wednesday' },
-  { code: 'TH', short: 'T', label: 'Thu', long: 'Thursday' },
-  { code: 'FR', short: 'F', label: 'Fri', long: 'Friday' },
-  { code: 'SA', short: 'S', label: 'Sat', long: 'Saturday' },
-] as const;
+export const WEEKDAYS = [{ code: 'SU' }, { code: 'MO' }, { code: 'TU' }, { code: 'WE' }, { code: 'TH' }, { code: 'FR' }, { code: 'SA' }] as const;
 
 export type WeekdayCode = (typeof WEEKDAYS)[number]['code'];
+
+// short: one-letter day picker dot · label: list/strip label · long: full name
+const WEEKDAY_NAMES: Record<Locale, Record<'short' | 'label' | 'long', string[]>> = {
+  en: {
+    short: ['S', 'M', 'T', 'W', 'T', 'F', 'S'],
+    label: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+    long: ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+  },
+  he: {
+    short: ['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'],
+    label: ['א׳', 'ב׳', 'ג׳', 'ד׳', 'ה׳', 'ו׳', 'ש׳'],
+    long: ['יום ראשון', 'יום שני', 'יום שלישי', 'יום רביעי', 'יום חמישי', 'יום שישי', 'שבת'],
+  },
+};
+
+export function weekdayName(code: WeekdayCode, form: 'short' | 'label' | 'long' = 'long') {
+  return WEEKDAY_NAMES[getLocale()][form][WEEKDAYS.findIndex((d) => d.code === code)];
+}
+
+// Luxon weekday is 1 (Mon) … 7 (Sun).
+export function weekdayCodeOf(day: DateTime): WeekdayCode {
+  return WEEKDAYS[day.weekday % 7].code;
+}
 
 export type ParsedRrule =
   | { freq: 'daily' }
@@ -131,13 +161,13 @@ export function buildRrule(parsed: ParsedRrule) {
 
 function dayListLabel(days: WeekdayCode[]) {
   const set = new Set(days);
-  if (set.size === 7) return 'Every day';
-  if (set.size === 5 && ['SU', 'MO', 'TU', 'WE', 'TH'].every((d) => set.has(d as WeekdayCode))) return 'Sun–Thu';
-  if (set.size === 5 && ['MO', 'TU', 'WE', 'TH', 'FR'].every((d) => set.has(d as WeekdayCode))) return 'Weekdays';
-  if (set.size === 2 && set.has('FR') && set.has('SA')) return 'Weekends';
-  const labels = WEEKDAYS.filter((d) => set.has(d.code)).map((d) => (set.size === 1 ? d.long : d.label));
-  if (labels.length === 1) return `Every ${labels[0]}`;
-  return `${labels.slice(0, -1).join(', ')} & ${labels[labels.length - 1]}`;
+  if (set.size === 7) return t('sched.everyDay');
+  if (set.size === 5 && ['SU', 'MO', 'TU', 'WE', 'TH'].every((d) => set.has(d as WeekdayCode))) return t('sched.sunThu');
+  if (set.size === 5 && ['MO', 'TU', 'WE', 'TH', 'FR'].every((d) => set.has(d as WeekdayCode))) return t('sched.weekdays');
+  if (set.size === 2 && set.has('FR') && set.has('SA')) return t('sched.weekends');
+  const picked = WEEKDAYS.filter((d) => set.has(d.code));
+  if (picked.length === 1) return t('sched.everyWeekday', { day: weekdayName(picked[0].code, 'long') });
+  return listJoin(picked.map((d) => weekdayName(d.code, 'label')));
 }
 
 export type ScheduleJson = {
@@ -153,20 +183,19 @@ export type ScheduleJson = {
 export function scheduleSummary(schedule: ScheduleJson | null | undefined) {
   if (!schedule) return '';
   if (schedule.type === 'one_time') {
-    return schedule.oneTimeDueAt ? `Once · ${friendlyDue(schedule.oneTimeDueAt)}` : 'Once';
+    return schedule.oneTimeDueAt ? t('sched.onceAt', { when: friendlyDue(schedule.oneTimeDueAt) }) : t('sched.once');
   }
-  const at = schedule.dueTime ? ` at ${schedule.dueTime}` : '';
+  const withTime = (base: string) => (schedule.dueTime ? t('sched.at', { base, time: schedule.dueTime }) : base);
   if (schedule.type === 'repeating_after_completion') {
-    const n = schedule.intervalDays || 1;
-    return `${n === 1 ? 'Every day' : `Every ${n} days`} after it’s done${at}`;
+    return withTime(t('sched.afterDone', { every: tn('sched.everyNDays', schedule.intervalDays || 1) }));
   }
   const parsed = schedule.rrule ? parseRrule(schedule.rrule) : null;
-  let base = 'Repeating';
-  if (parsed?.freq === 'daily') base = 'Every day';
+  let base = t('sched.repeating');
+  if (parsed?.freq === 'daily') base = t('sched.everyDay');
   if (parsed?.freq === 'weekly') base = dayListLabel(parsed.days);
   if (parsed?.freq === 'monthly') {
-    const day = WEEKDAYS.find((d) => d.code === parsed.day)?.long;
-    base = `${parsed.position === 1 ? 'First' : 'Last'} ${day} of the month`;
+    const day = weekdayName(parsed.day, 'long');
+    base = t(parsed.position === 1 ? 'sched.firstOfMonth' : 'sched.lastOfMonth', { day });
   }
-  return `${base}${at}`;
+  return withTime(base);
 }

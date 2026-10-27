@@ -1,6 +1,6 @@
 'use client';
 
-import { clearCurrentLocale, clearCurrentUserId } from './user';
+import { clearCurrentUserId } from './user';
 
 // Same origin in every environment: Caddy (prod) or the Next.js rewrite (dev) forwards /api to the API.
 const API_BASE = '/api';
@@ -17,7 +17,6 @@ async function request(path: string, init?: RequestInit) {
 
   if (res.status === 401 && !path.startsWith('/auth/')) {
     clearCurrentUserId();
-    clearCurrentLocale();
     if (typeof window !== 'undefined' && window.location.pathname !== '/') {
       window.location.replace('/');
     }

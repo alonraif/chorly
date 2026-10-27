@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
+import { notificationText } from '@chorly/shared';
 import { CurrentUser } from '../common/session/current-user.decorator';
 import { RequireUserGuard } from '../common/session/require-user.guard';
 import type { RequestUser } from '../common/session/session.types';
@@ -43,7 +44,7 @@ export class PushController {
   @Post('/test')
   @ApiOperation({ summary: 'Send a test notification to my devices' })
   async test(@CurrentUser() user: RequestUser) {
-    await this.push.sendToUsers([user.id], { title: 'Chorly', body: `Notifications work, ${user.displayName}!`, url: '/' });
+    await this.push.sendToUsers([user.id], { ...notificationText.test(user.locale, user.displayName), url: '/' });
     return { ok: true };
   }
 }

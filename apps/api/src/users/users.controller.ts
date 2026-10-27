@@ -1,6 +1,7 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
-import { CreateUserSchema, UpdateUserSchema } from '@chorly/shared';
+import { CreateUserSchema, LocaleSchema, UpdateUserSchema } from '@chorly/shared';
+import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { UsersService } from './users.service';
 import { AdminGuard } from '../common/session/admin.guard';
@@ -9,6 +10,8 @@ import type { RequestUser } from '../common/session/session.types';
 import { CurrentTenant } from '../common/session/current-tenant.decorator';
 import { RequireTenantGuard } from '../common/session/require-tenant.guard';
 import { RequireUserGuard } from '../common/session/require-user.guard';
+
+const UpdateMeSchema = z.object({ locale: LocaleSchema });
 
 @ApiTags('users')
 @Controller('/users')
@@ -20,6 +23,15 @@ export class UsersController {
   @ApiOperation({ summary: 'List users in current family' })
   list(@CurrentTenant() tenantId: string) {
     return this.users.list(tenantId);
+  }
+
+  // Declared before ':id' routes so "me" is not read as an id.
+  @Patch('me')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Update my own preferences (any family member)' })
+  @ApiBody({ schema: { type: 'object', required: ['locale'], properties: { locale: { type: 'string', enum: ['en', 'he'] } } } })
+  updateMe(@CurrentTenant() tenantId: string, @CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(UpdateMeSchema)) body: any) {
+    return this.users.update(tenantId, user.id, { locale: body.locale });
   }
 
   @Get(':id')

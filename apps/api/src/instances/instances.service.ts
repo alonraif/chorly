@@ -2,7 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, type InstanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { PushService } from '../push/push.service';
-import { AssignmentConfigSchema, type ApproveInstanceDto, type MarkDoneDto } from '@chorly/shared';
+import { AssignmentConfigSchema, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto } from '@chorly/shared';
 import type { RequestUser } from '../common/session/session.types';
 
 function activeDoneUserIds(instance: { completions: Array<{ userId: string; undoneAt: Date | null }> }) {
@@ -123,11 +123,10 @@ export class InstancesService {
     });
 
     if (status === 'done' && instance.status !== 'done') {
-      void this.push.sendToParents(tenantId, {
-        title: `✅ ${actor.displayName}`,
-        body: `${refreshed.chore.title_he} / ${refreshed.chore.title_en} — ready for approval`,
+      void this.push.sendToParents(tenantId, (locale) => ({
+        ...notificationText.readyForApproval(locale, actor.displayName, choreName(refreshed.chore, locale)),
         url: '/parent/review',
-      });
+      }));
     }
 
     return updated;
@@ -214,12 +213,11 @@ export class InstancesService {
       return updated;
     });
 
-    const reward = hasReward && rewardAmountDecimal ? ` (+${rewardAmountDecimal.toString()})` : '';
-    void this.push.sendToUsers(creditedUsers, {
-      title: '⭐ Approved!',
-      body: `${instance.chore.title_he} / ${instance.chore.title_en}${reward}`,
+    const reward = hasReward && rewardAmountDecimal ? rewardAmountDecimal.toString() : null;
+    void this.push.sendToUsers(creditedUsers, (locale) => ({
+      ...notificationText.approved(locale, choreName(instance.chore, locale), reward),
       url: '/child',
-    });
+    }));
 
     return result;
   }

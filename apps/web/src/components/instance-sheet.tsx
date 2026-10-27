@@ -4,6 +4,7 @@ import { DateTime } from 'luxon';
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { choreTitle, firstName, friendlyDue, isOverdue, money, relativeTime, TZ } from '../lib/format';
+import { t } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import { activeDoneAt, type Instance } from '../lib/types';
 import { Avatar } from './avatar';
@@ -56,13 +57,13 @@ export function InstanceSheet({
       refreshApprovals().catch(() => undefined);
       onClose();
     } catch (err) {
-      setError(errorMessage(err, 'Something went wrong'));
+      setError(errorMessage(err, t('common.somethingWrong')));
     } finally {
       setBusy(false);
     }
   }
 
-  const approve = () => run(() => api.post(`/instances/${instance.id}/approve`, {}), `Approved “${title}”`);
+  const approve = () => run(() => api.post(`/instances/${instance.id}/approve`, {}), t('instance.approvedChore', { chore: title }));
 
   const saveChanges = () =>
     run(
@@ -71,17 +72,17 @@ export function InstanceSheet({
           dueAt: DateTime.fromISO(dueLocal, { zone: TZ }).toUTC().toISO(),
           assigneeUserId: assignee,
         }),
-      'Updated',
+      t('instance.updated'),
     );
 
   async function removeOne() {
     const ok = await confirm({
-      title: 'Skip this one?',
-      body: `Removes only this “${title}” (${friendlyDue(instance!.dueAt)}). The chore keeps repeating.`,
-      confirmLabel: 'Skip it',
+      title: t('instance.skipTitle'),
+      body: t('instance.skipBody', { chore: title, when: friendlyDue(instance!.dueAt) }),
+      confirmLabel: t('instance.skipConfirm'),
       danger: true,
     });
-    if (ok) run(() => api.delete(`/instances/${instance!.id}`), 'Removed');
+    if (ok) run(() => api.delete(`/instances/${instance!.id}`), t('instance.removed'));
   }
 
   return (
@@ -94,12 +95,13 @@ export function InstanceSheet({
       footer={
         mode === 'reschedule' ? (
           <>
-            <button type="button" className="btn btn-secondary" onClick={() => setMode('view')}>Back</button>
-            <button type="button" className="btn btn-primary" onClick={saveChanges} disabled={busy}>Save</button>
+            <button type="button" className="btn btn-secondary" onClick={() => setMode('view')}>{t('common.back')}</button>
+            <button type="button" className="btn btn-primary" onClick={saveChanges} disabled={busy}>{t('common.save')}</button>
           </>
         ) : instance.status === 'done' ? (
           <button type="button" className="btn btn-primary btn-block" onClick={approve} disabled={busy}>
-            <Icon name="check" size={18} /> Approve{reward ? ` · ${money(reward, currency)}` : ''}
+            <Icon name="check" size={18} /> {t('common.approve')}
+            {reward ? ` · ${money(reward, currency)}` : ''}
           </button>
         ) : undefined
       }
@@ -122,21 +124,21 @@ export function InstanceSheet({
               </span>
             ))}
           </div>
-          {doneAt && <p className="muted small">Marked done {relativeTime(doneAt)}</p>}
-          {isOverdue(instance.dueAt, instance.status) && <p className="callout callout-warn">This is overdue.</p>}
+          {doneAt && <p className="muted small">{t('instance.markedDone', { time: relativeTime(doneAt) })}</p>}
+          {isOverdue(instance.dueAt, instance.status) && <p className="callout callout-warn">{t('instance.overdue')}</p>}
 
           <div className="action-list">
             {editable && (
               <button type="button" className="action-item" onClick={() => setMode('reschedule')}>
-                <Icon name="calendar" /> <span>Change time or who</span> <Icon name="chevronRight" size={18} />
+                <Icon name="calendar" /> <span>{t('instance.change')}</span> <Icon name="chevronRight" size={18} />
               </button>
             )}
             <button type="button" className="action-item" onClick={() => onEditSeries(instance.choreId)}>
-              <Icon name="repeat" /> <span>Edit the chore (all upcoming)</span> <Icon name="chevronRight" size={18} />
+              <Icon name="repeat" /> <span>{t('instance.editSeries')}</span> <Icon name="chevronRight" size={18} />
             </button>
             {editable && (
               <button type="button" className="action-item action-danger" onClick={removeOne}>
-                <Icon name="trash" /> <span>Skip just this one</span>
+                <Icon name="trash" /> <span>{t('instance.skipOne')}</span>
               </button>
             )}
           </div>
@@ -145,11 +147,11 @@ export function InstanceSheet({
       ) : (
         <div className="stack">
           <label className="field">
-            <span className="field-label-sm">Due</span>
+            <span className="field-label-sm">{t('instance.due')}</span>
             <input className="input" type="datetime-local" value={dueLocal} onChange={(e) => setDueLocal(e.target.value)} />
           </label>
           <div className="field">
-            <span className="field-label-sm">Who</span>
+            <span className="field-label-sm">{t('instance.who')}</span>
             <div className="chip-row">
               {kids.map((kid) => (
                 <button

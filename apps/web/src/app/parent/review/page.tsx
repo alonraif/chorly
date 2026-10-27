@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { choreTitle, currencySymbol, firstName, friendlyDue, money, relativeTime } from '../../../lib/format';
+import { joinNames, t, tn } from '../../../lib/i18n';
 import { approvalsRange, useSession } from '../../../lib/session';
 import { activeDoneAt, rangeQuery, type Chore, type Instance } from '../../../lib/types';
 import { Avatar } from '../../../components/avatar';
@@ -32,7 +33,7 @@ export default function ApprovalsPage() {
       setChores(choreList);
       setError('');
     } catch (err) {
-      setError(errorMessage(err, 'Could not load approvals'));
+      setError(errorMessage(err, t('approvals.couldNotLoad')));
     } finally {
       setLoaded(true);
     }
@@ -55,7 +56,7 @@ export default function ApprovalsPage() {
   async function approve(item: Instance, quiet = false) {
     const reward = rewardValue(item);
     if (item.chore.hasReward && !(Number(reward) > 0)) {
-      setError(`Enter a reward amount for “${choreTitle(item.chore)}”.`);
+      setError(t('approvals.enterReward', { chore: choreTitle(item.chore) }));
       return false;
     }
     setBusy((prev) => new Set(prev).add(item.id));
@@ -64,11 +65,15 @@ export default function ApprovalsPage() {
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, status: 'approved' } : i)));
       if (!quiet) {
         const who = firstName(item.assignments[0]?.displayName || '');
-        toast(item.chore.hasReward ? `Approved · ${who} earned ${money(reward, currency)}` : `Approved ${who}’s “${choreTitle(item.chore)}”`);
+        toast(
+          item.chore.hasReward
+            ? t('approvals.approvedEarned', { who, amount: money(reward, currency) })
+            : t('approvals.approvedChore', { who, chore: choreTitle(item.chore) }),
+        );
       }
       return true;
     } catch (err) {
-      setError(errorMessage(err, 'Approve failed'));
+      setError(errorMessage(err, t('approvals.failed')));
       return false;
     } finally {
       setBusy((prev) => {
@@ -85,19 +90,19 @@ export default function ApprovalsPage() {
     for (const item of waiting) {
       if (await approve(item, true)) count += 1;
     }
-    if (count) toast(`Approved ${count} chore${count === 1 ? '' : 's'}`);
+    if (count) toast(tn('approvals.approvedCount', count));
   }
 
   return (
     <div className="page">
       <header className="page-header">
         <div>
-          <h1>Approvals</h1>
-          <p className="muted">Check finished chores and pay out rewards.</p>
+          <h1>{t('approvals.title')}</h1>
+          <p className="muted">{t('approvals.subtitle')}</p>
         </div>
         {waiting.length > 1 && (
           <button type="button" className="btn btn-primary" onClick={approveAll} disabled={busy.size > 0}>
-            <Icon name="check" size={18} /> Approve all ({waiting.length})
+            <Icon name="check" size={18} /> {t('approvals.approveAll', { count: waiting.length })}
           </button>
         )}
       </header>
@@ -106,15 +111,15 @@ export default function ApprovalsPage() {
 
       <section className="section">
         <div className="section-head">
-          <h2>Waiting for you</h2>
+          <h2>{t('approvals.waitingForYou')}</h2>
           {waiting.length > 0 && <span className="count-badge">{waiting.length}</span>}
         </div>
         {!loaded ? (
           <div className="list-card"><div className="skeleton-list"><span /><span /></div></div>
         ) : waiting.length === 0 ? (
           <div className="list-card">
-            <EmptyState icon="approve" title="All caught up">
-              When a kid checks off a chore it shows up here for you to approve.
+            <EmptyState icon="approve" title={t('approvals.caughtUp')}>
+              {t('approvals.caughtUpHint')}
             </EmptyState>
           </div>
         ) : (
@@ -129,8 +134,13 @@ export default function ApprovalsPage() {
                     <div className="approval-text">
                       <p className="row-title">{choreTitle(item.chore)}</p>
                       <p className="small muted">
-                        {item.assignments.map((a) => firstName(a.displayName)).join(', ')}
-                        {doneAt ? ` · done ${relativeTime(doneAt)}` : ''} · due {friendlyDue(item.dueAt)}
+                        {[
+                          joinNames(item.assignments.map((a) => firstName(a.displayName))),
+                          doneAt ? t('approvals.doneAgo', { time: relativeTime(doneAt) }) : null,
+                          t('approvals.due', { when: friendlyDue(item.dueAt) }),
+                        ]
+                          .filter(Boolean)
+                          .join(' · ')}
                       </p>
                     </div>
                   </div>
@@ -143,15 +153,15 @@ export default function ApprovalsPage() {
                           inputMode="decimal"
                           value={rewardValue(item)}
                           onChange={(e) => setRewards((prev) => ({ ...prev, [item.id]: e.target.value.replace(/[^0-9.]/g, '') }))}
-                          aria-label="Reward amount"
+                          aria-label={t('approvals.rewardAmount')}
                         />
                       </label>
                     )}
-                    <button type="button" className="icon-btn icon-btn-outline" onClick={() => setOpenInstance(item)} aria-label="More options">
+                    <button type="button" className="icon-btn icon-btn-outline" onClick={() => setOpenInstance(item)} aria-label={t('common.moreOptions')}>
                       <Icon name="more" />
                     </button>
                     <button type="button" className="btn btn-success" onClick={() => approve(item)} disabled={busy.has(item.id)}>
-                      <Icon name="check" size={18} /> Approve
+                      <Icon name="check" size={18} /> {t('common.approve')}
                     </button>
                   </div>
                 </li>
@@ -163,12 +173,12 @@ export default function ApprovalsPage() {
 
       <section className="section" id="overdue">
         <div className="section-head">
-          <h2>Overdue</h2>
+          <h2>{t('approvals.overdue')}</h2>
           {overdue.length > 0 && <span className="count-badge count-badge-danger">{overdue.length}</span>}
         </div>
         <div className="list-card">
           {loaded && overdue.length === 0 ? (
-            <EmptyState icon="clock" title="Nothing overdue">Everything due so far has been done.</EmptyState>
+            <EmptyState icon="clock" title={t('approvals.nothingOverdue')}>{t('approvals.nothingOverdueHint')}</EmptyState>
           ) : (
             <ul className="rows">
               {overdue.map((item) => (
@@ -180,7 +190,8 @@ export default function ApprovalsPage() {
                     <span className="row-main">
                       <span className="row-title">{choreTitle(item.chore)}</span>
                       <span className="row-sub">
-                        {item.assignments.map((a) => firstName(a.displayName)).join(', ')} · was due {friendlyDue(item.dueAt)}
+                        {joinNames(item.assignments.map((a) => firstName(a.displayName)))} ·{' '}
+                        {t('approvals.wasDue', { when: friendlyDue(item.dueAt) })}
                       </span>
                     </span>
                     <Icon name="chevronRight" size={18} className="row-chevron" />

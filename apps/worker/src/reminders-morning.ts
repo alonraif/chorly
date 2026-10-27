@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type Locale } from '@prisma/client';
+import { choreName, notificationText } from '@chorly/shared';
 import { TENANT_ID_FILTER, APP_BASE_URL } from './lib/config';
 import { todayBounds } from './lib/time';
 import { notifyUser } from './lib/notify';
@@ -13,21 +14,20 @@ async function runForTenant(tenantId: string) {
     orderBy: { dueAt: 'asc' },
   });
 
-  const choresByUser = new Map<string, { id: string; email: string | null; displayName: string; lines: string[] }>();
+  const choresByUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; lines: string[] }>();
   for (const instance of instances) {
     const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
     for (const assignment of instance.assignments) {
       if (activeDone.has(assignment.userId)) continue;
-      const entry = choresByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, lines: [] };
-      entry.lines.push(assignment.user.locale === 'he' ? instance.chore.title_he : instance.chore.title_en);
+      const entry = choresByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, locale: assignment.user.locale, lines: [] };
+      entry.lines.push(choreName(instance.chore, assignment.user.locale));
       choresByUser.set(assignment.userId, entry);
     }
   }
 
   for (const [, entry] of choresByUser) {
     await notifyUser(prisma, entry, {
-      title: `☀️ ${entry.displayName}: ${entry.lines.length} chore(s) today`,
-      body: entry.lines.join(' · '),
+      ...notificationText.morning(entry.locale, entry.displayName, entry.lines.length, entry.lines),
       url: `${APP_BASE_URL}/child`,
     });
   }

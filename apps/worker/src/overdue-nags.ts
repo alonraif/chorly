@@ -1,4 +1,5 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, type Locale } from '@prisma/client';
+import { choreName, notificationText } from '@chorly/shared';
 import { DateTime } from 'luxon';
 import { TENANT_ID_FILTER, APP_BASE_URL } from './lib/config';
 import { gracePeriodMinutes } from './lib/schedule';
@@ -14,7 +15,7 @@ async function runForTenant(tenantId: string) {
     orderBy: { dueAt: 'asc' },
   });
 
-  const nagsByUser = new Map<string, { id: string; email: string | null; displayName: string; lines: string[] }>();
+  const nagsByUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; lines: string[] }>();
   for (const instance of instances) {
     const graceMs = gracePeriodMinutes(instance.chore.scheduleJson) * 60 * 1000;
     const overdueAt = new Date(instance.dueAt.getTime() + graceMs);
@@ -23,16 +24,15 @@ async function runForTenant(tenantId: string) {
     const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
     for (const assignment of instance.assignments) {
       if (activeDone.has(assignment.userId)) continue;
-      const entry = nagsByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, lines: [] };
-      entry.lines.push(assignment.user.locale === 'he' ? instance.chore.title_he : instance.chore.title_en);
+      const entry = nagsByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, locale: assignment.user.locale, lines: [] };
+      entry.lines.push(choreName(instance.chore, assignment.user.locale));
       nagsByUser.set(assignment.userId, entry);
     }
   }
 
   for (const [, entry] of nagsByUser) {
     await notifyUser(prisma, entry, {
-      title: `⏰ ${entry.displayName}, still to do`,
-      body: entry.lines.join(' · '),
+      ...notificationText.overdue(entry.locale, entry.displayName, entry.lines),
       url: `${APP_BASE_URL}/child`,
     });
   }

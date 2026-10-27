@@ -3,7 +3,8 @@
 import { DateTime } from 'luxon';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { choreTitle, dayKey, firstName, friendlyDay, money, now, timeOf, zoned } from '../../lib/format';
+import { choreTitle, dayKey, firstName, friendlyDay, money, now, shortDate, timeOf, zoned } from '../../lib/format';
+import { getLocale, t, tn } from '../../lib/i18n';
 import { useSession } from '../../lib/session';
 import { rangeQuery, type Chore, type Earnings, type Instance } from '../../lib/types';
 import { Avatar, ProgressRing } from '../../components/avatar';
@@ -49,7 +50,7 @@ export default function KidPage() {
       setChores(choreList);
       setError('');
     } catch (err) {
-      setError(errorMessage(err, 'Could not load your chores'));
+      setError(errorMessage(err, t('kid.couldNotLoad')));
     } finally {
       setLoaded(true);
     }
@@ -105,7 +106,7 @@ export default function KidPage() {
         window.setTimeout(() => setCelebrate(false), 2200);
       }
     } catch (err) {
-      toast(errorMessage(err, 'Could not update'), 'error');
+      toast(errorMessage(err, t('kid.couldNotUpdate')), 'error');
     } finally {
       setPending((prev) => {
         const next = new Set(prev);
@@ -119,24 +120,24 @@ export default function KidPage() {
   async function markPaid() {
     if (!earnings || !target) return;
     const ok = await confirm({
-      title: `Pay ${firstName(target.displayName)} ${money(earnings.dueAmount, earnings.currencyCode)}?`,
-      body: 'Marks the full balance as paid and resets it to zero.',
-      confirmLabel: 'Mark as paid',
+      title: t('common.payConfirmTitle', { name: firstName(target.displayName), amount: money(earnings.dueAmount, earnings.currencyCode) }),
+      body: t('common.payConfirmBody'),
+      confirmLabel: t('common.markAsPaid'),
     });
     if (!ok) return;
     try {
       await api.post(`/users/${targetId}/payout-reset`, {});
-      toast('Balance marked as paid');
+      toast(t('kid.balancePaid'));
       load();
     } catch (err) {
-      toast(errorMessage(err, 'Could not mark as paid'), 'error');
+      toast(errorMessage(err, t('common.couldNotMarkPaid')), 'error');
     }
   }
 
   if (isParent && kids.length === 0) {
     return (
       <div className="page">
-        <EmptyState icon="users" title="No kids yet">Add kids on the Family page to see their view.</EmptyState>
+        <EmptyState icon="users" title={t('kid.noKids')}>{t('kid.noKidsHint')}</EmptyState>
       </div>
     );
   }
@@ -145,16 +146,16 @@ export default function KidPage() {
   const left = today.length - doneToday;
   const heroLine =
     today.length === 0
-      ? 'Nothing due today. Enjoy!'
+      ? t('kid.nothingToday')
       : left === 0
-        ? 'All done for today — amazing!'
-        : `${left} ${left === 1 ? 'chore' : 'chores'} left today`;
+        ? t('kid.allDoneToday')
+        : tn('kid.left', left);
 
   return (
     <div className="kid-page">
       {isParent && (
         <div className="viewing-as">
-          <span className="small">Viewing as</span>
+          <span className="small">{t('kid.viewingAs')}</span>
           <div className="chip-row">
             {kids.map((k) => (
               <button
@@ -179,7 +180,7 @@ export default function KidPage() {
           </span>
         </ProgressRing>
         <div>
-          <h1>Hi {name}!</h1>
+          <h1>{t('kid.hi', { name })}</h1>
           <p>{heroLine}</p>
         </div>
       </section>
@@ -188,10 +189,10 @@ export default function KidPage() {
         <button type="button" className="wallet-tile" onClick={() => setWalletOpen(true)}>
           <span className="wallet-icon"><Icon name="coin" size={24} /></span>
           <span className="wallet-text">
-            <span className="small">{isParent ? `${name}’s balance` : 'Your balance'}</span>
+            <span className="small">{isParent ? t('kid.theirBalance', { name }) : t('kid.yourBalance')}</span>
             <strong className="wallet-amount">{money(earnings.dueAmount, earnings.currencyCode)}</strong>
             {waitingAmount > 0 && (
-              <span className="small">+{money(waitingAmount, earnings.currencyCode)} waiting for approval</span>
+              <span className="small">{t('kid.waitingAmount', { amount: money(waitingAmount, earnings.currencyCode) })}</span>
             )}
           </span>
           <Icon name="chevronRight" size={20} />
@@ -199,12 +200,12 @@ export default function KidPage() {
       )}
 
       {error && <p className="callout callout-error">{error}</p>}
-      {isParent && <p className="callout callout-info">Only {name} can check off chores, from their own login.</p>}
+      {isParent && <p className="callout callout-info">{t('kid.onlyThem', { name })}</p>}
 
       {missed.length > 0 && (
         <section className="kid-section">
           <h2 className="kid-section-title kid-section-missed">
-            <Icon name="alert" size={18} /> Missed — still time to do them
+            <Icon name="alert" size={18} /> {t('kid.missed')}
           </h2>
           <ul className="kid-list">
             {missed.map((item) => (
@@ -215,12 +216,12 @@ export default function KidPage() {
       )}
 
       <section className="kid-section">
-        <h2 className="kid-section-title">Today</h2>
+        <h2 className="kid-section-title">{t('common.today')}</h2>
         {!loaded ? (
           <div className="skeleton-list"><span /><span /></div>
         ) : today.length === 0 ? (
           <div className="list-card">
-            <EmptyState icon="sparkle" title="Free day!">No chores today.</EmptyState>
+            <EmptyState icon="sparkle" title={t('kid.freeDay')}>{t('kid.noChoresToday')}</EmptyState>
           </div>
         ) : (
           <ul className="kid-list">
@@ -233,7 +234,7 @@ export default function KidPage() {
 
       {upcoming.length > 0 && (
         <section className="kid-section">
-          <h2 className="kid-section-title">Coming up</h2>
+          <h2 className="kid-section-title">{t('kid.comingUp')}</h2>
           {upcoming.map(([day, list]) => (
             <div key={day} className="upcoming-day">
               <h3>{friendlyDay(DateTime.fromISO(day, { zone: zoned(list[0].dueAt).zone }))}</h3>
@@ -254,50 +255,50 @@ export default function KidPage() {
               <i key={i} style={{ ['--i' as any]: i }} />
             ))}
           </div>
-          <p>All done today! 🎉</p>
+          <p>{t('kid.celebrate')}</p>
         </div>
       )}
 
-      <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title={isParent ? `${name}’s money` : 'Your money'}>
+      <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title={isParent ? t('kid.theirMoney', { name }) : t('kid.yourMoney')}>
         {earnings && (
           <div className="stack-lg">
             <div className="wallet-stats">
               <div>
-                <span className="small muted">To be paid</span>
+                <span className="small muted">{t('kid.toBePaid')}</span>
                 <strong>{money(earnings.dueAmount, earnings.currencyCode)}</strong>
               </div>
               <div>
-                <span className="small muted">Earned all-time</span>
+                <span className="small muted">{t('kid.earnedAll')}</span>
                 <strong>{money(earnings.earnedTotal, earnings.currencyCode)}</strong>
               </div>
               <div>
-                <span className="small muted">Paid out</span>
+                <span className="small muted">{t('kid.paidOut')}</span>
                 <strong>{money(earnings.paidOutTotal, earnings.currencyCode)}</strong>
               </div>
             </div>
             {isParent && Number(earnings.dueAmount) > 0 && (
               <button type="button" className="btn btn-primary btn-block" onClick={markPaid}>
-                <Icon name="wallet" size={18} /> Mark {money(earnings.dueAmount, earnings.currencyCode)} as paid
+                <Icon name="wallet" size={18} /> {t('kid.markAmountPaid', { amount: money(earnings.dueAmount, earnings.currencyCode) })}
               </button>
             )}
             <div>
-              <h3 className="field-label">History</h3>
+              <h3 className="field-label">{t('kid.history')}</h3>
               {earnings.earnEntries.length === 0 && earnings.payoutEntries.length === 0 ? (
-                <p className="muted">Approved chores with rewards will show up here.</p>
+                <p className="muted">{t('kid.historyEmpty')}</p>
               ) : (
                 <ul className="ledger">
                   {[
                     ...earnings.earnEntries.map((e) => ({
                       id: e.id,
                       at: e.createdAt,
-                      label: (target?.locale === 'he' ? e.choreTitleHe : e.choreTitleEn) || e.choreTitleEn || e.choreTitleHe || 'Chore',
+                      label: (getLocale() === 'he' ? e.choreTitleHe : e.choreTitleEn) || e.choreTitleEn || e.choreTitleHe || t('common.chore'),
                       amount: `+${money(e.amount, earnings.currencyCode)}`,
                       kind: 'earn',
                     })),
                     ...earnings.payoutEntries.map((p) => ({
                       id: p.id,
                       at: p.createdAt,
-                      label: 'Paid out',
+                      label: t('kid.paidOut'),
                       amount: `−${money(p.amount, earnings.currencyCode)}`,
                       kind: 'payout',
                     })),
@@ -307,7 +308,7 @@ export default function KidPage() {
                       <li key={row.id} className={`ledger-row ledger-${row.kind}`}>
                         <span>
                           <span className="row-title">{row.label}</span>
-                          <span className="small muted">{DateTime.fromISO(row.at).toFormat('EEE, LLL d')}</span>
+                          <span className="small muted">{shortDate(DateTime.fromISO(row.at))}</span>
                         </span>
                         <strong>{row.amount}</strong>
                       </li>
@@ -344,10 +345,10 @@ function KidChore({
   const state = statusOf(item);
   const approved = item.status === 'approved';
   const sub = approved
-    ? 'Approved!'
+    ? t('kid.approved')
     : done
-      ? 'Waiting for a parent to approve'
-      : `${showDay ? `${friendlyDay(zoned(item.dueAt))} · ` : ''}by ${timeOf(item.dueAt)}`;
+      ? t('kid.waitingParent')
+      : `${showDay ? `${friendlyDay(zoned(item.dueAt))} · ` : ''}${t('kid.by', { time: timeOf(item.dueAt) })}`;
   return (
     <li>
       <button

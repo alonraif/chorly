@@ -4,6 +4,7 @@
 
 export const CURRENT_USER_KEY = 'chorly.currentUserId';
 export const CURRENT_LOCALE_KEY = 'chorly.currentLocale';
+export const LOCALE_EVENT = 'chorly:locale';
 
 export function getCurrentUserId(): string | null {
   if (typeof window === 'undefined') return null;
@@ -27,12 +28,10 @@ export function getCurrentLocale(): 'en' | 'he' | null {
   return null;
 }
 
+// Kept after logout too, so the sign-in screen stays in the last-used language.
 export function setCurrentLocale(locale: 'en' | 'he') {
   if (typeof window === 'undefined') return;
+  if (localStorage.getItem(CURRENT_LOCALE_KEY) === locale) return;
   localStorage.setItem(CURRENT_LOCALE_KEY, locale);
-}
-
-export function clearCurrentLocale() {
-  if (typeof window === 'undefined') return;
-  localStorage.removeItem(CURRENT_LOCALE_KEY);
+  window.dispatchEvent(new Event(LOCALE_EVENT));
 }

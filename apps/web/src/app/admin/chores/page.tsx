@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api } from '../../../lib/api';
 import { choreTitle, firstName, money, scheduleSummary } from '../../../lib/format';
+import { t } from '../../../lib/i18n';
 import { useSession } from '../../../lib/session';
 import type { Chore } from '../../../lib/types';
 import { Avatar, AvatarStack } from '../../../components/avatar';
@@ -28,7 +29,7 @@ export default function ChoresPage() {
       setTemplates(tpl);
       setError('');
     } catch (err) {
-      setError(errorMessage(err, 'Could not load chores'));
+      setError(errorMessage(err, t('common.couldNotLoadChores')));
     } finally {
       setLoaded(true);
     }
@@ -55,20 +56,20 @@ export default function ChoresPage() {
     <div className="page">
       <header className="page-header">
         <div>
-          <h1>Chores</h1>
-          <p className="muted">Everything your family does on repeat.</p>
+          <h1>{t('nav.chores')}</h1>
+          <p className="muted">{t('choresPage.subtitle')}</p>
         </div>
         <button type="button" className="btn btn-primary" onClick={() => setEditor({ open: true })}>
-          <Icon name="plus" size={18} /> New chore
+          <Icon name="plus" size={18} /> {t('common.newChore')}
         </button>
       </header>
 
       {error && <p className="callout callout-error">{error}</p>}
 
       {kids.length > 1 && chores.length > 0 && (
-        <div className="chip-row filter-row" role="group" aria-label="Filter by kid">
+        <div className="chip-row filter-row" role="group" aria-label={t('choresPage.filterByKid')}>
           <button type="button" className={`chip ${!kidFilter ? 'is-on' : ''}`} aria-pressed={!kidFilter} onClick={() => setKidFilter(null)}>
-            Everyone
+            {t('common.everyone')}
           </button>
           {kids.map((kid) => (
             <button
@@ -90,14 +91,14 @@ export default function ChoresPage() {
         ) : visible.length === 0 ? (
           <EmptyState
             icon="list"
-            title={chores.length === 0 ? 'No chores yet' : 'No chores for this kid'}
+            title={chores.length === 0 ? t('choresPage.noneYet') : t('choresPage.noneForKid')}
             action={
               <button type="button" className="btn btn-primary btn-sm" onClick={() => setEditor({ open: true })}>
-                <Icon name="plus" size={16} /> New chore
+                <Icon name="plus" size={16} /> {t('common.newChore')}
               </button>
             }
           >
-            {chores.length === 0 ? 'Create one, or start from a suggestion below.' : undefined}
+            {chores.length === 0 ? t('choresPage.createHint') : undefined}
           </EmptyState>
         ) : (
           <ul className="rows">
@@ -120,7 +121,7 @@ export default function ChoresPage() {
                         <Icon name="coin" size={14} /> {money(chore.rewardAmount, currency)}
                       </span>
                     )}
-                    <span className="row-people" title={takesTurns ? 'Takes turns' : undefined}>
+                    <span className="row-people" title={takesTurns ? t('choresPage.takesTurns') : undefined}>
                       <AvatarStack users={people} size={26} />
                       {takesTurns && <Icon name="repeat" size={14} />}
                     </span>
@@ -136,7 +137,7 @@ export default function ChoresPage() {
       {loaded && templates.length > 0 && chores.length < 6 && (
         <section className="section">
           <div className="section-head">
-            <h2>Quick add</h2>
+            <h2>{t('choresPage.quickAdd')}</h2>
           </div>
           <div className="template-grid">
             {templates.slice(0, 9).map((t) => (
