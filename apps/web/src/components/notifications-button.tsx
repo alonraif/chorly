@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
+import { Icon } from './icon';
 
 type State = 'unsupported' | 'ios-install' | 'off' | 'on' | 'denied' | 'working';
 
@@ -24,7 +25,7 @@ async function currentSubscription() {
   return reg.pushManager.getSubscription();
 }
 
-export function NotificationsButton() {
+export function NotificationsRow() {
   const [state, setState] = useState<State>('working');
   const [error, setError] = useState('');
 
@@ -74,17 +75,34 @@ export function NotificationsButton() {
     }
   }
 
-  if (state === 'unsupported' || state === 'on' || state === 'working') return null;
-  if (state === 'ios-install') {
-    return <small className="task-meta">To get notifications: Share → Add to Home Screen, then open Chorly from the icon.</small>;
-  }
-  if (state === 'denied') {
-    return <small className="task-meta">Notifications are blocked in this browser's settings.</small>;
-  }
+  const hint: Record<State, string> = {
+    on: 'On for this device',
+    off: 'Get reminders and approval alerts',
+    working: 'Checking…',
+    denied: 'Blocked in this browser’s settings',
+    unsupported: 'Not supported in this browser',
+    'ios-install': 'On iPhone: Share → Add to Home Screen, then open Chorly from the icon',
+  };
+
   return (
-    <>
-      <button type="button" className="ghost-button" onClick={enable}>🔔 Turn on notifications</button>
-      {error && <small className="error">{error}</small>}
-    </>
+    <div className="setting-row">
+      <span className="setting-icon">
+        <Icon name="bell" size={18} />
+      </span>
+      <span className="setting-text">
+        <span className="setting-label">Notifications</span>
+        <span className="field-hint">{error || hint[state]}</span>
+      </span>
+      {state === 'off' && (
+        <button type="button" className="btn btn-secondary btn-sm" onClick={enable}>
+          Turn on
+        </button>
+      )}
+      {state === 'on' && (
+        <span className="pill pill-success">
+          <Icon name="check" size={14} /> On
+        </span>
+      )}
+    </div>
   );
 }

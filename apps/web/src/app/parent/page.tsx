@@ -1,361 +1,260 @@
 'use client';
 
 import Link from 'next/link';
-import { DateTime } from 'luxon';
-import { useEffect, useMemo, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
+import { choreTitle, dayKey, firstName, friendlyDay, greeting, now, timeOf } from '../../lib/format';
+import { useSession } from '../../lib/session';
+import { rangeQuery, type Chore, type Instance } from '../../lib/types';
+import { Avatar, AvatarStack, ProgressRing } from '../../components/avatar';
+import { ChoreEditor } from '../../components/chore-editor';
+import { Icon } from '../../components/icon';
+import { InstanceSheet } from '../../components/instance-sheet';
+import { statusOf, StatusPill } from '../../components/status';
+import { EmptyState, errorMessage } from '../../components/ui';
 
-type InstanceStatus = 'assigned' | 'done' | 'approved';
-
-type Instance = {
-  id: string;
-  choreId: string;
-  dueAt: string;
-  status: InstanceStatus;
-  chore: { title_en: string; title_he: string };
-  assignments: Array<{ userId: string; displayName: string }>;
-};
-
-type User = {
-  id: string;
-  displayName: string;
-  role: 'parent' | 'child';
-  isActive: boolean;
-};
-
-type ChoreDefinition = {
-  id: string;
-  scheduleJson: { type: 'one_time' | 'repeating_calendar' | 'repeating_after_completion' };
-};
-
-type ViewMode = 'list' | 'calendar';
-
-type OccurrenceEditorState = {
-  instanceId: string;
-  choreId: string;
-  dueAtLocal: string;
-  assigneeUserId: string;
-  choreTitle: string;
-};
-
-type EditChoiceState = {
-  instanceId: string;
-  choreId: string;
-  dueAt: string;
-  choreTitle: string;
-  assigneeUserId: string;
-};
-
-function statusLabel(status: InstanceStatus) {
-  if (status === 'approved') return 'Approved';
-  if (status === 'done') return 'Done';
-  return 'Assigned';
-}
-
-function dayLabel(dayIso: string) {
-  return DateTime.fromISO(dayIso).toFormat('EEE, LLL d');
-}
-
-export default function ParentPage() {
-  const router = useRouter();
+export default function ParentHomePage() {
+  const { me, kids, approvalsCount } = useSession();
   const [items, setItems] = useState<Instance[]>([]);
-  const [users, setUsers] = useState<User[]>([]);
+  const [chores, setChores] = useState<Chore[]>([]);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [occurrenceEditor, setOccurrenceEditor] = useState<OccurrenceEditorState | null>(null);
-  const [editChoice, setEditChoice] = useState<EditChoiceState | null>(null);
+  const [selectedDay, setSelectedDay] = useState(() => now().toISODate() || '');
+  const [kidFilter, setKidFilter] = useState<string | null>(null);
+  const [openInstance, setOpenInstance] = useState<Instance | null>(null);
+  const [editor, setEditor] = useState<{ open: boolean; choreId?: string | null }>({ open: false });
 
-  const range = useMemo(() => {
-    const now = DateTime.now().setZone('Asia/Jerusalem').startOf('day');
-    return {
-      from: now.toUTC().toISO(),
-      to: now.plus({ days: 6 }).endOf('day').toUTC().toISO(),
-    };
+  const days = useMemo(() => {
+    const start = now().startOf('day');
+    return Array.from({ length: 7 }, (_, i) => start.plus({ days: i }));
   }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     try {
-      const [instancesData, usersData] = await Promise.all([
-        api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}`),
-        api.get('/users'),
+      const start = now().startOf('day');
+      const [instances, choreList] = await Promise.all([
+        api.get(rangeQuery(start.minus({ days: 7 }).toUTC().toISO() || '', start.plus({ days: 6 }).endOf('day').toUTC().toISO() || '')),
+        api.get('/chores'),
       ]);
-      setItems(instancesData);
-      setUsers((usersData as User[]).filter((user) => user.role === 'child' && user.isActive));
-    } catch (e: any) {
-      setError(e.message || String(e));
+      setItems(instances);
+      setChores(choreList);
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not load chores'));
+    } finally {
+      setLoaded(true);
     }
-  }
+  }, []);
 
   useEffect(() => {
     load();
-  }, [range.from, range.to]);
+  }, [load]);
 
-  function toLocalDatetimeInput(iso: string) {
-    return DateTime.fromISO(iso).setZone('Asia/Jerusalem').toFormat("yyyy-LL-dd'T'HH:mm");
-  }
+  const todayKey = days[0].toISODate() || '';
+  const overdue = items.filter((i) => statusOf(i) === 'overdue');
+  const byDay = useMemo(() => {
+    const map: Record<string, Instance[]> = {};
+    for (const item of items) (map[dayKey(item.dueAt)] ||= []).push(item);
+    return map;
+  }, [items]);
 
-  async function onEdit(item: Instance) {
-    setError('');
-    try {
-      const chore = await api.get(`/chores/${item.choreId}`) as ChoreDefinition;
-      const isRecurring = chore.scheduleJson.type !== 'one_time';
-      const currentAssignee = item.assignments[0]?.userId || users[0]?.id || '';
-      if (isRecurring) {
-        setEditChoice({
-          instanceId: item.id,
-          choreId: item.choreId,
-          dueAt: item.dueAt,
-          choreTitle: `${item.chore.title_he} / ${item.chore.title_en}`,
-          assigneeUserId: currentAssignee,
-        });
-        return;
-      }
+  const todayItems = byDay[todayKey] || [];
+  const agenda = (byDay[selectedDay] || []).filter((i) => !kidFilter || i.assignments.some((a) => a.userId === kidFilter));
+  const rewardFor = (choreId: string) => chores.find((c) => c.id === choreId)?.rewardAmount ?? null;
+  const selectedLabel = friendlyDay(days.find((d) => d.toISODate() === selectedDay) || days[0]);
 
-      setOccurrenceEditor({
-        instanceId: item.id,
-        choreId: item.choreId,
-        dueAtLocal: toLocalDatetimeInput(item.dueAt),
-        assigneeUserId: currentAssignee,
-        choreTitle: `${item.chore.title_he} / ${item.chore.title_en}`,
-      });
-    } catch (e: any) {
-      setError(e.message || 'Failed to open chore editor');
-    }
-  }
-
-  function openOccurrenceEditorFromChoice() {
-    if (!editChoice) return;
-    setOccurrenceEditor({
-      instanceId: editChoice.instanceId,
-      choreId: editChoice.choreId,
-      dueAtLocal: toLocalDatetimeInput(editChoice.dueAt),
-      assigneeUserId: editChoice.assigneeUserId,
-      choreTitle: editChoice.choreTitle,
-    });
-    setEditChoice(null);
-  }
-
-  async function saveOccurrenceEdit() {
-    if (!occurrenceEditor) return;
-    if (!occurrenceEditor.assigneeUserId) {
-      setError('Please select an assignee.');
-      return;
-    }
-    try {
-      await api.patch(`/instances/${occurrenceEditor.instanceId}`, {
-        dueAt: new Date(occurrenceEditor.dueAtLocal).toISOString(),
-        assigneeUserId: occurrenceEditor.assigneeUserId,
-      });
-      setOccurrenceEditor(null);
-      await load();
-    } catch (e: any) {
-      setError(e.message || 'Failed to update occurrence');
-    }
-  }
-
-  async function onDeleteOccurrence(instanceId: string) {
-    const ok = window.confirm('Delete this chore occurrence?');
-    if (!ok) return;
-    setError('');
-    try {
-      await api.delete(`/instances/${instanceId}`);
-      await load();
-    } catch (e: any) {
-      setError(e.message || 'Failed to delete occurrence');
-    }
-  }
-
-  async function onDeleteRecurring(choreId: string) {
-    const ok = window.confirm('Delete this recurring chore and remove upcoming unapproved occurrences?');
-    if (!ok) return;
-    setError('');
-    try {
-      await api.delete(`/chores/${choreId}`);
-      await load();
-    } catch (e: any) {
-      setError(e.message || 'Failed to delete recurring chore');
-    }
-  }
-
-  const dayKeys = useMemo(() => {
-    const start = DateTime.fromISO(range.from || '').startOf('day');
-    return Array.from({ length: 7 }, (_, index) => start.plus({ days: index }).toISODate() || '');
-  }, [range.from]);
-
-  const groupedByDay = useMemo(() => {
-    const grouped: Record<string, Instance[]> = {};
-    for (const day of dayKeys) grouped[day] = [];
-    for (const item of items) {
-      const day = DateTime.fromISO(item.dueAt).toISODate() || '';
-      if (!grouped[day]) grouped[day] = [];
-      grouped[day].push(item);
-    }
-    return grouped;
-  }, [items, dayKeys]);
+  const openEditor = (choreId?: string | null) => {
+    setOpenInstance(null);
+    setEditor({ open: true, choreId });
+  };
 
   return (
-    <div className="parent-view">
-      <section className="card">
-        <div className="page-title">
-          <h2>Parent Chorespace</h2>
-          <p className="lead">Plan and track the upcoming week across all assigned chores in your family.</p>
+    <div className="page">
+      <header className="page-header">
+        <div>
+          <p className="eyebrow">{now().toFormat('EEEE, LLLL d')}</p>
+          <h1>
+            {greeting()}, {firstName(me.displayName)}
+          </h1>
         </div>
+        <button type="button" className="btn btn-primary hide-mobile" onClick={() => openEditor(null)}>
+          <Icon name="plus" size={18} /> New chore
+        </button>
+      </header>
 
-        <h3>Quick Actions</h3>
-        <div className="action-row">
-          <Link className="button-link" href="/admin/chores#new-chore">Create chore</Link>
-          <Link className="button-link" href="/admin/chores#new-chore">Assign chore</Link>
+      {error && <p className="callout callout-error">{error}</p>}
+
+      {loaded && kids.length === 0 && (
+        <section className="onboard">
+          <h2>Let’s get your family set up</h2>
+          <ol className="onboard-steps">
+            <li className="is-next">
+              <span className="step-num">1</span>
+              <span>
+                <strong>Add your kids</strong>
+                <span className="muted small">Each kid gets their own login for their phone.</span>
+              </span>
+              <Link href="/admin/users" className="btn btn-primary btn-sm">Add kids</Link>
+            </li>
+            <li>
+              <span className="step-num">2</span>
+              <span>
+                <strong>Create a few chores</strong>
+                <span className="muted small">Pick from suggestions — dishes, trash, pets.</span>
+              </span>
+            </li>
+            <li>
+              <span className="step-num">3</span>
+              <span>
+                <strong>Approve and pay</strong>
+                <span className="muted small">Kids check off chores, you approve, they earn.</span>
+              </span>
+            </li>
+          </ol>
+        </section>
+      )}
+
+      {(approvalsCount > 0 || overdue.length > 0) && (
+        <div className="alert-row">
+          {approvalsCount > 0 && (
+            <Link href="/parent/review" className="alert-card alert-waiting">
+              <span className="alert-icon"><Icon name="approve" /></span>
+              <span>
+                <strong>{approvalsCount} waiting for approval</strong>
+                <span className="small">Review and pay out</span>
+              </span>
+              <Icon name="chevronRight" size={18} />
+            </Link>
+          )}
+          {overdue.length > 0 && (
+            <Link href="/parent/review#overdue" className="alert-card alert-overdue">
+              <span className="alert-icon"><Icon name="alert" /></span>
+              <span>
+                <strong>{overdue.length} overdue</strong>
+                <span className="small">Reschedule or skip</span>
+              </span>
+              <Icon name="chevronRight" size={18} />
+            </Link>
+          )}
         </div>
+      )}
 
-        <details className="admin-dropdown">
-          <summary>Admin</summary>
-          <div className="admin-links">
-            <Link href="/parent/review">Approve completed chores</Link>
-            <Link href="/admin/users">Family members</Link>
-            <Link href="/admin/chores">Full chore admin</Link>
+      {kids.length > 0 && (
+        <section className="section">
+          <div className="section-head">
+            <h2>Today</h2>
+            {kidFilter && (
+              <button type="button" className="link-btn" onClick={() => setKidFilter(null)}>Show everyone</button>
+            )}
           </div>
-        </details>
-      </section>
-
-      <section className="card">
-        <div className="week-header">
-          <h3>Upcoming Week</h3>
-          <div className="view-toggle" role="tablist" aria-label="View mode">
-            <button
-              type="button"
-              className={viewMode === 'list' ? 'active' : ''}
-              onClick={() => setViewMode('list')}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              className={viewMode === 'calendar' ? 'active' : ''}
-              onClick={() => setViewMode('calendar')}
-            >
-              Calendar
-            </button>
+          <div className="kid-progress-grid">
+            {kids.map((kid) => {
+              const mine = todayItems.filter((i) => i.assignments.some((a) => a.userId === kid.id));
+              const done = mine.filter((i) => i.status !== 'assigned').length;
+              const active = kidFilter === kid.id;
+              return (
+                <button
+                  key={kid.id}
+                  type="button"
+                  className={`kid-progress ${active ? 'is-active' : ''}`}
+                  aria-pressed={active}
+                  onClick={() => setKidFilter(active ? null : kid.id)}
+                >
+                  <ProgressRing value={done} total={mine.length} size={52}>
+                    <Avatar user={kid} size={38} />
+                  </ProgressRing>
+                  <span className="kid-progress-text">
+                    <strong>{firstName(kid.displayName)}</strong>
+                    <span className="small muted">
+                      {kid.isAway ? 'Away' : mine.length === 0 ? 'Nothing today' : done === mine.length ? 'All done 🎉' : `${done} of ${mine.length} done`}
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        </div>
+        </section>
+      )}
 
-        {error && <p className="error">{error}</p>}
-
-        {viewMode === 'list' && (
-          <div className="list-week">
-            {dayKeys.map((day) => (
-              <section key={day} className="day-list">
-                <h4>{dayLabel(day)}</h4>
-                {groupedByDay[day]?.length ? (
-                  <ul className="list compact">
-                    {groupedByDay[day].map((item) => (
-                      <li key={item.id} className="task-row">
-                        <div>
-                          <p className="task-title">{item.chore.title_he} / {item.chore.title_en}</p>
-                          <small className="task-meta">
-                            {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {item.assignments.map((a) => a.displayName).join(', ')}
-                          </small>
-                          <div className="action-row">
-                            <button type="button" className="ghost-button" onClick={() => onEdit(item)}>Edit chore</button>
-                            <button type="button" className="ghost-button" onClick={() => onDeleteOccurrence(item.id)}>Delete occurrence</button>
-                            <button type="button" className="ghost-button" onClick={() => onDeleteRecurring(item.choreId)}>Delete recurring chore</button>
-                          </div>
-                        </div>
-                        <span className={`status-badge status-${item.status}`}>{statusLabel(item.status)}</span>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="lead">No chores scheduled.</p>
-                )}
-              </section>
-            ))}
+      {kids.length > 0 && (
+        <section className="section">
+          <div className="day-strip" role="tablist" aria-label="Day">
+            {days.map((d) => {
+              const key = d.toISODate() || '';
+              const count = (byDay[key] || []).length;
+              const active = key === selectedDay;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  className={`day-cell ${active ? 'is-active' : ''}`}
+                  onClick={() => setSelectedDay(key)}
+                >
+                  <span className="day-cell-name">{key === todayKey ? 'Today' : d.toFormat('EEE')}</span>
+                  <span className="day-cell-num">{d.day}</span>
+                  <span className="day-cell-dots" aria-label={`${count} chores`}>
+                    {Array.from({ length: Math.min(count, 4) }, (_, i) => <i key={i} />)}
+                  </span>
+                </button>
+              );
+            })}
           </div>
-        )}
 
-        {viewMode === 'calendar' && (
-          <div className="calendar-grid">
-            {dayKeys.map((day) => (
-              <section key={day} className="calendar-day">
-                <h4>{dayLabel(day)}</h4>
-                {groupedByDay[day]?.length ? (
-                  <ul className="list compact">
-                    {groupedByDay[day].map((item) => (
-                      <li key={item.id}>
-                        <p className="task-title">{item.chore.title_he} / {item.chore.title_en}</p>
-                        <small className="task-meta">
-                          {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {statusLabel(item.status)}
-                        </small>
-                        <div className="action-row">
-                          <button type="button" className="ghost-button" onClick={() => onEdit(item)}>Edit chore</button>
-                          <button type="button" className="ghost-button" onClick={() => onDeleteOccurrence(item.id)}>Delete occurrence</button>
-                          <button type="button" className="ghost-button" onClick={() => onDeleteRecurring(item.choreId)}>Delete recurring chore</button>
-                        </div>
-                      </li>
-                    ))}
-                  </ul>
-                ) : (
-                  <p className="lead">No chores</p>
-                )}
-              </section>
-            ))}
-          </div>
-        )}
-      </section>
-
-      {occurrenceEditor && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-occurrence-title">
-          <div className="modal-card">
-            <h3 id="edit-occurrence-title">Edit occurrence</h3>
-            <p>{occurrenceEditor.choreTitle}</p>
-            <label>
-              Due date/time
-              <input
-                type="datetime-local"
-                value={occurrenceEditor.dueAtLocal}
-                onChange={(e) => setOccurrenceEditor((prev) => (prev ? { ...prev, dueAtLocal: e.target.value } : prev))}
-              />
-            </label>
-            <label>
-              Assignee
-              <select
-                value={occurrenceEditor.assigneeUserId}
-                onChange={(e) => setOccurrenceEditor((prev) => (prev ? { ...prev, assigneeUserId: e.target.value } : prev))}
+          <div className="list-card">
+            {!loaded ? (
+              <div className="skeleton-list">
+                <span /><span /><span />
+              </div>
+            ) : agenda.length === 0 ? (
+              <EmptyState
+                icon="calendar"
+                title={`Nothing on ${selectedLabel === 'Today' ? 'today' : selectedLabel}`}
+                action={
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => openEditor(null)}>
+                    <Icon name="plus" size={16} /> Add a chore
+                  </button>
+                }
               >
-                {users.map((user) => (
-                  <option key={user.id} value={user.id}>{user.displayName}</option>
+                {kidFilter ? 'No chores for this kid on this day.' : 'Enjoy the free time.'}
+              </EmptyState>
+            ) : (
+              <ul className="rows">
+                {agenda.map((item) => (
+                  <li key={item.id}>
+                    <button type="button" className={`row row-${statusOf(item)}`} onClick={() => setOpenInstance(item)}>
+                      <span className="row-time">{timeOf(item.dueAt)}</span>
+                      <span className="row-main">
+                        <span className="row-title">{choreTitle(item.chore)}</span>
+                        <span className="row-sub">
+                          <AvatarStack users={item.assignments.map((a) => ({ id: a.userId, displayName: a.displayName }))} size={20} />
+                          {item.assignments.map((a) => firstName(a.displayName)).join(', ')}
+                        </span>
+                      </span>
+                      <StatusPill instance={item} />
+                      <Icon name="chevronRight" size={18} className="row-chevron" />
+                    </button>
+                  </li>
                 ))}
-              </select>
-            </label>
-            <div className="action-row">
-              <button type="button" onClick={saveOccurrenceEdit}>Save</button>
-              <button type="button" className="ghost-button" onClick={() => setOccurrenceEditor(null)}>Cancel</button>
-            </div>
+              </ul>
+            )}
           </div>
-        </div>
+        </section>
       )}
 
-      {editChoice && (
-        <div className="modal-backdrop" role="dialog" aria-modal="true" aria-labelledby="edit-choice-title">
-          <div className="modal-card">
-            <h3 id="edit-choice-title">Edit recurring chore</h3>
-            <p>{editChoice.choreTitle}</p>
-            <div className="action-row">
-              <button type="button" onClick={openOccurrenceEditorFromChoice}>Edit occurrence</button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditChoice(null);
-                  router.push(`/admin/chores?edit=series&choreId=${encodeURIComponent(editChoice.choreId)}`);
-                }}
-              >
-                Edit series
-              </button>
-              <button type="button" className="ghost-button" onClick={() => setEditChoice(null)}>Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
+      <button type="button" className="fab" onClick={() => openEditor(null)} aria-label="New chore">
+        <Icon name="plus" size={26} />
+      </button>
+
+      <InstanceSheet
+        instance={openInstance}
+        onClose={() => setOpenInstance(null)}
+        onChanged={load}
+        onEditSeries={(id) => openEditor(id)}
+        rewardFor={rewardFor}
+      />
+      <ChoreEditor open={editor.open} choreId={editor.choreId} onClose={() => setEditor({ open: false })} onSaved={load} />
     </div>
   );
 }

@@ -66,7 +66,7 @@ export class FamilyService {
   current(tenantId: string) {
     return this.prisma.tenant.findUnique({
       where: { id: tenantId },
-      select: { id: true, name: true, defaultLocale: true },
+      select: { id: true, name: true, defaultLocale: true, currencyCode: true },
     });
   }
 }

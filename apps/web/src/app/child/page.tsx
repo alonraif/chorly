@@ -1,325 +1,375 @@
 'use client';
 
 import { DateTime } from 'luxon';
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
-import { getCurrentUserId } from '../../lib/user';
+import { choreTitle, dayKey, firstName, friendlyDay, money, now, timeOf, zoned } from '../../lib/format';
+import { useSession } from '../../lib/session';
+import { rangeQuery, type Chore, type Earnings, type Instance } from '../../lib/types';
+import { Avatar, ProgressRing } from '../../components/avatar';
+import { Icon } from '../../components/icon';
+import { statusOf } from '../../components/status';
+import { EmptyState, errorMessage, Sheet, useUi } from '../../components/ui';
 
-type InstanceStatus = 'assigned' | 'done' | 'approved';
-type ViewMode = 'list' | 'calendar';
-
-type User = {
-  id: string;
-  displayName: string;
-  role: 'parent' | 'child';
-  isAdmin: boolean;
-  isActive: boolean;
-};
-
-type Instance = {
-  id: string;
-  dueAt: string;
-  status: InstanceStatus;
-  chore: { title_en: string; title_he: string };
-  doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }>;
-};
-
-type Earnings = {
-  userId: string;
-  currencyCode: string;
-  earnedTotal: string;
-  paidOutTotal: string;
-  dueAmount: string;
-  earnEntries: Array<{
-    id: string;
-    amount: string;
-    createdAt: string;
-    instanceId: string | null;
-    choreTitleEn: string | null;
-    choreTitleHe: string | null;
-    dueAt: string | null;
-  }>;
-  payoutEntries: Array<{
-    id: string;
-    amount: string;
-    createdAt: string;
-  }>;
-};
-
-function statusLabel(status: InstanceStatus) {
-  if (status === 'approved') return 'Approved';
-  if (status === 'done') return 'Done';
-  return 'Assigned';
-}
-
-function dayLabel(dayIso: string) {
-  return DateTime.fromISO(dayIso).toFormat('EEE, LLL d');
-}
-
-function money(amount: string, currencyCode: string) {
-  const value = Number(amount || '0');
-  return new Intl.NumberFormat(undefined, { style: 'currency', currency: currencyCode }).format(Number.isFinite(value) ? value : 0);
-}
-
-export default function ChildPage() {
-  const currentUser = getCurrentUserId();
-
-  const [actor, setActor] = useState<User | null>(null);
-  const [users, setUsers] = useState<User[]>([]);
-  const [targetUserId, setTargetUserId] = useState('');
+export default function KidPage() {
+  const { me, kids, currency } = useSession();
+  const { toast, confirm } = useUi();
+  const isParent = me.role === 'parent';
+  const [targetId, setTargetId] = useState<string>(isParent ? '' : me.id);
   const [items, setItems] = useState<Instance[]>([]);
+  const [chores, setChores] = useState<Chore[]>([]);
   const [earnings, setEarnings] = useState<Earnings | null>(null);
-  const [viewMode, setViewMode] = useState<ViewMode>('list');
-  const [showMoneyDetails, setShowMoneyDetails] = useState(false);
+  const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
-
-  const range = useMemo(() => {
-    const start = DateTime.now().setZone('Asia/Jerusalem').startOf('day');
-    const end = start.plus({ days: 6 }).endOf('day');
-    return {
-      from: start.toUTC().toISO(),
-      to: end.toUTC().toISO(),
-    };
-  }, []);
+  const [walletOpen, setWalletOpen] = useState(false);
+  const [celebrate, setCelebrate] = useState(false);
+  const [pending, setPending] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!currentUser) return;
-    setError('');
-    Promise.all([api.get(`/users/${currentUser}`), api.get('/users')])
-      .then(([me, allUsers]) => {
-        const meTyped = me as User;
-        const allTyped = allUsers as User[];
-        setActor(meTyped);
-        setUsers(allTyped.filter((u) => u.isActive));
-        if (meTyped.isAdmin) {
-          const firstChild = allTyped.find((u) => u.role === 'child' && u.isActive);
-          setTargetUserId(firstChild?.id || meTyped.id);
-        } else {
-          setTargetUserId(meTyped.id);
-        }
-      })
-      .catch((e) => setError(e.message || 'Failed to load session'));
-  }, [currentUser]);
+    if (!isParent || targetId) return;
+    const fromQuery = new URLSearchParams(window.location.search).get('user');
+    const pick = kids.find((k) => k.id === fromQuery) || kids[0];
+    if (pick) setTargetId(pick.id);
+  }, [isParent, kids, targetId]);
 
-  async function loadData(userId: string) {
-    if (!userId) return;
-    setError('');
+  const target = isParent ? kids.find((k) => k.id === targetId) : me;
+  const canCheck = targetId === me.id;
+
+  const load = useCallback(async () => {
+    if (!targetId) return;
     try {
-      const [instancesData, earningsData] = await Promise.all([
-        api.get(`/instances?from=${encodeURIComponent(range.from || '')}&to=${encodeURIComponent(range.to || '')}&userId=${userId}`),
-        api.get(`/users/${userId}/earnings`),
+      const start = now().startOf('day');
+      const [instances, earned, choreList] = await Promise.all([
+        api.get(rangeQuery(start.minus({ days: 7 }).toUTC().toISO() || '', start.plus({ days: 6 }).endOf('day').toUTC().toISO() || '', targetId)),
+        api.get(`/users/${targetId}/earnings`),
+        api.get('/chores').catch(() => []),
       ]);
-      setItems(instancesData);
-      setEarnings(earningsData);
-    } catch (e: any) {
-      setError(e.message || 'Failed to load child data');
+      setItems(instances);
+      setEarnings(earned);
+      setChores(choreList);
+      setError('');
+    } catch (err) {
+      setError(errorMessage(err, 'Could not load your chores'));
+    } finally {
+      setLoaded(true);
     }
-  }
+  }, [targetId]);
 
   useEffect(() => {
-    loadData(targetUserId);
-  }, [targetUserId, range.from, range.to]);
+    setLoaded(false);
+    load();
+  }, [load]);
 
-  const dayKeys = useMemo(() => {
-    const start = DateTime.fromISO(range.from || '').startOf('day');
-    return Array.from({ length: 7 }, (_, index) => start.plus({ days: index }).toISODate() || '');
-  }, [range.from]);
+  const todayKey = now().toISODate() || '';
+  const isMineDone = (i: Instance) => {
+    const d = i.doneByUserId[targetId];
+    return (!!d && !d.undoneAt) || i.status === 'approved';
+  };
+  const today = items.filter((i) => dayKey(i.dueAt) === todayKey);
+  const missed = items.filter((i) => dayKey(i.dueAt) < todayKey && i.status === 'assigned');
+  const upcoming = useMemo(() => {
+    const groups: Record<string, Instance[]> = {};
+    for (const i of items) if (dayKey(i.dueAt) > todayKey) (groups[dayKey(i.dueAt)] ||= []).push(i);
+    return Object.entries(groups).sort(([a], [b]) => a.localeCompare(b));
+  }, [items, todayKey]);
+  const doneToday = today.filter(isMineDone).length;
+  const rewardFor = (i: Instance) => {
+    if (!i.chore.hasReward) return null;
+    return i.rewardAmount || chores.find((c) => c.id === i.choreId)?.rewardAmount || null;
+  };
+  const waitingAmount = items
+    .filter((i) => i.status === 'done')
+    .reduce((sum, i) => sum + Number(rewardFor(i) || 0), 0);
 
-  const groupedByDay = useMemo(() => {
-    const grouped: Record<string, Instance[]> = {};
-    for (const day of dayKeys) grouped[day] = [];
-    for (const item of items) {
-      const day = DateTime.fromISO(item.dueAt).toISODate() || '';
-      if (!grouped[day]) grouped[day] = [];
-      grouped[day].push(item);
-    }
-    return grouped;
-  }, [items, dayKeys]);
-
-  async function toggleDone(instance: Instance) {
-    if (!currentUser) return;
-    const mine = instance.doneByUserId[currentUser];
-    const done = !!mine && !mine.undoneAt;
+  async function toggle(item: Instance) {
+    if (!canCheck || item.status === 'approved' || pending.has(item.id)) return;
+    const wasDone = isMineDone(item);
+    const stamp = new Date().toISOString();
+    // Optimistic: flip it right away so the tap feels instant.
+    setItems((prev) =>
+      prev.map((i) =>
+        i.id === item.id
+          ? {
+              ...i,
+              status: wasDone ? 'assigned' : 'done',
+              doneByUserId: { ...i.doneByUserId, [me.id]: { doneAt: stamp, undoneAt: wasDone ? stamp : null } },
+            }
+          : i,
+      ),
+    );
+    setPending((prev) => new Set(prev).add(item.id));
     try {
-      if (done) {
-        await api.post(`/instances/${instance.id}/undo`, {});
-      } else {
-        await api.post(`/instances/${instance.id}/mark-done`, {});
+      await api.post(`/instances/${item.id}/${wasDone ? 'undo' : 'mark-done'}`, {});
+      if (!wasDone && dayKey(item.dueAt) === todayKey && doneToday + 1 === today.length) {
+        setCelebrate(true);
+        window.setTimeout(() => setCelebrate(false), 2200);
       }
-      await loadData(targetUserId);
-    } catch (e: any) {
-      setError(e.message || 'Failed to update status');
+    } catch (err) {
+      toast(errorMessage(err, 'Could not update'), 'error');
+    } finally {
+      setPending((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      load();
     }
   }
 
-  async function payoutReset() {
-    if (!targetUserId) return;
+  async function markPaid() {
+    if (!earnings || !target) return;
+    const ok = await confirm({
+      title: `Pay ${firstName(target.displayName)} ${money(earnings.dueAmount, earnings.currencyCode)}?`,
+      body: 'Marks the full balance as paid and resets it to zero.',
+      confirmLabel: 'Mark as paid',
+    });
+    if (!ok) return;
     try {
-      await api.post(`/users/${targetUserId}/payout-reset`, {});
-      await loadData(targetUserId);
-    } catch (e: any) {
-      setError(e.message || 'Failed to reset payout');
+      await api.post(`/users/${targetId}/payout-reset`, {});
+      toast('Balance marked as paid');
+      load();
+    } catch (err) {
+      toast(errorMessage(err, 'Could not mark as paid'), 'error');
     }
   }
 
-  const canUpdateCompletion = !!currentUser && currentUser === targetUserId;
-  const canResetPayout = !!actor?.isAdmin && !!earnings && Number(earnings.dueAmount) > 0;
+  if (isParent && kids.length === 0) {
+    return (
+      <div className="page">
+        <EmptyState icon="users" title="No kids yet">Add kids on the Family page to see their view.</EmptyState>
+      </div>
+    );
+  }
+
+  const name = target ? firstName(target.displayName) : '';
+  const left = today.length - doneToday;
+  const heroLine =
+    today.length === 0
+      ? 'Nothing due today. Enjoy!'
+      : left === 0
+        ? 'All done for today — amazing!'
+        : `${left} ${left === 1 ? 'chore' : 'chores'} left today`;
 
   return (
-    <div className="parent-view">
-      <section className="card">
-        <div className="page-title">
-          <h2>Child Chorespace</h2>
-          <p className="lead">Weekly assigned chores, completion updates, and earned money tracking.</p>
+    <div className="kid-page">
+      {isParent && (
+        <div className="viewing-as">
+          <span className="small">Viewing as</span>
+          <div className="chip-row">
+            {kids.map((k) => (
+              <button
+                key={k.id}
+                type="button"
+                className={`chip chip-person ${k.id === targetId ? 'is-on' : ''}`}
+                aria-pressed={k.id === targetId}
+                onClick={() => setTargetId(k.id)}
+              >
+                <Avatar user={k} size={22} /> {firstName(k.displayName)}
+              </button>
+            ))}
+          </div>
         </div>
+      )}
 
-        {actor?.isAdmin && (
-          <label>
-            Child
-            <select value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
-              {users.filter((u) => u.role === 'child').map((u) => (
-                <option key={u.id} value={u.id}>{u.displayName}</option>
-              ))}
-            </select>
-          </label>
+      <section className="kid-hero">
+        <ProgressRing value={doneToday} total={today.length} size={92} stroke={8}>
+          <span className="hero-count">
+            <strong>{doneToday}</strong>
+            <span>/{today.length}</span>
+          </span>
+        </ProgressRing>
+        <div>
+          <h1>Hi {name}!</h1>
+          <p>{heroLine}</p>
+        </div>
+      </section>
+
+      {earnings && (
+        <button type="button" className="wallet-tile" onClick={() => setWalletOpen(true)}>
+          <span className="wallet-icon"><Icon name="coin" size={24} /></span>
+          <span className="wallet-text">
+            <span className="small">{isParent ? `${name}’s balance` : 'Your balance'}</span>
+            <strong className="wallet-amount">{money(earnings.dueAmount, earnings.currencyCode)}</strong>
+            {waitingAmount > 0 && (
+              <span className="small">+{money(waitingAmount, earnings.currencyCode)} waiting for approval</span>
+            )}
+          </span>
+          <Icon name="chevronRight" size={20} />
+        </button>
+      )}
+
+      {error && <p className="callout callout-error">{error}</p>}
+      {isParent && <p className="callout callout-info">Only {name} can check off chores, from their own login.</p>}
+
+      {missed.length > 0 && (
+        <section className="kid-section">
+          <h2 className="kid-section-title kid-section-missed">
+            <Icon name="alert" size={18} /> Missed — still time to do them
+          </h2>
+          <ul className="kid-list">
+            {missed.map((item) => (
+              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} showDay />
+            ))}
+          </ul>
+        </section>
+      )}
+
+      <section className="kid-section">
+        <h2 className="kid-section-title">Today</h2>
+        {!loaded ? (
+          <div className="skeleton-list"><span /><span /></div>
+        ) : today.length === 0 ? (
+          <div className="list-card">
+            <EmptyState icon="sparkle" title="Free day!">No chores today.</EmptyState>
+          </div>
+        ) : (
+          <ul className="kid-list">
+            {today.map((item) => (
+              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} />
+            ))}
+          </ul>
         )}
+      </section>
 
-        {earnings && (
-          <div className="card wallet-card">
-            <button
-              type="button"
-              className="wallet-total"
-              onClick={() => setShowMoneyDetails((v) => !v)}
-            >
-              Amount due: {money(earnings.dueAmount, earnings.currencyCode)}
-            </button>
-            <small className="task-meta">
-              Earned total: {money(earnings.earnedTotal, earnings.currencyCode)} • Paid out: {money(earnings.paidOutTotal, earnings.currencyCode)}
-            </small>
-
-            {showMoneyDetails && (
-              <ul className="list compact">
-                {earnings.earnEntries.map((entry) => (
-                  <li key={entry.id}>
-                    <p className="task-title">{entry.choreTitleHe || '-'} / {entry.choreTitleEn || '-'}</p>
-                    <small className="task-meta">
-                      {money(entry.amount, earnings.currencyCode)} • {entry.dueAt ? DateTime.fromISO(entry.dueAt).setZone('Asia/Jerusalem').toFormat('LLL d, HH:mm') : DateTime.fromISO(entry.createdAt).toFormat('LLL d, HH:mm')}
-                    </small>
-                  </li>
+      {upcoming.length > 0 && (
+        <section className="kid-section">
+          <h2 className="kid-section-title">Coming up</h2>
+          {upcoming.map(([day, list]) => (
+            <div key={day} className="upcoming-day">
+              <h3>{friendlyDay(DateTime.fromISO(day, { zone: zoned(list[0].dueAt).zone }))}</h3>
+              <ul className="kid-list kid-list-compact">
+                {list.map((item) => (
+                  <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} compact />
                 ))}
-                {earnings.earnEntries.length === 0 && <li><p className="lead">No paid chores yet.</p></li>}
               </ul>
-            )}
+            </div>
+          ))}
+        </section>
+      )}
 
-            {canResetPayout && (
-              <button type="button" onClick={payoutReset}>Mark amount as transferred</button>
-            )}
+      {celebrate && (
+        <div className="celebrate" aria-live="polite">
+          <div className="celebrate-burst">
+            {Array.from({ length: 18 }, (_, i) => (
+              <i key={i} style={{ ['--i' as any]: i }} />
+            ))}
           </div>
-        )}
-      </section>
-
-      <section className="card">
-        <div className="week-header">
-          <h3>Assigned This Week</h3>
-          <div className="view-toggle" role="tablist" aria-label="View mode">
-            <button
-              type="button"
-              className={viewMode === 'list' ? 'active' : ''}
-              onClick={() => setViewMode('list')}
-            >
-              List
-            </button>
-            <button
-              type="button"
-              className={viewMode === 'calendar' ? 'active' : ''}
-              onClick={() => setViewMode('calendar')}
-            >
-              Calendar
-            </button>
-          </div>
+          <p>All done today! 🎉</p>
         </div>
+      )}
 
-        {!currentUser && <p className="lead">Select a user first.</p>}
-        {!canUpdateCompletion && currentUser && <p className="lead">To update completion, switch to this child user in the user switcher.</p>}
-        {error && <p className="error">{error}</p>}
-
-        {viewMode === 'list' && (
-          <div className="list-week">
-            {dayKeys.map((day) => (
-              <section key={day} className="day-list">
-                <h4>{dayLabel(day)}</h4>
-                {groupedByDay[day]?.length ? (
-                  <ul className="list compact">
-                    {groupedByDay[day].map((item) => {
-                      const mine = currentUser ? item.doneByUserId[currentUser] : undefined;
-                      const done = !!mine && !mine.undoneAt;
-                      return (
-                        <li key={item.id}>
-                          <button
-                            type="button"
-                            className="task-click"
-                            onClick={() => toggleDone(item)}
-                            disabled={!canUpdateCompletion}
-                            title={canUpdateCompletion ? 'Toggle completion' : 'Switch to child user to update'}
-                          >
-                            <div className="task-row">
-                              <div>
-                                <p className="task-title">{item.chore.title_he} / {item.chore.title_en}</p>
-                                <small className="task-meta">
-                                  {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {done ? 'Done by you' : statusLabel(item.status)}
-                                </small>
-                              </div>
-                              <span className={`status-badge status-${done ? 'done' : item.status}`}>{done ? 'Done by you' : statusLabel(item.status)}</span>
-                            </div>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="lead">No chores scheduled.</p>
-                )}
-              </section>
-            ))}
+      <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title={isParent ? `${name}’s money` : 'Your money'}>
+        {earnings && (
+          <div className="stack-lg">
+            <div className="wallet-stats">
+              <div>
+                <span className="small muted">To be paid</span>
+                <strong>{money(earnings.dueAmount, earnings.currencyCode)}</strong>
+              </div>
+              <div>
+                <span className="small muted">Earned all-time</span>
+                <strong>{money(earnings.earnedTotal, earnings.currencyCode)}</strong>
+              </div>
+              <div>
+                <span className="small muted">Paid out</span>
+                <strong>{money(earnings.paidOutTotal, earnings.currencyCode)}</strong>
+              </div>
+            </div>
+            {isParent && Number(earnings.dueAmount) > 0 && (
+              <button type="button" className="btn btn-primary btn-block" onClick={markPaid}>
+                <Icon name="wallet" size={18} /> Mark {money(earnings.dueAmount, earnings.currencyCode)} as paid
+              </button>
+            )}
+            <div>
+              <h3 className="field-label">History</h3>
+              {earnings.earnEntries.length === 0 && earnings.payoutEntries.length === 0 ? (
+                <p className="muted">Approved chores with rewards will show up here.</p>
+              ) : (
+                <ul className="ledger">
+                  {[
+                    ...earnings.earnEntries.map((e) => ({
+                      id: e.id,
+                      at: e.createdAt,
+                      label: (target?.locale === 'he' ? e.choreTitleHe : e.choreTitleEn) || e.choreTitleEn || e.choreTitleHe || 'Chore',
+                      amount: `+${money(e.amount, earnings.currencyCode)}`,
+                      kind: 'earn',
+                    })),
+                    ...earnings.payoutEntries.map((p) => ({
+                      id: p.id,
+                      at: p.createdAt,
+                      label: 'Paid out',
+                      amount: `−${money(p.amount, earnings.currencyCode)}`,
+                      kind: 'payout',
+                    })),
+                  ]
+                    .sort((a, b) => b.at.localeCompare(a.at))
+                    .map((row) => (
+                      <li key={row.id} className={`ledger-row ledger-${row.kind}`}>
+                        <span>
+                          <span className="row-title">{row.label}</span>
+                          <span className="small muted">{DateTime.fromISO(row.at).toFormat('EEE, LLL d')}</span>
+                        </span>
+                        <strong>{row.amount}</strong>
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
           </div>
         )}
-
-        {viewMode === 'calendar' && (
-          <div className="calendar-grid">
-            {dayKeys.map((day) => (
-              <section key={day} className="calendar-day">
-                <h4>{dayLabel(day)}</h4>
-                {groupedByDay[day]?.length ? (
-                  <ul className="list compact">
-                    {groupedByDay[day].map((item) => {
-                      const mine = currentUser ? item.doneByUserId[currentUser] : undefined;
-                      const done = !!mine && !mine.undoneAt;
-                      return (
-                        <li key={item.id}>
-                          <button
-                            type="button"
-                            className="task-click"
-                            onClick={() => toggleDone(item)}
-                            disabled={!canUpdateCompletion}
-                            title={canUpdateCompletion ? 'Toggle completion' : 'Switch to child user to update'}
-                          >
-                            <p className="task-title">{item.chore.title_he} / {item.chore.title_en}</p>
-                            <small className="task-meta">
-                              {DateTime.fromISO(item.dueAt).setZone('Asia/Jerusalem').toFormat('HH:mm')} • {done ? 'Done by you' : statusLabel(item.status)}
-                            </small>
-                          </button>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                ) : (
-                  <p className="lead">No chores</p>
-                )}
-              </section>
-            ))}
-          </div>
-        )}
-      </section>
+      </Sheet>
     </div>
+  );
+}
+
+function KidChore({
+  item,
+  done,
+  reward,
+  currency,
+  disabled,
+  onToggle,
+  compact,
+  showDay,
+}: {
+  item: Instance;
+  done: boolean;
+  reward: string | null;
+  currency: string;
+  disabled: boolean;
+  onToggle: (item: Instance) => void;
+  compact?: boolean;
+  showDay?: boolean;
+}) {
+  const state = statusOf(item);
+  const approved = item.status === 'approved';
+  const sub = approved
+    ? 'Approved!'
+    : done
+      ? 'Waiting for a parent to approve'
+      : `${showDay ? `${friendlyDay(zoned(item.dueAt))} · ` : ''}by ${timeOf(item.dueAt)}`;
+  return (
+    <li>
+      <button
+        type="button"
+        className={`kid-chore ${compact ? 'is-compact' : ''} ${done ? 'is-done' : ''} ${approved ? 'is-approved' : ''} ${state === 'overdue' ? 'is-overdue' : ''}`}
+        onClick={() => onToggle(item)}
+        disabled={disabled || approved}
+        aria-pressed={done}
+      >
+        <span className="kid-check" aria-hidden="true">
+          {approved ? <Icon name="star" size={compact ? 16 : 20} /> : <Icon name="check" size={compact ? 16 : 22} />}
+        </span>
+        <span className="kid-chore-text">
+          <span className="kid-chore-title">{choreTitle(item.chore)}</span>
+          <span className="kid-chore-sub">{sub}</span>
+        </span>
+        {reward && (
+          <span className="pill pill-coin">
+            <Icon name="coin" size={14} /> {money(reward, currency)}
+          </span>
+        )}
+      </button>
+    </li>
   );
 }

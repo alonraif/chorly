@@ -1,25 +1,23 @@
 'use client';
 
 import Link from 'next/link';
-import { FormEvent, useEffect, useMemo, useState } from 'react';
+import { FormEvent, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { api } from '../../lib/api';
 import { setCurrentLocale, setCurrentUserId } from '../../lib/user';
+import { BrandMark } from '../../components/app-frame';
+import { Icon } from '../../components/icon';
 
 export default function RegisterPage() {
   const router = useRouter();
 
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
+  const [familyName, setFamilyName] = useState('');
+  const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [familyName, setFamilyName] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-
-  const displayName = useMemo(() => `${firstName} ${lastName}`.trim(), [firstName, lastName]);
 
   useEffect(() => {
     api.get('/auth/status')
@@ -32,112 +30,87 @@ export default function RegisterPage() {
   async function onRegister(e: FormEvent) {
     e.preventDefault();
     setError('');
-    if (!displayName || !email.trim() || !password.trim() || !familyName.trim()) {
-      setError('Please fill in all required fields.');
+    if (!familyName.trim() || !displayName.trim() || !email.trim() || !password) {
+      setError('Fill in all the fields.');
       return;
     }
-    if (password !== confirmPassword) {
-      setError('Passwords do not match.');
+    if (password.length < 8) {
+      setError('Use at least 8 characters for the password.');
       return;
     }
 
     setLoading(true);
     try {
       const data = await api.post('/family/create', {
-        familyName,
-        displayName,
-        email,
+        familyName: familyName.trim(),
+        displayName: displayName.trim(),
+        email: email.trim(),
         password,
       });
       if (data?.admin?.id) {
         setCurrentUserId(data.admin.id);
         setCurrentLocale(data.admin.locale || 'en');
       }
-      router.push('/admin/users');
+      router.push('/parent');
     } catch (err: any) {
-      setError(err.message || 'Failed to register');
-    } finally {
+      setError(err.message || 'Could not create the family');
       setLoading(false);
     }
   }
 
   return (
-    <section className="auth-shell">
-      <form className="card auth-card" onSubmit={onRegister}>
-        <div className="page-title">
-          <h2>Set up your family</h2>
-          <p className="lead">First-time setup: create the first parent account. You can add the kids next.</p>
-        </div>
+    <div className="auth">
+      <div className="auth-brand">
+        <BrandMark size={44} />
+        <h1>Welcome to Chorly</h1>
+        <p>Takes a minute: create your parent account now, then add the kids and a few chores.</p>
+      </div>
 
-        {error && <p className="error">{error}</p>}
+      <form className="auth-card" onSubmit={onRegister} noValidate>
+        <h2>Set up your family</h2>
 
-        <div className="form-grid auth-grid">
-          <label>
-            First Name
-            <input value={firstName} onChange={(e) => setFirstName(e.target.value)} required />
-          </label>
-
-          <label>
-            Last Name
-            <input value={lastName} onChange={(e) => setLastName(e.target.value)} required />
-          </label>
-        </div>
-
-        <label>
-          Email
-          <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+        <label className="field">
+          <span className="field-label-sm">Family name</span>
+          <input className="input input-lg" placeholder="The Levys" value={familyName} onChange={(e) => setFamilyName(e.target.value)} data-autofocus />
         </label>
 
-        <label>
-          Password
-          <div className="password-row">
+        <label className="field">
+          <span className="field-label-sm">Your name</span>
+          <input className="input input-lg" placeholder="Dana Levy" autoComplete="name" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
+        </label>
+
+        <label className="field">
+          <span className="field-label-sm">Email</span>
+          <input className="input input-lg" type="email" autoComplete="email" value={email} onChange={(e) => setEmail(e.target.value)} />
+        </label>
+
+        <label className="field">
+          <span className="field-label-sm">Password</span>
+          <span className="input-with-btn">
             <input
+              className="input input-lg"
               type={showPassword ? 'text' : 'password'}
+              autoComplete="new-password"
+              placeholder="At least 8 characters"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              required
-              minLength={8}
             />
-            <button type="button" className="ghost-button" onClick={() => setShowPassword((v) => !v)}>
-              {showPassword ? 'Hide' : 'Show'}
+            <button type="button" className="icon-btn" onClick={() => setShowPassword((v) => !v)} aria-label={showPassword ? 'Hide password' : 'Show password'}>
+              <Icon name={showPassword ? 'eyeOff' : 'eye'} size={18} />
             </button>
-          </div>
+          </span>
         </label>
 
-        <label>
-          Confirm Password
-          <div className="password-row">
-            <input
-              type={showPassword ? 'text' : 'password'}
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              minLength={8}
-            />
-            <button type="button" className="ghost-button" onClick={() => setShowPassword((v) => !v)}>
-              {showPassword ? 'Hide' : 'Show'}
-            </button>
-          </div>
-        </label>
+        {error && <p className="callout callout-error" role="alert">{error}</p>}
 
-        <label>
-          Family Name
-          <input
-            placeholder="The Levy Family"
-            value={familyName}
-            onChange={(e) => setFamilyName(e.target.value)}
-            required
-          />
-        </label>
-
-        <button type="submit" disabled={loading}>
-          {loading ? 'Creating Family…' : 'Create Account'}
+        <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={loading}>
+          {loading ? 'Creating…' : 'Create family'}
         </button>
 
-        <p className="auth-secondary">
-          Already have an account? <Link href="/">Back to login</Link>
+        <p className="small muted center">
+          Already set up? <Link href="/">Sign in</Link>
         </p>
       </form>
-    </section>
+    </div>
   );
 }
