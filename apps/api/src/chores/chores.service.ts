@@ -39,14 +39,22 @@ export class ChoresService {
     if (effectiveTo < from) return [];
 
     if (schedule.type === 'repeating_calendar') {
+      // RRule works in UTC, so run it on "floating" local calendar dates (local Y-M-D stored as UTC midnight).
+      // Otherwise BYDAY matches the UTC weekday, which is a day off for local midnight east of UTC.
+      const floating = (d: DateTime) => new Date(Date.UTC(d.year, d.month - 1, d.day));
       const opts = RRule.parseString(schedule.rrule);
-      opts.dtstart = DateTime.fromJSDate(from).setZone(TZ).startOf('day').toUTC().toJSDate();
-      if (endsAtUtc) opts.until = endsAtUtc;
+      opts.dtstart = floating(DateTime.fromJSDate(from).setZone(TZ));
       const rule = new RRule(opts);
-      return rule.between(from, effectiveTo, true).map((d: Date) => {
-        const withTime = this.parseDueTime(DateTime.fromJSDate(d).setZone(TZ), schedule.dueTime);
-        return withTime.toUTC().toJSDate();
-      });
+      const days = rule.between(opts.dtstart, floating(DateTime.fromJSDate(effectiveTo).setZone(TZ)), true);
+      return days
+        .map((d: Date) => {
+          const localDay = DateTime.fromObject(
+            { year: d.getUTCFullYear(), month: d.getUTCMonth() + 1, day: d.getUTCDate() },
+            { zone: TZ },
+          );
+          return this.parseDueTime(localDay, schedule.dueTime).toUTC().toJSDate();
+        })
+        .filter((due) => due >= from && due <= effectiveTo);
     }
 
     const dueDates: Date[] = [];
