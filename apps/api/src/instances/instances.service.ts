@@ -2,6 +2,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, type InstanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { PushService } from '../push/push.service';
+import { ChoresService } from '../chores/chores.service';
 import { AssignmentConfigSchema, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto } from '@chorly/shared';
 import type { RequestUser } from '../common/session/session.types';
 
@@ -28,9 +29,11 @@ export class InstancesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly push: PushService,
+    private readonly chores: ChoresService,
   ) {}
 
   async list(tenantId: string, from: Date, to: Date, userId?: string) {
+    await this.chores.materializeAllThrough(tenantId, to);
     const instances = await this.prisma.choreInstance.findMany({
       where: {
         tenantId,

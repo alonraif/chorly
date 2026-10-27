@@ -20,12 +20,18 @@ export class ChoresService {
     return base.set({ hour, minute, second: 0, millisecond: 0 });
   }
 
-  private nextWeekRange() {
+  // Instances are generated lazily: always at least a week ahead, further when a later range is viewed,
+  // but never more than a year out.
+  private materializeRange(through?: Date) {
     const start = DateTime.now().setZone(TZ).startOf('day');
-    return {
-      from: start.toUTC().toJSDate(),
-      to: start.plus({ days: 6 }).endOf('day').toUTC().toJSDate(),
-    };
+    const minTo = start.plus({ days: 6 }).endOf('day');
+    const maxTo = start.plus({ days: 366 }).endOf('day');
+    let to = minTo;
+    if (through) {
+      const requested = DateTime.fromJSDate(through).setZone(TZ).endOf('day');
+      to = requested < minTo ? minTo : requested > maxTo ? maxTo : requested;
+    }
+    return { from: start.toUTC().toJSDate(), to: to.toUTC().toJSDate() };
   }
 
   private dueDatesInRange(schedule: ChoreSchedule, from: Date, to: Date): Date[] {
@@ -88,7 +94,20 @@ export class ChoresService {
     return { assigneeIds: [eligibleUsers[0].id], nextLastAssignedUserId: eligibleUsers[0].id };
   }
 
-  private async materializeUpcomingInstances(tenantId: string, choreId: string) {
+  // Calendar-based repeats are fixed in advance, so they can be generated for any range being viewed.
+  // "After completion" repeats depend on approvals and stay with the worker's rolling window.
+  async materializeAllThrough(tenantId: string, through: Date) {
+    const chores = await this.prisma.choreDefinition.findMany({
+      where: { tenantId, isTemplate: false, deletedAt: null },
+      select: { id: true, scheduleJson: true },
+    });
+    for (const chore of chores) {
+      if ((chore.scheduleJson as { type?: string })?.type !== 'repeating_calendar') continue;
+      await this.materializeUpcomingInstances(tenantId, chore.id, through);
+    }
+  }
+
+  private async materializeUpcomingInstances(tenantId: string, choreId: string, through?: Date) {
     const chore = await this.prisma.choreDefinition.findFirst({
       where: { id: choreId, tenantId, deletedAt: null },
       select: {
@@ -114,18 +133,21 @@ export class ChoresService {
     });
     if (users.length === 0) return;
 
-    const { from, to } = this.nextWeekRange();
+    const { from, to } = this.materializeRange(through);
     const dueDates = [...new Set(this.dueDatesInRange(schedule, from, to).map((d) => d.getTime()))]
       .sort((a, b) => a - b)
       .map((ms) => new Date(ms));
+    if (dueDates.length === 0) return;
+
+    const existing = await this.prisma.choreInstance.findMany({
+      where: { tenantId, choreId: chore.id, dueAt: { gte: dueDates[0], lte: dueDates[dueDates.length - 1] } },
+      select: { dueAt: true },
+    });
+    const existingMs = new Set(existing.map((e) => e.dueAt.getTime()));
 
     let lastAssignedUserId = chore.lastAssignedUserId;
     for (const dueAt of dueDates) {
-      const existing = await this.prisma.choreInstance.findUnique({
-        where: { tenantId_choreId_dueAt: { tenantId, choreId: chore.id, dueAt } },
-        select: { id: true },
-      });
-      if (existing) continue;
+      if (existingMs.has(dueAt.getTime())) continue;
 
       const selection = this.selectAssignees(assignment, users, lastAssignedUserId);
       if (selection.assigneeIds.length === 0) continue;
