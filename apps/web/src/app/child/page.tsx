@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { choreTitle, dayKey, firstName, friendlyDay, money, now, shortDate, timeOf, zoned } from '../../lib/format';
 import { getLocale, t, tn } from '../../lib/i18n';
+import { useAutoRefresh } from '../../lib/refresh';
 import { useSession } from '../../lib/session';
 import { rangeQuery, type Chore, type Earnings, type Instance } from '../../lib/types';
 import { Avatar, ProgressRing } from '../../components/avatar';
@@ -60,6 +61,7 @@ export default function KidPage() {
     setLoaded(false);
     load();
   }, [load]);
+  useAutoRefresh(load);
 
   const todayKey = now().toISODate() || '';
   const isMineDone = (i: Instance) => {

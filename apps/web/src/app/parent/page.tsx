@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../lib/api';
 import { choreTitle, dayKey, firstName, friendlyDay, greeting, longDate, now, timeOf, TZ, weekdayCodeOf, weekdayName } from '../../lib/format';
 import { joinNames, t, tn } from '../../lib/i18n';
+import { useAutoRefresh } from '../../lib/refresh';
 import { useSession } from '../../lib/session';
 import { rangeQuery, type Chore, type Instance } from '../../lib/types';
 import { Avatar, AvatarStack, ProgressRing } from '../../components/avatar';
@@ -136,6 +137,7 @@ export default function ParentHomePage() {
   useEffect(() => {
     load();
   }, [load]);
+  useAutoRefresh(load);
 
   const fetching = !loaded || loadedRange !== rangeKey;
   const overdueFrom = isoKey(today.minus({ days: 7 }));
