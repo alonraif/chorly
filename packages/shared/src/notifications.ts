@@ -29,10 +29,21 @@ export const notificationText = {
       ? { title: `☀️ ${name}: ${count === 1 ? 'מטלה אחת' : `${count} מטלות`} להיום`, body: chores.join(' · ') }
       : { title: `☀️ ${name}: ${count} ${count === 1 ? 'chore' : 'chores'} today`, body: chores.join(' · ') },
 
+  dueSoon: (locale: Locale, name: string, minutes: number, chores: string[]) =>
+    locale === 'he'
+      ? { title: `⏳ ${name}, בעוד ${minutes} דק׳`, body: chores.join(' · ') }
+      : { title: `⏳ ${name}, due in ${minutes} min`, body: chores.join(' · ') },
+
   overdue: (locale: Locale, name: string, chores: string[]) =>
     locale === 'he'
       ? { title: `⏰ ${name}, עוד לא בוצע`, body: chores.join(' · ') }
       : { title: `⏰ ${name}, still to do`, body: chores.join(' · ') },
+
+  // Lines are "kid – chore".
+  parentOverdue: (locale: Locale, lines: string[]) =>
+    locale === 'he'
+      ? { title: '📋 עוד פתוח', body: lines.join(' · ') }
+      : { title: '📋 Still open', body: lines.join(' · ') },
 
   weekly: (locale: Locale, name: string, approved: number, earned: string, upcoming: number) =>
     locale === 'he'

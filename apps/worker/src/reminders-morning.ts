@@ -9,7 +9,7 @@ const prisma = new PrismaClient();
 async function runForTenant(tenantId: string) {
   const { from, to } = todayBounds();
   const instances = await prisma.choreInstance.findMany({
-    where: { tenantId, dueAt: { gte: from, lte: to }, status: { in: ['assigned', 'done'] } },
+    where: { tenantId, dueAt: { gte: from, lte: to }, status: 'assigned' },
     include: { chore: true, assignments: { include: { user: true } }, completions: true },
     orderBy: { dueAt: 'asc' },
   });

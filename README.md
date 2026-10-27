@@ -86,7 +86,13 @@ gunzip -c backups/chorly-YYYY-MM-DD.sql.gz | docker compose exec -T postgres psq
 Notifications sent:
 - Kid marks a chore done → parents ("ready for approval").
 - Parent approves → kid (with reward).
-- 07:00 today's chores, 17:00 + 20:00 still-to-do, Saturday 19:00 weekly summary. Times are configurable with `CRON_*` env vars on the worker (see `apps/worker/src/scheduler.ts`).
+- 07:00 today's chores.
+- 30 minutes before a chore's due time → the kid (once per chore; only chores with a time set, none during quiet hours `21:00-07:00`).
+- 17:00 + 20:00 overdue chores → the kid. Each chore at most once a day, and only for 3 days after it was due.
+- 20:00 overdue chores across the family → parents.
+- Saturday 19:00 weekly summary.
+
+Times are configurable with `CRON_*` env vars on the worker (see `apps/worker/src/scheduler.ts`), plus `DUE_SOON_MINUTES`, `OVERDUE_MAX_DAYS` and `QUIET_HOURS`.
 
 ## Local development
 
@@ -109,6 +115,8 @@ Run a worker job once:
 ```bash
 pnpm --filter chorly-worker generate
 pnpm --filter chorly-worker reminders:morning
+pnpm --filter chorly-worker reminders:due-soon
 pnpm --filter chorly-worker reminders:overdue
+pnpm --filter chorly-worker reminders:parents
 pnpm --filter chorly-worker summary:weekly
 ```

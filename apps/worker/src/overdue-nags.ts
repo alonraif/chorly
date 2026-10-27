@@ -1,32 +1,27 @@
 import { PrismaClient, type Locale } from '@prisma/client';
 import { choreName, notificationText } from '@chorly/shared';
-import { DateTime } from 'luxon';
 import { TENANT_ID_FILTER, APP_BASE_URL } from './lib/config';
-import { gracePeriodMinutes } from './lib/schedule';
+import { localDay } from './lib/time';
 import { notifyUser } from './lib/notify';
+import { findOverdue } from './lib/overdue';
+import { markSent, sentKeys } from './lib/notification-log';
 
 const prisma = new PrismaClient();
 
+// Each overdue chore is nagged about at most once a day, so a later run only lists what became overdue since.
 async function runForTenant(tenantId: string) {
-  const now = DateTime.now().toJSDate();
-  const instances = await prisma.choreInstance.findMany({
-    where: { tenantId, status: { in: ['assigned', 'done'] }, dueAt: { lte: now } },
-    include: { chore: true, assignments: { include: { user: true } }, completions: true },
-    orderBy: { dueAt: 'asc' },
-  });
+  const day = localDay();
+  const overdue = await findOverdue(prisma, tenantId);
+  const sent = await sentKeys(prisma, 'overdue', day, overdue.map((o) => o.instance.id));
 
-  const nagsByUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; lines: string[] }>();
-  for (const instance of instances) {
-    const graceMs = gracePeriodMinutes(instance.chore.scheduleJson) * 60 * 1000;
-    const overdueAt = new Date(instance.dueAt.getTime() + graceMs);
-    if (overdueAt > now) continue;
-
-    const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
-    for (const assignment of instance.assignments) {
-      if (activeDone.has(assignment.userId)) continue;
-      const entry = nagsByUser.get(assignment.userId) || { id: assignment.userId, email: assignment.user.email, displayName: assignment.user.displayName, locale: assignment.user.locale, lines: [] };
-      entry.lines.push(choreName(instance.chore, assignment.user.locale));
-      nagsByUser.set(assignment.userId, entry);
+  const nagsByUser = new Map<string, { id: string; email: string | null; displayName: string; locale: Locale; lines: string[]; instanceIds: string[] }>();
+  for (const { instance, pending } of overdue) {
+    for (const user of pending) {
+      if (sent.has(user.id, instance.id)) continue;
+      const entry = nagsByUser.get(user.id) || { id: user.id, email: user.email, displayName: user.displayName, locale: user.locale, lines: [], instanceIds: [] };
+      entry.lines.push(choreName(instance.chore, user.locale));
+      entry.instanceIds.push(instance.id);
+      nagsByUser.set(user.id, entry);
     }
   }
 
@@ -35,9 +30,10 @@ async function runForTenant(tenantId: string) {
       ...notificationText.overdue(entry.locale, entry.displayName, entry.lines),
       url: `${APP_BASE_URL}/child`,
     });
+    await markSent(prisma, 'overdue', day, entry.instanceIds.map((instanceId) => ({ userId: entry.id, instanceId })));
   }
 
-  console.log('[worker:overdue-nags] tenant done', { tenantId, users: nagsByUser.size, instances: instances.length });
+  console.log('[worker:overdue-nags] tenant done', { tenantId, users: nagsByUser.size, instances: overdue.length });
 }
 
 async function main() {

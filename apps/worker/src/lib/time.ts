@@ -47,3 +47,20 @@ export function next7DaysRange() {
     to: now.plus({ days: 7 }).endOf('day').toUTC().toJSDate(),
   };
 }
+
+// Local calendar date (YYYY-MM-DD), used to key the notification log.
+export function localDay(date: Date | DateTime = nowTz()) {
+  const dt = date instanceof Date ? DateTime.fromJSDate(date) : date;
+  return dt.setZone(TZ).toISODate() || '';
+}
+
+// True when `now` falls inside a "HH:MM-HH:MM" window, which may wrap past midnight.
+export function inQuietHours(window: string, now = nowTz()) {
+  const match = /^(\d{2}):(\d{2})-(\d{2}):(\d{2})$/.exec(window);
+  if (!match) return false;
+  const [, sh, sm, eh, em] = match.map(Number);
+  const start = sh * 60 + sm;
+  const end = eh * 60 + em;
+  const minute = now.hour * 60 + now.minute;
+  return start <= end ? minute >= start && minute < end : minute >= start || minute < end;
+}

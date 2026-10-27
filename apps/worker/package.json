@@ -6,7 +6,9 @@
     "dev": "tsx watch src/scheduler.ts",
     "generate": "tsx src/generate.ts",
     "reminders:morning": "tsx src/reminders-morning.ts",
+    "reminders:due-soon": "tsx src/due-soon.ts",
     "reminders:overdue": "tsx src/overdue-nags.ts",
+    "reminders:parents": "tsx src/parent-nag.ts",
     "summary:weekly": "tsx src/weekly-summary.ts",
     "start": "tsx src/scheduler.ts"
   },

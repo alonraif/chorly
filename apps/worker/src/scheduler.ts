@@ -7,7 +7,9 @@ import { TZ } from './lib/config';
 const jobs: Array<{ name: string; file: string; schedule: string }> = [
   { name: 'generate', file: 'generate.ts', schedule: process.env.CRON_GENERATE || '15 0 * * *' },
   { name: 'reminders-morning', file: 'reminders-morning.ts', schedule: process.env.CRON_MORNING || '0 7 * * *' },
+  { name: 'due-soon', file: 'due-soon.ts', schedule: process.env.CRON_DUE_SOON || '*/5 * * * *' },
   { name: 'overdue-nags', file: 'overdue-nags.ts', schedule: process.env.CRON_OVERDUE || '0 17,20 * * *' },
+  { name: 'parent-nag', file: 'parent-nag.ts', schedule: process.env.CRON_PARENT_NAG || '0 20 * * *' },
   { name: 'weekly-summary', file: 'weekly-summary.ts', schedule: process.env.CRON_WEEKLY || '0 19 * * 6' },
 ];
 

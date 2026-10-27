@@ -19,6 +19,12 @@ enum InstanceStatus {
   approved
 }
 
+enum NotificationKind {
+  due_soon
+  overdue
+  parent_overdue
+}
+
 enum MoneyLedgerType {
   earn
   payout
@@ -63,6 +69,7 @@ model User {
   ledgerEntries     MoneyLedger[]
   sessions          Session[]
   pushSubscriptions PushSubscription[]
+  notificationLogs  NotificationLog[]
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
@@ -89,6 +96,22 @@ model PushSubscription {
   createdAt DateTime @default(now())
 
   @@index([userId])
+}
+
+// One row per scheduled reminder sent, so the worker never repeats one.
+// `day` is the local date (YYYY-MM-DD) the reminder belongs to.
+model NotificationLog {
+  id         String           @id @default(cuid())
+  userId     String
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  instanceId String
+  instance   ChoreInstance    @relation(fields: [instanceId], references: [id], onDelete: Cascade)
+  kind       NotificationKind
+  day        String
+  sentAt     DateTime         @default(now())
+
+  @@unique([userId, instanceId, kind, day])
+  @@index([instanceId])
 }
 
 model ChoreDefinition {
@@ -135,6 +158,7 @@ model ChoreInstance {
   assignments   InstanceAssignment[]
   completions   ChoreCompletion[]
   ledgerEntries MoneyLedger[]
+  notificationLogs NotificationLog[]
 
   @@unique([tenantId, choreId, dueAt])
   @@index([tenantId, dueAt])
