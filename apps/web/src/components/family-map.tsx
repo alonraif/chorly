@@ -4,7 +4,7 @@ import 'maplibre-gl/dist/maplibre-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
 import { firstName } from '../lib/format';
-import { getLocale, t } from '../lib/i18n';
+import { getLocale, listJoin, t } from '../lib/i18n';
 import { KIND_COLOR, KIND_EMOJI, type PlaceKind } from '../lib/places';
 import { hueFor, initials } from './avatar';
 import { Icon } from './icon';
@@ -37,7 +37,12 @@ const SHAPES = 'family-shapes';
 const PICK_COLOR = '#1c7ed6';
 // Where a family with nothing on the map yet starts: zoomed in enough to find a street, unlike the whole globe.
 const START_VIEW = { center: [34.85, 31.7] as [number, number], zoom: 6.5 };
-// People closer on screen than this would hide each other, so they fan out around their shared spot.
+// Further out than this, anything that would collide on screen merges into one bubble; a tap on it zooms in.
+const BREAK_ZOOM = 15;
+const GROUP_PX = 72;
+const GROUP_FACES = 3;
+const GROUP_EMOJIS = 2;
+// From the zoom above, people closer on screen than this would hide each other, so they fan out around their shared spot.
 const CROWDED_PX = 44;
 const PICK_ZOOM = 15;
 // They line up side by side, rows at most this long, so that every name tag stays readable.
@@ -117,10 +122,7 @@ function tappable<T extends HTMLElement>(root: T, label: string, onClick: () => 
 }
 
 // Everything below is built as elements, not HTML strings, so names can't inject markup into the map.
-function personElement(person: MapPerson, onClick: () => void) {
-  const root = tappable(document.createElement('div'), person.displayName, onClick);
-  root.className = `map-person ${person.stale ? 'is-stale' : ''}`;
-
+function faceElement(person: Pick<MapPerson, 'id' | 'displayName' | 'avatarAt'>) {
   const face = span('avatar');
   face.style.setProperty('--hue', String(hueFor(person.id)));
   face.textContent = initials(person.displayName);
@@ -130,9 +132,15 @@ function personElement(person: MapPerson, onClick: () => void) {
     img.src = `/api/users/${person.id}/avatar?v=${encodeURIComponent(person.avatarAt)}`;
     img.onload = () => face.replaceChildren(img);
   }
+  return face;
+}
+
+function personElement(person: MapPerson, onClick: () => void) {
+  const root = tappable(document.createElement('div'), person.displayName, onClick);
+  root.className = `map-person ${person.stale ? 'is-stale' : ''}`;
 
   const label = span('map-person-name', firstName(person.displayName));
-  root.append(face, span('map-person-pulse', person.emoji), label);
+  root.append(faceElement(person), span('map-person-pulse', person.emoji), label);
   if (person.eta) root.append(span('map-person-eta', person.eta));
   return root;
 }
@@ -171,7 +179,11 @@ function syncMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, s
     }
     existing?.marker.remove();
     added ||= !existing;
-    const marker = new maplibre.Marker({ element: item.make(), anchor: item.anchor ?? 'center' }).setLngLat([item.lng, item.lat]).addTo(map);
+    const element = item.make();
+    const label = element.getAttribute('aria-label');
+    const marker = new maplibre.Marker({ element, anchor: item.anchor ?? 'center' }).setLngLat([item.lng, item.lat]).addTo(map);
+    // Adding a marker replaces its label with a generic "Map marker".
+    if (label) element.setAttribute('aria-label', label);
     store.set(item.id, { marker, look: item.look });
   }
   store.forEach(({ marker }, id) => {
@@ -180,6 +192,67 @@ function syncMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, s
     store.delete(id);
   });
   return added;
+}
+
+type StoreName = 'people' | 'places' | 'errands' | 'things';
+type Stores = Record<StoreName, MarkerStore> & { groups: MarkerStore };
+// One thing on the map, as the grouping sees it: a person has a face, anything else an emoji.
+type Placed = { store: StoreName; id: string; lat: number; lng: number; label: string; person?: MapPerson; emoji?: string };
+
+// Things close enough on screen to collide, including through a neighbour. Street level has none: there's room there.
+function crowdedGroups(map: MapLibreMap, items: Placed[]) {
+  if (map.getZoom() >= BREAK_ZOOM) return [];
+  const points = items.map((item) => ({ item, at: map.project([item.lng, item.lat]) }));
+  const left = new Set(points);
+  const groups: Placed[][] = [];
+  for (const start of points) {
+    if (!left.delete(start)) continue;
+    const group = [start];
+    for (const member of group) {
+      for (const other of left) {
+        if (member.at.dist(other.at) >= GROUP_PX) continue;
+        left.delete(other);
+        group.push(other);
+      }
+    }
+    if (group.length > 1) groups.push(group.map((point) => point.item));
+  }
+  return groups;
+}
+
+function groupElement(group: Placed[], onClick: () => void) {
+  const root = tappable(span('map-group'), listJoin(group.map((item) => item.label)), onClick);
+  const faces = group.flatMap((item) => (item.person ? [item.person] : []));
+  const emojis = group.flatMap((item) => (item.emoji ? [item.emoji] : []));
+  const shownFaces = faces.slice(0, GROUP_FACES);
+  const shownEmojis = emojis.slice(0, GROUP_EMOJIS);
+  root.append(...shownFaces.map(faceElement), ...shownEmojis.map((emoji) => span('map-group-emoji', emoji)));
+  const more = group.length - shownFaces.length - shownEmojis.length;
+  if (more > 0) root.append(span('map-group-more', `+${more}`));
+  return root;
+}
+
+// Hides what's crowded behind one bubble per group, then lets whoever is left share their spot.
+function arrangeMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, stores: Stores, items: Placed[], onGroup: (group: Placed[]) => void) {
+  const groups = crowdedGroups(map, items);
+  const grouped = new Set(groups.flat());
+  for (const item of items) {
+    const element = stores[item.store].get(item.id)?.marker.getElement();
+    if (element) element.style.display = grouped.has(item) ? 'none' : '';
+  }
+  syncMarkers(
+    maplibre,
+    map,
+    stores.groups,
+    groups.map((group) => ({
+      id: group.map((item) => `${item.store}:${item.id}`).join(),
+      lat: group.reduce((sum, item) => sum + item.lat, 0) / group.length,
+      lng: group.reduce((sum, item) => sum + item.lng, 0) / group.length,
+      look: group.map((item) => `${item.label}|${item.person?.avatarAt}|${item.emoji}`).join(),
+      make: () => groupElement(group, () => onGroup(group)),
+    })),
+  );
+  spreadPeople(map, stores.people, items.flatMap((item) => (item.person ? [item.person] : [])));
 }
 
 // Fans out people who would otherwise sit on top of each other. Everyone at home is the usual case.
@@ -231,23 +304,38 @@ export function FamilyMap({
   // The map frames the family by itself until the viewer takes over.
   const framing = useRef({ framed: false, viewerMoved: false });
   const pickMarker = useRef<Marker | null>(null);
-  const stores = useRef({ people: new Map() as MarkerStore, places: new Map() as MarkerStore, errands: new Map() as MarkerStore, things: new Map() as MarkerStore });
+  const stores = useRef<Stores>({ people: new Map(), places: new Map(), errands: new Map(), things: new Map(), groups: new Map() });
   // Marker clicks and map taps were wired once; they read the latest handlers from here.
   const picking = !!pick;
   const unlessPicking = <A extends unknown[]>(handler: (...args: A) => void) => (...args: A) => {
     if (!latest.current.picking) handler(...args);
   };
-  const latest = useRef({ picking, onPick, onPerson, onPlace, onErrand, onThing, people, shapes: shapesOf(people, places, pick) });
-  latest.current = {
+  const onGroup = (group: Placed[]) => {
+    if (!loaded) return;
+    const bounds = new loaded.maplibre.LngLatBounds();
+    for (const item of group) bounds.extend([item.lng, item.lat]);
+    framing.current.viewerMoved = true;
+    // Past the zoom where groups end, so this can't land on the same bubble again.
+    loaded.map.fitBounds(bounds, { padding: FRAME_PADDING, maxZoom: BREAK_ZOOM + 0.5 });
+  };
+  const current = {
     picking,
     onPick,
     onPerson: unlessPicking(onPerson),
     onPlace: unlessPicking(onPlace),
     onErrand: unlessPicking(onErrand),
     onThing: unlessPicking(onThing),
-    people,
+    onGroup: unlessPicking(onGroup),
+    items: [
+      ...people.map((p): Placed => ({ store: 'people', id: p.id, lat: p.lat, lng: p.lng, label: firstName(p.displayName), person: p })),
+      ...places.map((p): Placed => ({ store: 'places', id: p.id, lat: p.lat, lng: p.lng, label: p.name, emoji: KIND_EMOJI[p.kind] })),
+      ...errands.map((e): Placed => ({ store: 'errands', id: e.id, lat: e.lat, lng: e.lng, label: e.title, emoji: '🛒' })),
+      ...things.map((x): Placed => ({ store: 'things', id: x.id, lat: x.lat, lng: x.lng, label: x.name, emoji: x.emoji })),
+    ],
     shapes: shapesOf(people, places, pick),
   };
+  const latest = useRef(current);
+  latest.current = current;
 
   const frameEveryone = useCallback(
     (maplibre: typeof import('maplibre-gl'), map: MapLibreMap) => {
@@ -298,7 +386,7 @@ export function FamilyMap({
       };
       map.on('dragstart', viewerMoved);
       map.on('zoomstart', viewerMoved);
-      map.on('zoom', () => map && spreadPeople(map, stores.current.people, latest.current.people));
+      map.on('zoom', () => map && arrangeMarkers(maplibre, map, stores.current, latest.current.items, latest.current.onGroup));
       dark.addEventListener('change', followTheme);
       setLoaded({ maplibre, map });
     });
@@ -370,7 +458,7 @@ export function FamilyMap({
       frameEveryone(maplibre, map);
       framing.current.framed = people.length + places.length + errands.length + things.length > 0;
     }
-    spreadPeople(map, stores.current.people, people);
+    arrangeMarkers(maplibre, map, stores.current, latest.current.items, latest.current.onGroup);
   }, [loaded, people, places, errands, things, pick, picking, frameEveryone]);
 
   // The pin being placed. Dragging fine-tunes it, which a fingertip on a small map can't do by tapping.
