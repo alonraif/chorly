@@ -114,6 +114,12 @@ export const notificationText = {
   errandNearby: (locale: Locale, errand: string) =>
     locale === 'he' ? { title: '📍 ממש לידך', body: errand } : { title: '📍 Right nearby', body: errand },
 
+  errandClaimed: (locale: Locale, name: string, errand: string) =>
+    locale === 'he' ? { title: `🛒 ${name} לקח/ה את זה`, body: errand } : { title: `🛒 ${name} is on it`, body: errand },
+
+  errandDone: (locale: Locale, name: string, errand: string) =>
+    locale === 'he' ? { title: `✅ ${name} סיים/ה`, body: errand } : { title: `✅ ${name} got it done`, body: errand },
+
   poke: (locale: Locale, name: string, kind: 'wave' | 'comeHome' | 'dinner' | 'onMyWay' | 'thinking') => {
     const he = {
       wave: `${name} מנופף/ת לך 👋`,

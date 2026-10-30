@@ -3,12 +3,13 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { POKE_KINDS } from '@chorly/shared';
 import { api } from '../lib/api';
-import { currencySymbol, firstName, timeOf } from '../lib/format';
+import { currencySymbol, firstName, relativeTime, timeOf } from '../lib/format';
 import { t, type MessageKey } from '../lib/i18n';
 import { useLocationSharing } from '../lib/location';
 import {
   distanceText,
   KIND_EMOJI,
+  minutesText,
   minutesUntilTonight,
   PLACE_KINDS,
   TAG_EMOJIS,
@@ -24,8 +25,27 @@ import { Icon } from './icon';
 import { errorMessage, Segmented, Sheet, Switch, useUi } from './ui';
 
 type Point = { lat: number; lng: number };
-// Asks the page to let the viewer tap the map; `apply` receives the chosen spot.
-export type RequestPick = (apply: (point: Point) => void) => void;
+// Asks the page to let the viewer place a pin; `apply` receives the confirmed spot.
+export type RequestPick = (apply: (point: Point) => void, options?: { start?: Point | null; radiusM?: number }) => void;
+
+// The API answers with codes where the reason is meant for the member, in their language.
+const ERROR_TEXT: Record<string, MessageKey> = {
+  poke_cooldown: 'locator.pokeCooldown',
+  errand_taken: 'locator.errandTaken',
+  not_your_errand: 'locator.notYourErrand',
+  share_first: 'locator.shareFirst',
+  already_there: 'locator.alreadyThere',
+};
+
+function currentPosition() {
+  return new Promise<Point>((resolve, reject) => {
+    navigator.geolocation.getCurrentPosition(
+      ({ coords }) => resolve({ lat: coords.latitude, lng: coords.longitude }),
+      () => reject(new Error(t('locator.cantLocate'))),
+      { enableHighAccuracy: true, timeout: 15_000 },
+    );
+  });
+}
 
 function useAction() {
   const { toast } = useUi();
@@ -37,7 +57,8 @@ function useAction() {
       if (success) toast(success);
       return true;
     } catch (err) {
-      toast(errorMessage(err, t('common.somethingWrong')), 'error');
+      const code = err instanceof Error ? ERROR_TEXT[err.message] : undefined;
+      toast(code ? t(code) : errorMessage(err, t('common.somethingWrong')), 'error');
       return false;
     } finally {
       setBusy(false);
@@ -46,31 +67,17 @@ function useAction() {
   return { busy, run };
 }
 
-function PointField({ value, onChange, onPick }: { value: Point | null; onChange: (point: Point) => void; onPick: RequestPick }) {
-  const { toast } = useUi();
-  const [locating, setLocating] = useState(false);
+function PointField({ value, radiusM, onChange, onPick }: { value: Point | null; radiusM?: number; onChange: (point: Point) => void; onPick: RequestPick }) {
+  const { busy: locating, run } = useAction();
 
-  function useMine() {
-    setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => {
-        setLocating(false);
-        onChange({ lat: coords.latitude, lng: coords.longitude });
-      },
-      () => {
-        setLocating(false);
-        toast(t('locator.cantLocate'), 'error');
-      },
-      { enableHighAccuracy: true, timeout: 15_000 },
-    );
-  }
+  const useMine = () => run(async () => onChange(await currentPosition()));
 
   return (
     <div className="field">
       <span className="field-label-sm">{t('locator.spot')}</span>
       <p className={`field-hint${value ? ' point-set' : ''}`}>{value ? `📍 ${t('locator.spotSet')}` : t('locator.spotNotSet')}</p>
       <div className="row-gap">
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => onPick(onChange)}>
+        <button type="button" className="btn btn-secondary btn-sm" onClick={() => onPick(onChange, { start: value, radiusM })}>
           <Icon name="pin" size={16} /> {t('locator.pickOnMap')}
         </button>
         {'geolocation' in navigator && (
@@ -89,7 +96,7 @@ type Duration = 'hour' | 'tonight' | 'always';
 const DURATION_MINUTES = (duration: Duration) => (duration === 'hour' ? 60 : duration === 'tonight' ? minutesUntilTonight() : null);
 
 export function SharingSheet({ open, onClose, mine, onChanged }: { open: boolean; onClose: () => void; mine: Overview['mine']; onChanged: () => void }) {
-  const { status, start, stop } = useLocationSharing();
+  const { status, start, stop, reportNow } = useLocationSharing();
   const { busy, run } = useAction();
   const [mode, setMode] = useState<'exact' | 'blurred'>('exact');
   const [duration, setDuration] = useState<Duration>('always');
@@ -115,7 +122,10 @@ export function SharingSheet({ open, onClose, mine, onChanged }: { open: boolean
   }
 
   async function change(body: Record<string, unknown>) {
-    if (await run(() => api.put('/location/me/settings', body))) onChanged();
+    if (!(await run(() => api.put('/location/me/settings', body)))) return;
+    // The family, and any trip estimate, shouldn't have to wait for the next beat.
+    if (body.mode && body.mode !== 'paused') reportNow();
+    onChanged();
   }
 
   async function end() {
@@ -196,6 +206,8 @@ type PlaceDraft = { id: string | null; name: string; kind: PlaceKind; note: stri
 
 const emptyPlace: PlaceDraft = { id: null, name: '', kind: 'home', note: '', radiusM: 150, reward: '', point: null };
 const RADII = [75, 150, 250, 400, 700];
+// Digits, one point, two decimals: what the API takes as an amount.
+const moneyInput = (value: string) => value.replace(/[^0-9.]/g, '').replace(/(\..*)\./g, '$1').replace(/(\.\d{2})\d+$/, '$1');
 
 export function PlacesSheet({
   open,
@@ -227,7 +239,7 @@ export function PlacesSheet({
       kind: draft.kind,
       note: draft.note.trim() || null,
       radiusM: draft.radiusM,
-      rewardAmount: draft.reward ? String(Number(draft.reward)) : null,
+      rewardAmount: Number(draft.reward) > 0 ? String(Number(draft.reward)) : null,
       ...draft.point,
     };
     const ok = await run(() => (draft.id ? api.patch(`/location/places/${draft.id}`, body) : api.post('/location/places', body)));
@@ -257,7 +269,7 @@ export function PlacesSheet({
             <button type="button" className="btn btn-primary" onClick={save} disabled={busy || !draft.point || !draft.name.trim()}>{t('common.save')}</button>
           </>
         ) : isAdmin ? (
-          <button type="button" className="btn btn-primary" onClick={() => setDraft(emptyPlace)}>
+          <button type="button" className="btn btn-primary" onClick={() => setDraft({ ...emptyPlace, kind: places.some((p) => p.kind === 'home') ? 'other' : 'home' })}>
             <Icon name="plus" size={18} /> {t('locator.addPlace')}
           </button>
         ) : undefined
@@ -278,7 +290,7 @@ export function PlacesSheet({
             </select>
             <span className="field-hint">{t(`locator.kindHint.${draft.kind}` as MessageKey)}</span>
           </label>
-          <PointField value={draft.point} onChange={(point) => set('point', point)} onPick={onPick} />
+          <PointField value={draft.point} radiusM={draft.radiusM} onChange={(point) => set('point', point)} onPick={onPick} />
           <label className="field">
             <span className="field-label-sm">{t('locator.radius')}</span>
             <select className="input" value={draft.radiusM} onChange={(e) => set('radiusM', Number(e.target.value))}>
@@ -300,7 +312,7 @@ export function PlacesSheet({
                 inputMode="decimal"
                 placeholder="0"
                 value={draft.reward}
-                onChange={(e) => set('reward', e.target.value.replace(/[^0-9.]/g, ''))}
+                onChange={(e) => set('reward', moneyInput(e.target.value))}
                 aria-label={t('locator.placeReward')}
               />
             </div>
@@ -368,6 +380,7 @@ export function ErrandsSheet({
   onChanged: () => void;
   onShow: (point: Point) => void;
 }) {
+  const { confirm } = useUi();
   const { busy, run } = useAction();
   const [adding, setAdding] = useState(false);
   const [title, setTitle] = useState('');
@@ -390,6 +403,14 @@ export function ErrandsSheet({
   const act = async (path: string, method: 'post' | 'delete' = 'post') => {
     if (await run(() => api[method](path))) onChanged();
   };
+
+  async function remove(errand: Errand) {
+    if (await confirm({ title: t('locator.deleteErrand', { name: errand.title }), confirmLabel: t('common.delete'), danger: true })) act(`/location/errands/${errand.id}`, 'delete');
+  }
+
+  // Yours first, then what nobody has taken, then what someone else is on.
+  const rank = (errand: Errand) => (errand.claimedById === me.id ? 0 : errand.claimedById ? 2 : 1);
+  const sorted = [...errands].sort((a, b) => rank(a) - rank(b));
 
   return (
     <Sheet
@@ -426,22 +447,26 @@ export function ErrandsSheet({
         <p className="muted">{t('locator.noErrands')}</p>
       ) : (
         <ul className="sheet-list">
-          {errands.map((errand) => {
+          {sorted.map((errand) => {
             const mineErrand = errand.claimedById === me.id;
+            const claim = mineErrand
+              ? t('locator.takenByYou')
+              : errand.claimedById
+                ? t('locator.takenBy', { name: nameOf(errand.claimedById) })
+                : errand.closest?.userId === me.id
+                  ? t('locator.closestYou', { distance: distanceText(errand.closest.distanceM) })
+                  : errand.closest
+                    ? t('locator.closestIs', { name: nameOf(errand.closest.userId), distance: distanceText(errand.closest.distanceM) })
+                    : t('locator.nobodyTook');
+            const details = [errand.note, errand.createdById === me.id ? null : t('locator.askedBy', { name: nameOf(errand.createdById) })].filter(Boolean).join(' · ');
             return (
               <li key={errand.id} className="sheet-list-item is-column">
                 <button type="button" className="sheet-list-main" onClick={() => { onShow(errand); onClose(); }}>
                   <span className="sheet-list-emoji">🛒</span>
                   <span className="sheet-list-text">
                     <span className="sheet-list-title">{errand.title}</span>
-                    <span className="field-hint">
-                      {errand.claimedById
-                        ? t('locator.takenBy', { name: nameOf(errand.claimedById) })
-                        : errand.closest
-                          ? t('locator.closestIs', { name: errand.closest.userId === me.id ? t('locator.youShort') : nameOf(errand.closest.userId), distance: distanceText(errand.closest.distanceM) })
-                          : t('locator.nobodyTook')}
-                      {errand.note ? ` · ${errand.note}` : ''}
-                    </span>
+                    <span className="field-hint">{claim}</span>
+                    {details && <span className="field-hint">{details}</span>}
                   </span>
                 </button>
                 <span className="row-gap">
@@ -455,11 +480,13 @@ export function ErrandsSheet({
                       {t('locator.release')}
                     </button>
                   )}
-                  <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => act(`/location/errands/${errand.id}/done`)}>
-                    <Icon name="check" size={16} /> {t('locator.errandDone')}
-                  </button>
+                  {(!errand.claimedById || mineErrand || me.isAdmin) && (
+                    <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => act(`/location/errands/${errand.id}/done`)}>
+                      <Icon name="check" size={16} /> {t('locator.errandDone')}
+                    </button>
+                  )}
                   {(errand.createdById === me.id || me.isAdmin) && (
-                    <button type="button" className="icon-btn" aria-label={t('common.delete')} disabled={busy} onClick={() => act(`/location/errands/${errand.id}`, 'delete')}>
+                    <button type="button" className="icon-btn" aria-label={t('common.delete')} disabled={busy} onClick={() => remove(errand)}>
                       <Icon name="trash" size={18} />
                     </button>
                   )}
@@ -479,6 +506,7 @@ export function TagsSheet({
   open,
   onClose,
   tags,
+  people,
   onPick,
   onChanged,
   onShow,
@@ -486,6 +514,7 @@ export function TagsSheet({
   open: boolean;
   onClose: () => void;
   tags: MapTag[];
+  people: Member[];
   onPick: RequestPick;
   onChanged: () => void;
   onShow: (point: Point) => void;
@@ -513,11 +542,12 @@ export function TagsSheet({
   }
 
   function moveHere(tag: MapTag) {
-    navigator.geolocation.getCurrentPosition(
-      ({ coords }) => moveTo(tag, { lat: coords.latitude, lng: coords.longitude }),
-      () => run(() => Promise.reject(new Error(t('locator.cantLocate')))),
-      { enableHighAccuracy: true, timeout: 15_000 },
-    );
+    run(async () => api.patch(`/location/tags/${tag.id}`, await currentPosition()), t('locator.thingMoved')).then((ok) => ok && onChanged());
+  }
+
+  function moved(tag: MapTag) {
+    const by = people.find((p) => p.id === tag.updatedById);
+    return by ? t('locator.thingMovedBy', { name: firstName(by.displayName), when: relativeTime(tag.updatedAt) }) : relativeTime(tag.updatedAt);
   }
 
   async function remove(tag: MapTag) {
@@ -572,6 +602,7 @@ export function TagsSheet({
                 <span className="sheet-list-emoji">{tag.emoji}</span>
                 <span className="sheet-list-text">
                   <span className="sheet-list-title">{tag.name}</span>
+                  <span className="field-hint">{moved(tag)}</span>
                 </span>
               </button>
               <span className="row-gap">
@@ -580,7 +611,7 @@ export function TagsSheet({
                     {t('locator.moveHere')}
                   </button>
                 )}
-                <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onPick((point) => moveTo(tag, point))}>
+                <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onPick((point) => moveTo(tag, point), { start: tag })}>
                   {t('locator.moveOnMap')}
                 </button>
                 <button type="button" className="icon-btn" aria-label={t('common.delete')} disabled={busy} onClick={() => remove(tag)}>
@@ -605,21 +636,64 @@ const POKE_LABEL: Record<(typeof POKE_KINDS)[number], { emoji: string; label: Me
   thinking: { emoji: '💛', label: 'locator.poke.thinking' },
 };
 
-export function PokeSheet({ target, onClose }: { target: Member | null; onClose: () => void }) {
+// Tapping someone: where they are, what to do about it, and a sticker.
+export function PersonSheet({
+  person,
+  status,
+  chips,
+  distance,
+  directions,
+  onShow,
+  onClose,
+}: {
+  person: Member | null;
+  status: string;
+  chips: ReactNode;
+  distance: string | null;
+  directions: string | null;
+  onShow: (() => void) | null;
+  onClose: () => void;
+}) {
   const { busy, run } = useAction();
-  if (!target) return null;
+  if (!person) return null;
+  const name = firstName(person.displayName);
   const send = async (kind: (typeof POKE_KINDS)[number]) => {
-    if (await run(() => api.post('/location/poke', { userId: target.id, kind }), t('locator.poked', { name: firstName(target.displayName) }))) onClose();
+    if (await run(() => api.post('/location/poke', { userId: person.id, kind }), t('locator.poked', { name }))) onClose();
   };
   return (
-    <Sheet open onClose={onClose} title={t('locator.pokeTitle', { name: firstName(target.displayName) })} size="sm">
-      <div className="poke-grid">
-        {POKE_KINDS.map((kind) => (
-          <button key={kind} type="button" className="poke" disabled={busy} onClick={() => send(kind)}>
-            <span className="poke-emoji">{POKE_LABEL[kind].emoji}</span>
-            <span>{t(POKE_LABEL[kind].label)}</span>
-          </button>
-        ))}
+    <Sheet open onClose={onClose} title={person.displayName} subtitle={status} size="sm">
+      <div className="stack">
+        {(chips || distance) && (
+          <div className="person-facts">
+            {chips}
+            {distance && <span className="field-hint">{t('locator.fromYou', { distance })}</span>}
+          </div>
+        )}
+        {(onShow || directions) && (
+          <div className="row-gap">
+            {onShow && (
+              <button type="button" className="btn btn-secondary btn-sm" onClick={onShow}>
+                <Icon name="pin" size={16} /> {t('locator.showOnMap')}
+              </button>
+            )}
+            {directions && (
+              <a className="btn btn-secondary btn-sm" href={directions} target="_blank" rel="noreferrer">
+                🧭 {t('locator.directions')}
+              </a>
+            )}
+          </div>
+        )}
+        <div className="field">
+          <span className="field-label-sm">{t('locator.pokeTitle', { name })}</span>
+          <div className="poke-grid">
+            {POKE_KINDS.map((kind) => (
+              <button key={kind} type="button" className="poke" disabled={busy} onClick={() => send(kind)}>
+                <span className="poke-emoji">{POKE_LABEL[kind].emoji}</span>
+                <span>{t(POKE_LABEL[kind].label)}</span>
+              </button>
+            ))}
+          </div>
+        </div>
       </div>
     </Sheet>
   );
@@ -631,17 +705,21 @@ export function TripSheet({
   open,
   onClose,
   places,
+  herePlaceId,
   heading,
   onChanged,
 }: {
   open: boolean;
   onClose: () => void;
   places: Place[];
-  heading: boolean;
+  /** Where the viewer is already: nobody heads to where they stand. */
+  herePlaceId: string | null;
+  heading: { place: string; minutes: number } | null;
   onChanged: () => void;
 }) {
   const { busy, run } = useAction();
   const [mode, setMode] = useState<'walk' | 'drive'>('walk');
+  const options = places.filter((place) => place.id !== herePlaceId);
 
   const go = async (place: Place) => {
     if (await run(() => api.post('/location/me/trip', { placeId: place.id, mode }), t('locator.tripStarted', { place: place.name }))) {
@@ -657,7 +735,7 @@ export function TripSheet({
   };
 
   let body: ReactNode;
-  if (places.length === 0) body = <p className="muted">{t('locator.noPlaces')}</p>;
+  if (options.length === 0) body = <p className="muted">{t(places.length === 0 ? 'locator.noPlaces' : 'locator.noOtherPlaces')}</p>;
   else
     body = (
       <div className="stack">
@@ -671,7 +749,7 @@ export function TripSheet({
           ]}
         />
         <ul className="sheet-list">
-          {places.map((place) => (
+          {options.map((place) => (
             <li key={place.id} className="sheet-list-item">
               <button type="button" className="sheet-list-main" disabled={busy} onClick={() => go(place)}>
                 <span className="sheet-list-emoji">{KIND_EMOJI[place.kind]}</span>
@@ -690,7 +768,7 @@ export function TripSheet({
       open={open}
       onClose={onClose}
       title={t('locator.headingTo')}
-      subtitle={t('locator.headingHint')}
+      subtitle={heading ? t('locator.etaBubble', { place: heading.place, time: minutesText(heading.minutes) }) : t('locator.headingHint')}
       size="sm"
       footer={
         heading ? (

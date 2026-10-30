@@ -5,6 +5,7 @@ import { api } from './api';
 import { t } from './i18n';
 import { nativePlugins, nativePost } from './native';
 import { useSession } from './session';
+import { useUi } from '../components/ui';
 
 export type SharingStatus = 'off' | 'on' | 'denied' | 'unsupported';
 
@@ -12,6 +13,8 @@ export type SharingStatus = 'off' | 'on' | 'denied' | 'unsupported';
 const MIN_REPORT_MS = 10_000;
 // ...and a still one keeps reporting at this pace, so the family can see it's live.
 const HEARTBEAT_MS = 30_000;
+// The timer can fire a hair early; without this slack it would skip every other beat.
+const TIMER_SLACK_MS = 1_000;
 // A fix this old (the app was suspended) isn't where the person is now.
 const MAX_FIX_AGE_MS = 120_000;
 // The Android app only hears about a phone that moved at least this far.
@@ -23,6 +26,8 @@ type LocationValue = {
   status: SharingStatus;
   start: (options: StartOptions) => Promise<void>;
   stop: () => Promise<void>;
+  /** Sends the position now instead of at the next beat: the family shouldn't wait after a resume. */
+  reportNow: () => void;
 };
 
 const LocationContext = createContext<LocationValue | null>(null);
@@ -35,10 +40,12 @@ type Fix = { lat: number; lng: number; accuracy: number | null; speed: number | 
 // someone away from the phone in their pocket.
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { me } = useSession();
+  const { toast } = useUi();
   const flagKey = `chorly.shareLocation.${me.id}`;
   const [status, setStatus] = useState<SharingStatus>('off');
   const reporting = useRef(false);
   const lastReport = useRef<Promise<unknown>>(Promise.resolve());
+  const sendNow = useRef<() => void>(() => undefined);
 
   useEffect(() => {
     if (!('geolocation' in navigator)) setStatus('unsupported');
@@ -93,12 +100,30 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       })
         // The timed share ran out: the server has forgotten the position and this device stops reporting.
         .then((result: any) => {
-          if (result?.sharing === false) halt('off').catch(() => undefined);
+          if (result?.sharing === false) {
+            toast(t('locator.sharingEnded'), 'info');
+            halt('off').catch(() => undefined);
+          }
         })
         .catch(() => undefined);
     };
 
-    const timer = window.setInterval(() => report(HEARTBEAT_MS), HEARTBEAT_MS);
+    // Browsers go quiet while a phone lies still, so the page asks for a position itself.
+    let freshen = () => undefined as void;
+    const timer = window.setInterval(() => {
+      if (!fix || Date.now() - fix.time > MIN_REPORT_MS) freshen();
+      report(HEARTBEAT_MS - TIMER_SLACK_MS);
+    }, HEARTBEAT_MS);
+
+    sendNow.current = () => {
+      freshen();
+      report(0);
+    };
+    // Coming back to the app, the family should see where this phone is now.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') sendNow.current();
+    };
+    document.addEventListener('visibilitychange', onVisible);
 
     // Not every browser has the Battery Status API (Safari doesn't); the family just sees no battery then.
     let battery: { level: number; charging: boolean } | null = null;
@@ -133,15 +158,19 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       return () => {
         stopped = true;
         window.clearInterval(timer);
+        document.removeEventListener('visibilitychange', onVisible);
+        sendNow.current = () => undefined;
         watcher.then((id) => id && native.BackgroundGeolocation.removeWatcher({ id })).catch(() => undefined);
       };
     }
 
+    const onPosition = ({ coords, timestamp }: GeolocationPosition) => {
+      fix = { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, speed: coords.speed, time: timestamp };
+      report(MIN_REPORT_MS);
+    };
+    freshen = () => navigator.geolocation.getCurrentPosition(onPosition, () => undefined, { enableHighAccuracy: true, maximumAge: MIN_REPORT_MS, timeout: HEARTBEAT_MS });
     const watchId = navigator.geolocation.watchPosition(
-      ({ coords, timestamp }) => {
-        fix = { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, speed: coords.speed, time: timestamp };
-        report(MIN_REPORT_MS);
-      },
+      onPosition,
       (error) => {
         if (error.code === error.PERMISSION_DENIED) halt('denied').catch(() => undefined);
       },
@@ -150,10 +179,13 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     return () => {
       navigator.geolocation.clearWatch(watchId);
       window.clearInterval(timer);
+      document.removeEventListener('visibilitychange', onVisible);
+      sendNow.current = () => undefined;
     };
-  }, [status, halt]);
+  }, [status, halt, toast]);
 
-  const value = useMemo(() => ({ status, start, stop }), [status, start, stop]);
+  const reportNow = useCallback(() => sendNow.current(), []);
+  const value = useMemo(() => ({ status, start, stop, reportNow }), [status, start, stop, reportNow]);
   return <LocationContext.Provider value={value}>{children}</LocationContext.Provider>;
 }
 

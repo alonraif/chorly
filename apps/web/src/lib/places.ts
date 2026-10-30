@@ -85,14 +85,17 @@ export function stayText(since: string) {
 }
 
 export function tripMinutes(location: PersonLocation) {
-  if (!location.trip?.etaAt) return null;
+  // An estimate from a phone that stopped reporting would count down to nothing.
+  if (!location.trip?.etaAt || isStale(location)) return null;
   return Math.max(1, Math.ceil((new Date(location.trip.etaAt).getTime() - Date.now()) / 60_000));
 }
 
 // One cartoon-style bubble for what the person is up to, worked out from where they are and how fast they move.
 export function pulseOf(location: PersonLocation, place: Place | undefined): { emoji: string; label: string } {
   if (location.mode === 'paused') return { emoji: '🔒', label: t('pulse.paused') };
-  const speed = location.speed ?? 0;
+  // How fast someone was going an hour ago says nothing about now.
+  const stale = isStale(location);
+  const speed = stale ? 0 : (location.speed ?? 0);
   if (speed >= DRIVING_MPS) return { emoji: '🚗', label: t('pulse.driving') };
   if (speed >= MOVING_MPS) return { emoji: '🚶', label: t('pulse.walking') };
   if (place) {
@@ -104,14 +107,14 @@ export function pulseOf(location: PersonLocation, place: Place | undefined): { e
       fun: 'pulse.fun',
       other: 'pulse.atPlace',
     };
-    if (place.kind === 'home' && (hour >= 22 || hour < 6)) return { emoji: '😴', label: t('pulse.sleeping') };
+    if (place.kind === 'home' && !stale && (hour >= 22 || hour < 6)) return { emoji: '😴', label: t('pulse.sleeping') };
     return { emoji: KIND_EMOJI[place.kind], label: t(labels[place.kind], { place: place.name }) };
   }
-  return { emoji: '📍', label: t('pulse.out') };
+  return stale ? { emoji: '🕓', label: t('pulse.lastSeen') } : { emoji: '📍', label: t('pulse.out') };
 }
 
 export function batteryChip(location: PersonLocation) {
-  if (location.battery === null || location.mode === 'paused') return null;
+  if (location.battery === null || location.mode === 'paused' || isStale(location)) return null;
   const low = location.battery <= LOW_BATTERY && !location.charging;
   return { text: `${location.charging ? '⚡' : low ? '🪫' : '🔋'} ${location.battery}%`, low };
 }
@@ -126,9 +129,22 @@ export function togetherGroups(locations: PersonLocation[]) {
     const group = live.filter((b) => b === a || distanceM({ lat: a.lat!, lng: a.lng! }, { lat: b.lat!, lng: b.lng! }) <= TOGETHER_M);
     if (group.length < 2) continue;
     group.forEach((g) => seen.add(g.userId));
+    // Everyone at home is what the list already says; it's meeting up elsewhere that's news.
+    if (a.placeId && group.every((g) => g.placeId === a.placeId)) continue;
     groups.push(group.map((g) => g.userId));
   }
   return groups;
+}
+
+export function directionsUrl(point: { lat: number; lng: number }) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}`;
+}
+
+// A place-bound chore refused the tap: why, in the member's language. Null for any other failure.
+export function placeBlockedText(err: unknown, place: { name: string } | null | undefined) {
+  const blocked = err instanceof Error ? /^place_required:(at_place|visited)$/.exec(err.message) : null;
+  if (!blocked || !place) return null;
+  return t(blocked[1] === 'visited' ? 'instance.placeBlockedVisited' : 'instance.placeBlockedAt', { place: place.name });
 }
 
 // Minutes from now until the end of the local day, for "until tonight".

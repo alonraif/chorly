@@ -19,7 +19,7 @@ async function runForTenant(tenantId: string) {
   const from = to - WEEK_MS;
   const members = await prisma.user.findMany({
     where: { tenantId, isActive: true, locationSettings: { recap: true } },
-    select: { id: true, email: true, displayName: true, locale: true, notifyPrefs: true },
+    select: { id: true, email: true, displayName: true, locale: true, notifyPrefs: true, location: { select: { updatedAt: true } } },
   });
   if (members.length === 0) return;
 
@@ -32,7 +32,9 @@ async function runForTenant(tenantId: string) {
   const totals = new Map<string, Map<string, number>>();
   for (const visit of visits) {
     const start = Math.max(visit.arrivedAt.getTime(), from);
-    const end = Math.min(visit.leftAt?.getTime() ?? to, to);
+    // A stay that never closed ends at the last report: a phone that died at school didn't stay there all week.
+    const lastSeen = members.find((m) => m.id === visit.userId)?.location?.updatedAt.getTime() ?? to;
+    const end = Math.min(visit.leftAt?.getTime() ?? lastSeen, to);
     if (end <= start) continue;
     const perPlace = totals.get(visit.userId) ?? new Map<string, number>();
     perPlace.set(visit.place.name, (perPlace.get(visit.place.name) ?? 0) + (end - start));

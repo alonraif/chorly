@@ -1,4 +1,4 @@
-import { BadRequestException, ForbiddenException, Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { BadRequestException, HttpException, HttpStatus, Injectable, Logger, NotFoundException } from '@nestjs/common';
 import { Prisma, type Place } from '@prisma/client';
 import { DateTime } from 'luxon';
 import {
@@ -87,10 +87,11 @@ export class LocationService {
           ...base,
           lat: row.lat,
           lng: row.lng,
-          accuracy: row.accuracy,
+          accuracy: mode === 'blurred' ? null : row.accuracy,
           battery: row.battery,
           charging: row.charging,
-          // Speed and a place name would let a blurred member be followed along the street.
+          // Speed would let a blurred member be followed along the street. Being at one of the
+          // family's places stays visible: arrival alerts already say so in every mode.
           speed: mode === 'blurred' ? null : row.speed,
           placeId: row.placeId,
           placeSince: row.placeSince,
@@ -107,7 +108,8 @@ export class LocationService {
 
   async mine(userId: string) {
     const settings = await this.prisma.locationSettings.findUnique({ where: { userId } });
-    return { mode: settings?.mode ?? 'exact', shareUntil: settings?.shareUntil ?? null, recap: settings?.recap ?? false };
+    const shareUntil = settings?.shareUntil && settings.shareUntil > new Date() ? settings.shareUntil : null;
+    return { mode: settings?.mode ?? 'exact', shareUntil, recap: settings?.recap ?? false };
   }
 
   async report(user: RequestUser, report: LocationReport) {
@@ -128,7 +130,7 @@ export class LocationService {
     ]);
 
     // A vague fix could be on either side of a boundary, so it never moves anyone in or out.
-    const accurate = report.accuracy === undefined || report.accuracy <= MAX_PLACE_ACCURACY_M;
+    const accurate = report.accuracy == null || report.accuracy <= MAX_PLACE_ACCURACY_M;
     const prevPlaceId = prev?.placeId ?? null;
     const placeId = accurate ? insidePlace(places, exact, prevPlaceId) : prevPlaceId;
     const changed = placeId !== prevPlaceId;
@@ -239,6 +241,7 @@ export class LocationService {
   }
 
   async setSettings(userId: string, body: LocationSettings) {
+    const before = await this.prisma.locationSettings.findUnique({ where: { userId } });
     const data: Prisma.LocationSettingsUncheckedUpdateInput = {};
     if (body.mode) data.mode = body.mode;
     if (body.durationMinutes !== undefined) data.shareUntil = body.durationMinutes === null ? null : new Date(Date.now() + body.durationMinutes * 60_000);
@@ -251,25 +254,31 @@ export class LocationService {
         where: { userId },
         data: { placeId: null, placeSince: null, tripPlaceId: null, tripMode: null, tripEtaAt: null },
       });
+    } else if (body.mode && before?.mode === 'paused') {
+      // Coming back starts a new session: the first report says where the member is, it doesn't announce an arrival.
+      await this.prisma.userLocation.deleteMany({ where: { userId } });
     } else if (body.mode === 'blurred') {
       // Don't wait for the next report to take the street out of view.
       const row = await this.prisma.userLocation.findUnique({ where: { userId } });
-      if (row) await this.prisma.userLocation.update({ where: { userId }, data: { ...blurLocation(row), speed: null } });
+      if (row) await this.prisma.userLocation.update({ where: { userId }, data: { ...blurLocation(row), speed: null, updatedAt: row.updatedAt } });
     }
     return this.mine(userId);
   }
 
   async startTrip(user: RequestUser, body: TripInput) {
-    const [place, row] = await Promise.all([
+    const [place, row, settings] = await Promise.all([
       this.prisma.place.findFirst({ where: { id: body.placeId, tenantId: user.tenantId } }),
       this.prisma.userLocation.findUnique({ where: { userId: user.id } }),
+      this.prisma.locationSettings.findUnique({ where: { userId: user.id } }),
     ]);
     if (!place) throw new NotFoundException('Place not found');
-    if (!row) throw new BadRequestException('Share your location first');
+    if (!row || settings?.mode === 'paused') throw new BadRequestException('share_first');
+    if (row.placeId === place.id) throw new BadRequestException('already_there');
     const minutes = tripEtaMinutes(row, place, body.mode);
     await this.prisma.userLocation.update({
       where: { userId: user.id },
-      data: { tripPlaceId: place.id, tripMode: body.mode, tripEtaAt: new Date(Date.now() + minutes * 60_000) },
+      // updatedAt is how old the position is, and a trip doesn't make it any newer.
+      data: { tripPlaceId: place.id, tripMode: body.mode, tripEtaAt: new Date(Date.now() + minutes * 60_000), updatedAt: row.updatedAt },
     });
     const members = await this.prisma.user.findMany({ where: { tenantId: user.tenantId, isActive: true, id: { not: user.id } }, select: { id: true } });
     void this.push.sendToUsers(members.map((m) => m.id), 'placeAlerts', (locale) => ({ ...notificationText.tripStarted(locale, user.displayName, place.name, minutes), url: '/locator' }));
@@ -277,7 +286,8 @@ export class LocationService {
   }
 
   async endTrip(userId: string) {
-    await this.prisma.userLocation.updateMany({ where: { userId }, data: { tripPlaceId: null, tripMode: null, tripEtaAt: null } });
+    const row = await this.prisma.userLocation.findUnique({ where: { userId } });
+    if (row) await this.prisma.userLocation.update({ where: { userId }, data: { tripPlaceId: null, tripMode: null, tripEtaAt: null, updatedAt: row.updatedAt } });
   }
 
   async poke(user: RequestUser, body: PokeInput) {
@@ -286,7 +296,7 @@ export class LocationService {
     if (!target) throw new NotFoundException('User not found');
     const key = `${user.id}:${target.id}`;
     const last = this.pokes.get(key) ?? 0;
-    if (Date.now() - last < POKE_COOLDOWN_MS) throw new ForbiddenException('Slow down a little');
+    if (Date.now() - last < POKE_COOLDOWN_MS) throw new HttpException('poke_cooldown', HttpStatus.TOO_MANY_REQUESTS);
     this.pokes.set(key, Date.now());
     await this.push.sendToUsers([target.id], 'pokes', (locale) => ({ ...notificationText.poke(locale, user.displayName, body.kind), url: '/locator' }));
     return { ok: true };

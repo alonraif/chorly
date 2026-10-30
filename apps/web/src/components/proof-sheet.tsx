@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { choreTitle } from '../lib/format';
 import { t } from '../lib/i18n';
+import { placeBlockedText } from '../lib/places';
 import type { Instance } from '../lib/types';
 import { useCamera } from '../lib/use-camera';
 import { Icon } from './icon';
@@ -61,6 +62,12 @@ function Prompt({ instance, onClose, onMarkDone, onDone }: Props & { instance: I
       }
     >
       <p className="muted">{t('proof.askBody')}</p>
+      {/* Before anyone films a video for a chore that would then be refused. */}
+      {instance.chore.place && (
+        <p className="callout">
+          {t(instance.chore.place.rule === 'visited' ? 'instance.placeVisited' : 'instance.placeAt', { place: instance.chore.place.name })}
+        </p>
+      )}
     </Sheet>
   );
 }
@@ -137,7 +144,7 @@ function Capture({ instance, onClose, onDone }: { instance: Instance; onClose: (
       onDone(instance);
       onClose();
     } catch (err) {
-      setSendError(errorMessage(err, t('proof.failed')));
+      setSendError(placeBlockedText(err, instance.chore.place) ?? errorMessage(err, t('proof.failed')));
     } finally {
       setBusy(false);
     }

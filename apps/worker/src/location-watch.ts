@@ -28,11 +28,12 @@ async function runForTenant(tenantId: string) {
   const now = Date.now();
 
   // Sharing that was set to end has ended: forget the position, as if the member had stopped.
-  const expired = await prisma.locationSettings.findMany({ where: { shareUntil: { lte: new Date(now) }, user: { tenantId } }, select: { userId: true } });
+  // shareUntil stays in the past, so a phone that wakes up later is told to stop instead of carrying on with no end.
+  const expired = await prisma.locationSettings.findMany({ where: { shareUntil: { lte: new Date(now) }, user: { tenantId, location: { isNot: null } } }, select: { userId: true } });
   for (const { userId } of expired) {
     await prisma.placeVisit.updateMany({ where: { userId, leftAt: null }, data: { leftAt: new Date(now) } });
     await prisma.userLocation.deleteMany({ where: { userId } });
-    await prisma.locationSettings.update({ where: { userId }, data: { shareUntil: null, quietAlertedAt: null, lowBatteryAlertedAt: null } });
+    await prisma.locationSettings.update({ where: { userId }, data: { quietAlertedAt: null, lowBatteryAlertedAt: null } });
   }
 
   const rows = await prisma.userLocation.findMany({
@@ -70,11 +71,12 @@ async function runForTenant(tenantId: string) {
   }
 
   // Housekeeping: trips nobody finished, old visits and errands.
-  await prisma.userLocation.updateMany({
-    where: { user: { tenantId }, tripEtaAt: { lt: new Date(now - TRIP_KEEP_MS) } },
-    data: { tripPlaceId: null, tripMode: null, tripEtaAt: null },
-  });
-  await prisma.placeVisit.deleteMany({ where: { user: { tenantId }, arrivedAt: { lt: new Date(now - VISIT_KEEP_MS) } } });
+  const abandoned = await prisma.userLocation.findMany({ where: { user: { tenantId }, tripEtaAt: { lt: new Date(now - TRIP_KEEP_MS) } }, select: { userId: true, updatedAt: true } });
+  for (const { userId, updatedAt } of abandoned) {
+    await prisma.userLocation.update({ where: { userId }, data: { tripPlaceId: null, tripMode: null, tripEtaAt: null, updatedAt } });
+  }
+  // A stay still going on is where the member is now, however long ago it began.
+  await prisma.placeVisit.deleteMany({ where: { user: { tenantId }, leftAt: { lt: new Date(now - VISIT_KEEP_MS) } } });
   await prisma.errand.deleteMany({
     where: { tenantId, OR: [{ status: 'open', createdAt: { lt: new Date(now - ERRAND_KEEP_MS) } }, { status: 'done', doneAt: { lt: new Date(now - 24 * 60 * 60_000) } }] },
   });

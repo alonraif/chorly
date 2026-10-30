@@ -7,6 +7,7 @@ import { choreTitle, dayKey, firstName, friendlyDay, money, now, shortDate, time
 import { getLocale, t, tn } from '../../lib/i18n';
 import { useAutoRefresh } from '../../lib/refresh';
 import { useSession } from '../../lib/session';
+import { placeBlockedText } from '../../lib/places';
 import { approvesOwnChore, rangeQuery, type Chore, type Earnings, type Instance } from '../../lib/types';
 import { Avatar, ProgressRing } from '../../components/avatar';
 import { Icon } from '../../components/icon';
@@ -123,7 +124,7 @@ export default function KidPage() {
       await api.post(`/instances/${item.id}/${wasDone ? 'undo' : 'mark-done'}`, {});
       if (!wasDone) celebrateIfLast(item);
     } catch (err) {
-      toast(errorMessage(err, t('kid.couldNotUpdate')), 'error');
+      toast(placeBlockedText(err, item.chore.place) ?? errorMessage(err, t('kid.couldNotUpdate')), 'error');
     } finally {
       setPending((prev) => {
         const next = new Set(prev);

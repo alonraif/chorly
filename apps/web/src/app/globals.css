@@ -2897,6 +2897,10 @@ textarea.input {
 }
 
 /* Family locator: sharing, places, errands, things */
+.locator-share.is-blocked {
+  border-color: var(--danger);
+}
+
 .locator-share.is-on {
   display: flex;
   align-items: center;
@@ -2944,6 +2948,12 @@ textarea.input {
   cursor: pointer;
 }
 
+.chip-btn.is-active {
+  border-color: var(--brand);
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+
 .chip-btn:hover {
   background: var(--surface-2);
 }
@@ -2960,10 +2970,9 @@ textarea.input {
 }
 
 .pick-banner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  /* The same height with or without a pin, so the map doesn't jump under the finger. */
+  display: grid;
+  gap: 8px;
   margin-bottom: 12px;
   padding: 10px 14px;
   border-radius: var(--radius);
@@ -2977,6 +2986,56 @@ textarea.input {
   outline-offset: -3px;
 }
 
+/* While a pin is being placed, a tap anywhere is a tap on the map, except on the pin itself. */
+.family-map[data-picking='true'] .maplibregl-marker:not(.map-pick) {
+  pointer-events: none;
+}
+
+.family-map-frame {
+  position: relative;
+}
+
+.map-fit {
+  position: absolute;
+  top: 10px;
+  inset-inline-end: 10px;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 0;
+  border-radius: 8px;
+  background: #fff;
+  color: #1d1c1a;
+  box-shadow: 0 0 0 2px rgb(0 0 0 / 10%);
+  cursor: pointer;
+}
+
+/* Above the places and pins that share their spot. */
+.maplibregl-marker.map-person {
+  z-index: 2;
+}
+
+.maplibregl-marker.map-pick {
+  z-index: 3;
+}
+
+.maplibregl-marker:focus-visible {
+  outline: 3px solid var(--brand);
+  outline-offset: 2px;
+}
+
+.person-facts {
+  display: grid;
+  gap: 6px;
+}
+
+.locator-loading {
+  display: grid;
+  place-items: center;
+  margin: 24px 0;
+}
+
 .together {
   margin: 12px 0 0;
   padding: 10px 14px;
@@ -2984,6 +3043,18 @@ textarea.input {
   background: var(--brand-soft);
   color: var(--brand-strong);
   font-weight: 600;
+}
+
+.together.is-button {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
 }
 
 .locator-row {

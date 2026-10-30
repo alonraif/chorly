@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { choreTitle, firstName, friendlyDue, isOverdue, money, relativeTime, TZ } from '../lib/format';
 import { t } from '../lib/i18n';
+import { placeBlockedText } from '../lib/places';
 import { useSession } from '../lib/session';
 import { activeDoneAt, approvesOwnChore, type Instance } from '../lib/types';
 import { Avatar } from './avatar';
@@ -66,16 +67,9 @@ export function InstanceSheet({
       refreshApprovals().catch(() => undefined);
       onClose();
     } catch (err) {
-      const message = errorMessage(err, t('common.somethingWrong'));
-      // A place-bound chore refused the tap: say so in the member's language, where they will see it.
-      const blocked = /^place_required:(at_place|visited)$/.exec(message);
-      if (blocked && instance?.chore.place) {
-        const text = t(blocked[1] === 'visited' ? 'instance.placeBlockedVisited' : 'instance.placeBlockedAt', { place: instance.chore.place.name });
-        setError(text);
-        toast(text, 'error');
-      } else {
-        setError(message);
-      }
+      const blocked = placeBlockedText(err, instance?.chore.place);
+      setError(blocked ?? errorMessage(err, t('common.somethingWrong')));
+      if (blocked) toast(blocked, 'error');
     } finally {
       setBusy(false);
     }

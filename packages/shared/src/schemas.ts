@@ -122,7 +122,7 @@ export const RejectInstanceSchema = z.object({
 export const LocationReportSchema = z.object({
   lat: z.number().min(-90).max(90),
   lng: z.number().min(-180).max(180),
-  accuracy: z.number().nonnegative().optional(),
+  accuracy: z.number().nonnegative().nullish(),
   battery: z.number().int().min(0).max(100).nullish(),
   charging: z.boolean().nullish(),
   // Metres per second; some devices report a negative number when they don't know.
