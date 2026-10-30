@@ -2901,23 +2901,6 @@ textarea.input {
   border-color: var(--danger);
 }
 
-.locator-share.is-on {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.locator-share-text {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.locator-share-title {
-  font-weight: 600;
-}
-
 .locator-toolbar {
   display: flex;
   gap: 8px;

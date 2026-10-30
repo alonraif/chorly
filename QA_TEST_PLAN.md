@@ -187,7 +187,8 @@ Expected:
 5. Turn sharing off on one device.
 Expected:
 - Both people appear on the map with their picture or initials and first name.
-- Zoomed out, people and pins that would collide merge into one bubble. Tapping it zooms in; at street level people in the same spot stand side by side and every name is readable.
+- Zoomed out, people and pins that would collide merge into one bubble. Tapping it zooms in; at street level people in the same spot stand side by side and every name is readable. Markers glide into and out of a bubble instead of jumping, and a reduced-motion setting turns that off.
+- The sharing card shows only until someone has shared (or when the browser blocks location). After that a toolbar chip shows the state and opens the sharing sheet, including when sharing from another device.
 - A moving phone updates the other's map within about 15 seconds.
 - A locked phone's person stays in place, shows the time since the last update, and fades after 10 minutes.
 - After turning off, the person leaves the map and shows Not sharing; their `UserLocation` row is gone.

@@ -95,7 +95,20 @@ function PointField({ value, radiusM, onChange, onPick }: { value: Point | null;
 type Duration = 'hour' | 'tonight' | 'always';
 const DURATION_MINUTES = (duration: Duration) => (duration === 'hour' ? 60 : duration === 'tonight' ? minutesUntilTonight() : null);
 
-export function SharingSheet({ open, onClose, mine, onChanged }: { open: boolean; onClose: () => void; mine: Overview['mine']; onChanged: () => void }) {
+export function SharingSheet({
+  open,
+  onClose,
+  mine,
+  elsewhere,
+  onChanged,
+}: {
+  open: boolean;
+  onClose: () => void;
+  mine: Overview['mine'];
+  /** This device is off but another one is reporting: starting here takes over from it. */
+  elsewhere: boolean;
+  onChanged: () => void;
+}) {
   const { status, start, stop, reportNow } = useLocationSharing();
   const { busy, run } = useAction();
   const [mode, setMode] = useState<'exact' | 'blurred'>('exact');
@@ -143,7 +156,7 @@ export function SharingSheet({ open, onClose, mine, onChanged }: { open: boolean
       open={open}
       onClose={onClose}
       title={t(on ? 'locator.sharingTitleOn' : 'locator.sharingTitle')}
-      subtitle={on && mine.shareUntil ? t('locator.endsAt', { time: timeOf(mine.shareUntil) }) : undefined}
+      subtitle={on && mine.shareUntil ? t('locator.endsAt', { time: timeOf(mine.shareUntil) }) : elsewhere ? t('locator.sharingElsewhere') : undefined}
       size="sm"
       footer={
         on ? (

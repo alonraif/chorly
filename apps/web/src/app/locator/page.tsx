@@ -120,7 +120,13 @@ export default function LocatorPage() {
   const sharingNow = sharing === 'on';
   const myLocation = byId.get(me.id);
   const elsewhere = !sharingNow && !!myLocation && !isStale(myLocation);
-  const sharedHint = sharing === 'denied' ? t('locator.denied') : t(elsewhere ? 'locator.sharingElsewhere' : nativePlugins() ? 'locator.shareHintNative' : 'locator.shareHint');
+  // Asked once: after that the toolbar keeps the state in view without taking up the page. Waits for the overview, which says.
+  const askToShare = !!overview && !sharingNow && (sharing === 'denied' || !myLocation);
+  const sharingChip = !sharingNow
+    ? t(elsewhere ? 'locator.chipElsewhere' : 'locator.chipShareHere')
+    : mine.mode === 'paused'
+      ? `🔒 ${t('locator.chipPaused')}`
+      : `${mine.mode === 'blurred' ? '🌫️' : '📡'} ${mine.shareUntil ? t('locator.chipUntil', { time: timeOf(mine.shareUntil) }) : t(mine.mode === 'blurred' ? 'locator.nearbyOnly' : 'locator.chipOn')}`;
   const myTrip = myLocation?.trip ? placeById.get(myLocation.trip.placeId) : undefined;
   const myTripMinutes = myLocation ? tripMinutes(myLocation) : null;
   const nearErrands = errands.filter((e) => e.closest?.userId === me.id).length;
@@ -165,29 +171,22 @@ export default function LocatorPage() {
         <h1>{t('locator.title')}</h1>
       </header>
 
-      {sharingNow ? (
-        <div className="locator-share is-on">
-          <span className="locator-share-text">
-            <span className="locator-share-title">
-              {mine.mode === 'paused' ? `🔒 ${t('locator.paused')}` : mine.mode === 'blurred' ? `🌫️ ${t('locator.sharingNearby')}` : `📡 ${t('locator.sharingExact')}`}
-            </span>
-            <span className="field-hint">{mine.shareUntil ? t('locator.endsAt', { time: timeOf(mine.shareUntil) }) : t('locator.untilIStop')}</span>
-          </span>
-          <button type="button" className="btn btn-sm btn-secondary" onClick={() => setSheet('sharing')}>
-            {t('locator.change')}
-          </button>
-        </div>
-      ) : (
+      {askToShare && (
         <div className={`locator-share${sharing === 'denied' ? ' is-blocked' : ''}`}>
           {sharing === 'unsupported' ? (
             <p className="muted">{t('locator.unsupported')}</p>
           ) : (
-            <Switch checked={false} onChange={() => setSheet('sharing')} label={t('locator.share')} hint={sharedHint} />
+            <Switch checked={false} onChange={() => setSheet('sharing')} label={t('locator.share')} hint={t(sharing === 'denied' ? 'locator.denied' : nativePlugins() ? 'locator.shareHintNative' : 'locator.shareHint')} />
           )}
         </div>
       )}
 
       <div className="locator-toolbar" role="toolbar" aria-label={t('locator.title')}>
+        {!askToShare && sharing !== 'unsupported' && (
+          <button type="button" className={`chip-btn${sharingNow ? ' is-active' : ''}`} onClick={() => setSheet('sharing')}>
+            {sharingChip}
+          </button>
+        )}
         {sharingNow && mine.mode !== 'paused' && (
           <button type="button" className={`chip-btn${myTrip ? ' is-active' : ''}`} onClick={() => setSheet('trip')}>
             <span aria-hidden="true">🧭</span>{' '}
@@ -293,7 +292,7 @@ export default function LocatorPage() {
         </ul>
       )}
 
-      <SharingSheet open={sheetOpen('sharing')} onClose={() => setSheet(null)} mine={mine} onChanged={load} />
+      <SharingSheet open={sheetOpen('sharing')} onClose={() => setSheet(null)} mine={mine} elsewhere={elsewhere} onChanged={load} />
       <PlacesSheet
         open={sheetOpen('places')}
         onClose={() => setSheet(null)}

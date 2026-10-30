@@ -86,7 +86,7 @@ gunzip -c backups/chorly-YYYY-MM-DD.sql.gz | docker compose exec -T postgres psq
 
 ## Family locator
 
-Everyone, kids included, can open the map (**Map** tab, or the pin at the top for kids) and turn on **Share my location from this device**. The switch is per device, so a laptop doesn't pull someone away from the phone in their pocket, and sharing is opt-in: the location only leaves the device once its owner turns this on.
+Everyone, kids included, can open the map (**Map** tab, or the pin at the top for kids) and turn on **Share my location from this device**. That card only asks once: after that, a chip in the map toolbar shows the sharing state and opens its settings. The switch is per device, so a laptop doesn't pull someone away from the phone in their pocket, and sharing is opt-in: the location only leaves the device once its owner turns this on.
 
 Only the last known position is kept (`UserLocation`), never a history. Turning sharing off deletes it. The map is drawn with MapLibre using free OpenFreeMap styles (Positron in light mode, Fiord in dark), which need no key.
 
@@ -102,7 +102,7 @@ Only the last known position is kept (`UserLocation`), never a history. Turning 
 - **Errands.** Pin a task on the map ("pick up milk"). The nearest sharing member gets a nudge and can claim it; passing within 300 m reminds whoever took it, or anyone if nobody has. Whoever pinned it isn't nudged, and hears when someone takes it and when it's done. Once taken, only that person or a parent can finish or give it back.
 - **Things.** The dog, a bike, the car: put them on the map and move them by hand.
 - **Heading to…** Share an estimated arrival at a place, as a bubble on your avatar. The estimate is straight-line distance with a route factor, not a routing service.
-- **Status.** Each person gets a battery chip and a status bubble worked out from where they are and how fast they move (home, school, walking, driving, asleep). People standing within 80 m of each other show as together. When zoomed out, anything that would collide on the map merges into one bubble; a tap zooms in, and at street level people at the same spot stand side by side. A tap on someone shows their details and directions, and sends a sticker (wave, come home, dinner's ready). A status that's out of date doesn't pretend otherwise: an old position shows no speed, battery or arrival estimate.
+- **Status.** Each person gets a battery chip and a status bubble worked out from where they are and how fast they move (home, school, walking, driving, asleep). People standing within 80 m of each other show as together. When zoomed out, anything that would collide on the map merges into one bubble; a tap zooms in, and at street level people at the same spot stand side by side. Markers glide into a bubble and back out of it. A tap on someone shows their details and directions, and sends a sticker (wave, come home, dinner's ready). A status that's out of date doesn't pretend otherwise: an old position shows no speed, battery or arrival estimate.
 - **Phone alerts for parents.** Battery at or under 15% and not charging, or, for Android app users, no update for 45 minutes during the day.
 - **Weekly recap** (Saturday 19:30, opt-in per member): time at the family's places over the past week, sent only to members who joined it, about members who joined it.
 

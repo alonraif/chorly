@@ -33,6 +33,7 @@ type Point = { lat: number; lng: number };
 export type MapPick = { point: Point | null; radiusM?: number };
 
 const DARK_QUERY = '(prefers-color-scheme: dark)';
+const CALM_QUERY = '(prefers-reduced-motion: reduce)';
 const SHAPES = 'family-shapes';
 const PICK_COLOR = '#1c7ed6';
 // Where a family with nothing on the map yet starts: zoomed in enough to find a street, unlike the whole globe.
@@ -48,6 +49,9 @@ const PICK_ZOOM = 15;
 // They line up side by side, rows at most this long, so that every name tag stays readable.
 const FAN_COLUMNS = 3;
 const FAN_STEP = { x: 62, y: 76 };
+// How long a marker takes to slide into a bubble or back out of it.
+const GLIDE_MS = 280;
+const GLIDE_EASING = 'cubic-bezier(0.2, 0.8, 0.2, 1)';
 // Room for name tags under a marker, place tags above one, and people fanned out around their spot.
 const FRAME_PADDING = { top: 72, bottom: 88, left: 80, right: 80 };
 
@@ -167,7 +171,14 @@ type MarkerStore = Map<string, { marker: Marker; look: string }>;
 type MarkerItem = { id: string; lat: number; lng: number; look: string; make: () => HTMLElement; anchor?: 'center' | 'bottom' };
 
 // Keeps one marker per item: moved when the item moves, rebuilt only when how it looks changes.
-function syncMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, store: MarkerStore, items: MarkerItem[]) {
+function syncMarkers(
+  maplibre: typeof import('maplibre-gl'),
+  map: MapLibreMap,
+  store: MarkerStore,
+  items: MarkerItem[],
+  // Takes over a marker that's no longer needed, for one that shouldn't just vanish.
+  retire: (id: string, marker: Marker) => void = (_, marker) => marker.remove(),
+) {
   const seen = new Set<string>();
   let added = false;
   for (const item of items) {
@@ -188,16 +199,49 @@ function syncMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, s
   }
   store.forEach(({ marker }, id) => {
     if (seen.has(id)) return;
-    marker.remove();
+    retire(id, marker);
     store.delete(id);
   });
   return added;
 }
 
 type StoreName = 'people' | 'places' | 'errands' | 'things';
-type Stores = Record<StoreName, MarkerStore> & { groups: MarkerStore };
+// `shownAs` remembers what each thing was last drawn as: its own marker, or the bubble holding it.
+type Stores = Record<StoreName, MarkerStore> & { groups: MarkerStore; shownAs: Map<string, string> };
 // One thing on the map, as the grouping sees it: a person has a face, anything else an emoji.
 type Placed = { store: StoreName; id: string; lat: number; lng: number; label: string; person?: MapPerson; emoji?: string };
+
+const keyOf = (item: Placed) => `${item.store}:${item.id}`;
+const pixels = (x: number, y: number) => `${x}px ${y}px`;
+const HOME = { translate: pixels(0, 0), opacity: 1 };
+
+const flights = new WeakMap<HTMLElement, Animation>();
+
+// Slides a marker with `translate`, which adds to the `transform` MapLibre places it with, so it keeps following the map.
+function glide(element: HTMLElement, from: Keyframe, to: Keyframe, done?: () => void) {
+  const flight = flights.get(element);
+  if (flight) {
+    // Turned around halfway: it carries on from where it got to.
+    const { translate, opacity } = getComputedStyle(element);
+    from = { translate, opacity };
+    flight.cancel();
+    flights.delete(element);
+  }
+  if (window.matchMedia(CALM_QUERY).matches) {
+    done?.();
+    return;
+  }
+  const next = element.animate([from, to], { duration: GLIDE_MS, easing: GLIDE_EASING, fill: 'forwards' });
+  flights.set(element, next);
+  next.onfinish = () => {
+    flights.delete(element);
+    done?.();
+    next.cancel();
+  };
+}
+
+// Where a marker is drawn. Pixels, so only good for right now: the next frame of a zoom moves it.
+const screenAt = (map: MapLibreMap, marker: Marker) => map.project(marker.getLngLat()).add(marker.getOffset());
 
 // Things close enough on screen to collide, including through a neighbour. Street level has none: there's room there.
 function crowdedGroups(map: MapLibreMap, items: Placed[]) {
@@ -232,31 +276,91 @@ function groupElement(group: Placed[], onClick: () => void) {
   return root;
 }
 
+// What the things drawn as `shown` turned into, or came from when the maps are swapped.
+function counterparts(shown: string, from: Map<string, string>, to: Map<string, string>) {
+  const found = new Set<string>();
+  from.forEach((value, key) => {
+    const other = to.get(key);
+    if (value === shown && other) found.add(other);
+  });
+  return [...found];
+}
+
 // Hides what's crowded behind one bubble per group, then lets whoever is left share their spot.
+// Whatever changed glides: into the bubble that took it, out of the bubble it came from. A bubble
+// that splits in several directions has nowhere to go, so it fades where it is.
 function arrangeMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, stores: Stores, items: Placed[], onGroup: (group: Placed[]) => void) {
   const groups = crowdedGroups(map, items);
-  const grouped = new Set(groups.flat());
-  for (const item of items) {
-    const element = stores[item.store].get(item.id)?.marker.getElement();
-    if (element) element.style.display = grouped.has(item) ? 'none' : '';
-  }
+  const before = new Map(stores.shownAs);
+  const after = stores.shownAs;
+  after.clear();
+  for (const item of items) after.set(keyOf(item), keyOf(item));
+  const retired = new Map<string, Marker>();
   syncMarkers(
     maplibre,
     map,
     stores.groups,
-    groups.map((group) => ({
-      id: group.map((item) => `${item.store}:${item.id}`).join(),
-      lat: group.reduce((sum, item) => sum + item.lat, 0) / group.length,
-      lng: group.reduce((sum, item) => sum + item.lng, 0) / group.length,
-      look: group.map((item) => `${item.label}|${item.person?.avatarAt}|${item.emoji}`).join(),
-      make: () => groupElement(group, () => onGroup(group)),
-    })),
+    groups.map((group) => {
+      const id = group.map(keyOf).join();
+      for (const item of group) after.set(keyOf(item), id);
+      return {
+        id,
+        lat: group.reduce((sum, item) => sum + item.lat, 0) / group.length,
+        lng: group.reduce((sum, item) => sum + item.lng, 0) / group.length,
+        look: group.map((item) => `${item.label}|${item.person?.avatarAt}|${item.emoji}`).join(),
+        make: () => groupElement(group, () => onGroup(group)),
+      };
+    }),
+    (id, marker) => retired.set(id, marker),
   );
-  spreadPeople(map, stores.people, items.flatMap((item) => (item.person ? [item.person] : [])));
+  const standsAlone = (key: string) => before.get(key) === key && after.get(key) === key;
+  spreadPeople(
+    map,
+    stores.people,
+    items.flatMap((item) => (item.person ? [item.person] : [])),
+    standsAlone,
+  );
+
+  const own = new Map(items.map((item) => [keyOf(item), stores[item.store].get(item.id)?.marker]));
+  const markerOf = (shown: string | undefined) => (shown ? (retired.get(shown) ?? stores.groups.get(shown)?.marker ?? own.get(shown)) : undefined);
+  // From `marker` to wherever `other` is; staying put without one.
+  const gap = (marker: Marker, other: Marker | undefined) => {
+    if (!other) return pixels(0, 0);
+    const distance = screenAt(map, other).sub(screenAt(map, marker));
+    return pixels(distance.x, distance.y);
+  };
+
+  for (const shown of new Set(before.values())) {
+    const marker = markerOf(shown);
+    if (!marker || [...after.values()].includes(shown)) continue;
+    const element = marker.getElement();
+    const into = counterparts(shown, before, after);
+    element.style.pointerEvents = 'none';
+    glide(element, HOME, { translate: gap(marker, into.length === 1 ? markerOf(into[0]) : undefined), opacity: 0 }, () => {
+      if (retired.has(shown)) marker.remove();
+      else element.style.display = 'none';
+    });
+  }
+  for (const shown of new Set(after.values())) {
+    const marker = markerOf(shown);
+    const from = counterparts(shown, after, before);
+    // Nothing to come out of: it's new on the map, not leaving a bubble.
+    if (!marker || from.length === 0 || [...before.values()].includes(shown)) continue;
+    const element = marker.getElement();
+    element.style.display = '';
+    element.style.pointerEvents = '';
+    glide(element, { translate: gap(marker, from.length === 1 ? markerOf(from[0]) : undefined), opacity: 0 }, HOME);
+  }
+  for (const item of items) {
+    const element = own.get(keyOf(item))?.getElement();
+    if (!element || flights.has(element)) continue;
+    element.style.display = after.get(keyOf(item)) === keyOf(item) ? '' : 'none';
+    element.style.pointerEvents = '';
+  }
 }
 
 // Fans out people who would otherwise sit on top of each other. Everyone at home is the usual case.
-function spreadPeople(map: MapLibreMap, store: MarkerStore, people: MapPerson[]) {
+function spreadPeople(map: MapLibreMap, store: MarkerStore, people: MapPerson[], standsAlone: (key: string) => boolean) {
   const points = people.map((p) => ({ id: p.id, at: map.project([p.lng, p.lat]) }));
   const seen = new Set<string>();
   for (const point of points) {
@@ -266,9 +370,15 @@ function spreadPeople(map: MapLibreMap, store: MarkerStore, people: MapPerson[])
       seen.add(member.id);
       const columns = Math.min(group.length, FAN_COLUMNS);
       const rows = Math.ceil(group.length / FAN_COLUMNS);
-      const x = (index % FAN_COLUMNS) - (columns - 1) / 2;
-      const y = Math.floor(index / FAN_COLUMNS) - (rows - 1) / 2;
-      store.get(member.id)?.marker.setOffset([x * FAN_STEP.x, y * FAN_STEP.y]);
+      const x = ((index % FAN_COLUMNS) - (columns - 1) / 2) * FAN_STEP.x;
+      const y = (Math.floor(index / FAN_COLUMNS) - (rows - 1) / 2) * FAN_STEP.y;
+      const marker = store.get(member.id)?.marker;
+      if (!marker) return;
+      const was = marker.getOffset();
+      if (was.x === x && was.y === y) return;
+      marker.setOffset([x, y]);
+      // Only someone already on screen has a spot to slide from.
+      if (standsAlone(`people:${member.id}`)) glide(marker.getElement(), { ...HOME, translate: pixels(was.x - x, was.y - y) }, HOME);
     });
   }
 }
@@ -304,7 +414,7 @@ export function FamilyMap({
   // The map frames the family by itself until the viewer takes over.
   const framing = useRef({ framed: false, viewerMoved: false });
   const pickMarker = useRef<Marker | null>(null);
-  const stores = useRef<Stores>({ people: new Map(), places: new Map(), errands: new Map(), things: new Map(), groups: new Map() });
+  const stores = useRef<Stores>({ people: new Map(), places: new Map(), errands: new Map(), things: new Map(), groups: new Map(), shownAs: new Map() });
   // Marker clicks and map taps were wired once; they read the latest handlers from here.
   const picking = !!pick;
   const unlessPicking = <A extends unknown[]>(handler: (...args: A) => void) => (...args: A) => {
