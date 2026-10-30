@@ -20,7 +20,7 @@ Validate end-to-end behavior for family setup, role-based assignment, chore crea
 ### SMOKE-01 First-run family setup
 1. On an empty database, open `/` and follow "Set up your family" to `/register`.
 2. Create the family and first parent.
-3. Verify you land on `/admin/users` and are logged in.
+3. Verify you land on `/parent` and are logged in.
 4. Log out; verify `/` no longer offers setup and `POST /api/family/create` returns 403.
 
 ### SMOKE-02 Add kids and log in as a kid
@@ -33,11 +33,10 @@ Expected:
 ### SMOKE-03 Create chore and assign child
 1. Open `/admin/chores#new-chore`.
 2. Create chore assigned to Child A.
-3. Confirm success popup is shown.
-4. Click `OK`.
+3. Tap `Add chore`.
 Expected:
-- Success modal appears with summary.
-- `OK` redirects to `/chorespace`.
+- The editor closes and a confirmation toast appears.
+- The chore is listed on `/admin/chores`.
 
 ### SMOKE-04 Generated instances visible in child view
 1. Run worker generate for active tenant:
@@ -100,7 +99,7 @@ Expected:
 - Assignment mode is implicit round-robin for shared tasks.
 
 ### REG-02B Shared round-robin alternation (daily)
-1. Create a daily repeating chore with `Shared chore` enabled and exactly two children selected.
+1. Create a `Daily` chore with exactly two children selected and `Take turns` chosen.
 2. Run generation for the tenant:
    - `DEV_TENANT_ID=<tenant-id> pnpm --filter chorly-worker generate`
 3. Query assignments for the next 4 due instances.
@@ -109,13 +108,12 @@ Expected:
 - Assignee alternates Child A, Child B, Child A, Child B.
 
 ### REG-03 Repeating calendar presets
-1. Set schedule type `Repeating calendar`.
-2. Verify repeat options include Outlook-like presets.
+1. In the chore editor, try `Weekly` with one day chosen, then `Monthly`.
 Expected:
-- Options like `Every Sunday`, `First Sunday of every month` exist.
+- The summary at the bottom shows `Every Sunday`, and `Monthly` offers `First Sunday of the month` and `Last Sunday of the month`.
 
-### REG-04 Add to favorites persistence
-1. Create chore with `Add to favorites` checked.
+### REG-04 Save as a suggestion
+1. Create a chore with `Save as a suggestion` on, under `More options`.
 2. Query templates endpoint.
 Expected:
 - Template entry exists for the new chore.
@@ -131,27 +129,26 @@ Expected:
 ### REG-06 Today vs Week visibility
 1. Create a chore due tomorrow.
 2. Generate instances.
-3. Check `/today` and `/week` as assigned child.
+3. Check `/child` as the assigned child.
 Expected:
-- `/today`: task appears only on due date.
-- `/week`/child weekly view: task appears in upcoming days.
+- The chore shows under `Coming up`, and moves to `Today` on its due date.
 
 ### REG-09 Delete one occurrence from parent view
-1. In `/parent`, pick an upcoming instance and click `Delete occurrence`.
+1. In `/parent`, open an upcoming chore and choose `Skip just this one`.
 2. Reload parent and child views.
 Expected:
 - Only that instance is removed.
 - Other instances in the recurring series remain.
 
 ### REG-10 Delete recurring chore from parent view
-1. In `/parent`, click `Delete recurring chore` for a recurring task.
+1. In `/admin/chores`, open a recurring chore and choose `Delete`.
 2. Reload parent and child views.
 Expected:
 - Chore definition is disabled for future generation.
 - Upcoming unapproved instances for that recurring chore are removed.
 
 ### REG-11 Recurrence end date
-1. Create a recurring chore with `Recurrence end = End date`.
+1. Create a recurring chore with `Ends` set to `On a date`, under `More options`.
 2. Generate instances.
 3. Verify no instances are created after the selected end date.
 Expected:
@@ -159,7 +156,7 @@ Expected:
 
 ### REG-07 Away user behavior
 1. Mark Child B away.
-2. For non-shared chore with `Skip away users=true`, generate instances.
+2. For a chore with `Skip people who are away` on, generate instances.
 Expected:
 - Away child is excluded from newly generated assignments.
 

@@ -1,15 +1,153 @@
 # Chorly
 
-A family chores hub: parents create chores, kids mark them done on their phones, parents approve, kids earn.
+A family chores hub: parents create chores, kids mark them done on their phones, parents approve, kids earn. A family map shows who's where, in Hebrew or English.
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/parent-phone.png" alt="Parent home on a phone: approvals, overdue chores and today's progress for each person"></td>
+    <td width="33%"><img src="docs/screenshots/kid-home.png" alt="Kid's page on a phone: today's chores, balance and what's coming up"></td>
+    <td width="33%"><img src="docs/screenshots/map-phone.png" alt="Family map on a phone with people, places and errands"></td>
+  </tr>
+  <tr align="center">
+    <td>Parents run the week</td>
+    <td>Kids check chores off and earn</td>
+    <td>Everyone's on the map</td>
+  </tr>
+</table>
+
+**Contents:** [User guide](#user-guide) · [Production on this Mac](#production-on-this-mac-docker-desktop) · [Family locator](#family-locator) · [Phones](#phones-install--notifications) · [Local development](#local-development)
 
 - `apps/api`: NestJS + Prisma (Postgres). Served under `/api`.
 - `apps/web`: Next.js 14, installable as an app (PWA) with push notifications.
 - `apps/worker`: scheduler that generates chore occurrences and sends reminders.
 - `packages/shared`: shared Zod schemas + types.
+- `mobile`: Android app, a Capacitor wrapper around the live site.
 
-Single family per install. The first visitor sets up the family (`/register`); after that, setup is locked and parents add members on **Family members** (`/admin/users`). Kids need an email + password to log in (any address works, it's only a username).
+Single family per install. The first visitor sets up the family (`/register`); after that, setup is locked and parents add members on **Family** (`/admin/users`). Anyone who signs in needs an email + password (any address works, it's only a username).
 
-Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their chores. Chores can also be assigned to parents, themselves or each other: they check them off under **My chores** and any parent, including the one who did it, approves them.
+Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their own chores, and use the map. Chores can also be assigned to parents, themselves or each other: they check them off under **My chores** and it counts as approved straight away. Only kids earn rewards.
+
+## User guide
+
+The screenshots show a made-up family, the Levys.
+
+### Getting started
+
+1. Open Chorly and choose **Set up your family**. Enter the family name, your name, an email and a password. This only happens once: everyone else is added from inside the app.
+2. Go to **Family → Add member** and add each kid, and any other parent. Pick a name, an email or username, a password of at least 8 characters, and a language.
+3. Add a few chores (below).
+4. Each person signs in on their own phone, [installs Chorly](#phones-install--notifications) and turns on notifications under **Account**.
+
+<img src="docs/screenshots/login.png" alt="Sign-in screen with a language switch" width="260">
+
+### Parents: your week at a glance
+
+**Home** shows what needs you first: chores waiting for approval and anything overdue. Below that is each person's progress today (tap someone to see only their chores) and a calendar you can switch between **Day**, **Week** and **Month**.
+
+![Parent home on a computer](docs/screenshots/parent-home.png)
+
+Tap a chore in the calendar to **Change time or who** for that one occurrence, **Edit the chore** for all upcoming ones, or **Skip just this one**.
+
+<img src="docs/screenshots/instance.png" alt="A chore's details with options to reschedule, edit or skip it" width="640">
+
+### Parents: adding chores
+
+Tap **New chore** (the **+** button on a phone), or a suggestion under **Chores → Quick add**.
+
+![The New chore form](docs/screenshots/new-chore.png)
+
+- **Who does it?** Pick one person or several. With several, **Each does it** gives everyone their own copy ("clean your room"), and **Take turns** rotates it between them ("dishes").
+- **How often?** **Once**, **Daily**, **Weekly** on the days you choose, **Monthly** on the first or last of a weekday, or **After done**, where the next one is due a number of days after the last was finished.
+- **Pays a reward** adds the amount to a kid's balance when the chore is approved.
+- **More options:**
+  - **Ends**: when a repeating chore stops.
+  - **Counts as late after**: how long after the due time it turns overdue.
+  - **Tied to a place**: the kid can mark it done only while at a family place (**Be there**), or after visiting it that day (**Visit that day**).
+  - **Skip people who are away**: leaves out anyone marked Away.
+  - **Save as a suggestion**: adds it to Quick add.
+
+**Chores** lists everything your family does, with a filter by person. Tap a chore to edit it (changes apply to upcoming occurrences) or delete it (rewards already approved stay). **Edit** next to Quick add changes the suggestions.
+
+![The Chores page with Quick add suggestions](docs/screenshots/chores.png)
+
+### Parents: approving and paying
+
+When a kid finishes a chore it lands in **Approvals**, with their photo or video if they added one. You can change the reward before approving, or use **Approve all**. **Reject** sends the chore back to not done, with an optional reason, and pays nothing. The **Overdue** list below is where you reschedule or skip what was missed. The **⋯** button on a waiting chore has the same options as tapping it on Home.
+
+![Approvals with two chores waiting and one overdue](docs/screenshots/approvals.png)
+
+**Family** shows each kid's balance. **Mark paid** resets it to zero once you've handed over the money. **See Noa's view** opens the app as that kid sees it. Tap a member to edit them or reset their password; turn on **Away** for a kid on a trip or at camp, and new chores skip them.
+
+![The Family page with balances](docs/screenshots/family.png)
+
+Parents' own chores are under **My chores**. Tapping one approves it right away, and tapping it again takes it back. The chips at the top show anyone else's list, read-only.
+
+### Kids: doing chores
+
+Your page shows how far along you are today, your balance, today's chores, anything you missed from the past week, and what's coming up.
+
+1. Tap a chore.
+2. Choose **Mark done**, or **Add proof** to take a photo or a video of up to 15 seconds. Proof only comes from the live camera, not the gallery.
+3. It now says **Waiting for a parent to approve**. Tap it again if you change your mind.
+4. Once approved you get a star, and any reward joins your balance. If a parent rejects it, it comes back as not done, with a notification and their reason if they gave one.
+
+Tap your balance to see what you've earned and been paid.
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/kid-home.png" alt="Kid's page with today's chores and balance"></td>
+    <td width="33%"><img src="docs/screenshots/kid-proof.png" alt="Popup asking whether to add proof or mark the chore done"></td>
+    <td width="33%"><img src="docs/screenshots/kid-wallet.png" alt="Money sheet with balance, earnings and payouts"></td>
+  </tr>
+</table>
+
+### The family map
+
+Open **Map** (kids: the pin at the top). The first time, turn on **Share my location from this device** and choose what the family sees and for how long. Sharing is opt-in and per device, and you can change it any time from the chip in the toolbar.
+
+![Choosing how to share your location](docs/screenshots/map-share.png)
+
+| Mode | What the family sees |
+|------|----------------------|
+| **Exact** | Your spot on the map |
+| **Nearby** | Only your neighbourhood, with no street or speed |
+| **Paused** | That you paused, and nothing else |
+
+![The family map on a computer](docs/screenshots/map-desktop.png)
+
+- **Tap someone** to see their status, get directions, or send a sticker such as "Dinner's ready".
+- **Heading to…** shares an estimated arrival, as a bubble on your picture.
+- **Places** are spots like home and school. The family hears when someone arrives or leaves. Parents add them, from an address, a pin or their current location. A place can also pay a kid a reward on their first arrival each day.
+- **Errands** are tasks pinned to a spot, like "Pick up milk". Whoever is closest gets a nudge, anyone can **Claim it**, and passing nearby reminds you.
+- **Things** are the dog, a bike or the car. Add them and move them by hand.
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/map-person.png" alt="A family member's details with directions and stickers"></td>
+    <td width="33%"><img src="docs/screenshots/map-places.png" alt="The list of family places"></td>
+    <td width="33%"><img src="docs/screenshots/map-errands.png" alt="The list of open errands"></td>
+  </tr>
+</table>
+
+In a browser or home-screen app, you only share while Chorly is open and on screen. The Android app keeps sharing in the background. See [Family locator](#family-locator) for the details and what's stored.
+
+### Your account
+
+Tap your picture for **Account**:
+
+- **Profile picture**: from your gallery or the camera.
+- **Language**: Hebrew or English, for the app and your notifications. Hebrew runs right to left.
+- **Notifications**: turn them on for this device.
+- **Choose notifications**: switch each type on or off.
+- **Get the Android app**: shown in Android browsers.
+- **Log out**
+
+<table>
+  <tr>
+    <td width="66%"><img src="docs/screenshots/notifications.png" alt="Account sheet with language and notification choices"></td>
+    <td width="33%"><img src="docs/screenshots/kid-hebrew.png" alt="The kid's page in Hebrew, laid out right to left"></td>
+  </tr>
+</table>
 
 ## Production on this Mac (Docker Desktop)
 
@@ -110,9 +248,9 @@ The only trail kept is `PlaceVisit`, the stays at the family's own places, and t
 
 ## Phones (install + notifications)
 
-- **Android app:** install the APK (see below) and tap **Turn on notifications** under Account.
-- **Android / Chrome:** open the site → menu → *Install app*. Tap **🔔 Turn on notifications** in the header.
-- **iPhone (iOS 16.4+):** open in Safari → Share → *Add to Home Screen*, open Chorly from the icon, then tap **🔔 Turn on notifications**. iOS only allows web push for home-screen apps.
+- **Android app:** install the APK (see below), then tap **Turn on** next to **Notifications** under Account.
+- **Android / Chrome:** open the site → menu → *Install app*, then tap **Turn on** next to **Notifications** under Account.
+- **iPhone (iOS 16.4+):** open in Safari → Share → *Add to Home Screen*, open Chorly from the icon, then tap **Turn on** next to **Notifications** under Account. iOS only allows web push for home-screen apps.
 
 ### Android app
 
