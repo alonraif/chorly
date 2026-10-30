@@ -1852,11 +1852,44 @@ select.input {
   aspect-ratio: 1;
 }
 
-.avatar-preview {
-  width: min(220px, 70%);
+.avatar-crop {
+  position: relative;
+  width: min(320px, 100%, 50dvh);
   aspect-ratio: 1;
+  overflow: hidden;
+  border-radius: var(--radius);
+  background: #fff;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.avatar-crop:active {
+  cursor: grabbing;
+}
+
+.avatar-crop img {
+  position: absolute;
+  max-width: none;
+  height: auto;
+  pointer-events: none;
+}
+
+/* Everything outside the circle stays in the saved square, but no one sees it. */
+.avatar-crop::after {
+  content: '';
+  position: absolute;
+  inset: 0;
   border-radius: 50%;
-  object-fit: cover;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.5);
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: -2px;
+  pointer-events: none;
+}
+
+.avatar-zoom {
+  width: min(320px, 100%, 50dvh);
+  accent-color: var(--brand);
 }
 
 /* ---------- Chores library ---------- */

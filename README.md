@@ -135,7 +135,7 @@ In a browser or home-screen app, you only share while Chorly is open and on scre
 
 Tap your picture for **Account**:
 
-- **Profile picture**: from your gallery or the camera.
+- **Profile picture**: from your gallery or the camera, then drag and zoom to frame it.
 - **Language**: Hebrew or English, for the app and your notifications. Hebrew runs right to left.
 - **Notifications**: turn them on for this device.
 - **Choose notifications**: switch each type on or off.
