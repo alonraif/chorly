@@ -20,6 +20,11 @@ function visibleProofs(photoKeys: unknown, actor: RequestUser) {
     .flatMap(([userId, keys]) => keys.map((key) => ({ userId, key, isVideo: !key.endsWith('.jpg') })));
 }
 
+// A parent's own chore skips Approvals: they'd only be approving themselves.
+function approvesOwnChore(instance: { assignments: Array<{ userId: string }> }, actor: RequestUser) {
+  return actor.isAdmin && instance.assignments.length === 1 && instance.assignments[0].userId === actor.id;
+}
+
 function instanceStatusFromCompletion(
   assignmentConfig: unknown,
   assignedIds: string[],
@@ -83,6 +88,7 @@ export class InstancesService {
         dueAt: instance.dueAt.toISOString(),
         status: instance.status,
         approvedAt: instance.approvedAt ? instance.approvedAt.toISOString() : null,
+        approvedByUserId: instance.approvedByUserId,
         rewardAmount: instance.rewardAmount?.toString() ?? null,
         proofs: visibleProofs(instance.photoKeys, actor),
         assignments: instance.assignments.map((a) => ({
@@ -147,6 +153,10 @@ export class InstancesService {
       },
     });
 
+    if (status === 'done' && !instance.approvedAt && approvesOwnChore(instance, actor)) {
+      return this.approve(tenantId, instanceId, actor, {});
+    }
+
     if (status === 'done' && instance.status !== 'done') {
       void this.push.sendToParents(tenantId, 'readyForApproval', (locale) => ({
         ...notificationText.readyForApproval(locale, actor.displayName, choreName(refreshed.chore, locale)),
@@ -181,6 +191,11 @@ export class InstancesService {
       throw new ForbiddenException('User is not assigned to this instance');
     }
 
+    const wasApproved = instance.status === 'approved';
+    if (wasApproved && !(instance.approvedByUserId === actor.id && approvesOwnChore(instance, actor))) {
+      throw new BadRequestException('Approved chores cannot be undone');
+    }
+
     const completion = await this.prisma.choreCompletion.findUnique({
       where: { instanceId_userId: { instanceId, userId: actor.id } },
     });
@@ -202,6 +217,17 @@ export class InstancesService {
     const photoObj = { ...((instance.photoKeys as Record<string, string[]> | null) ?? {}) };
     delete photoObj[actor.id];
     await this.proofs.removeForUser(instanceId, actor.id);
+
+    if (wasApproved) {
+      const [, updated] = await this.prisma.$transaction([
+        this.prisma.moneyLedger.deleteMany({ where: { instanceId, userId: actor.id, type: 'earn' } }),
+        this.prisma.choreInstance.update({
+          where: { id: instanceId },
+          data: { status, photoKeys: photoObj, approvedAt: null, approvedByUserId: null, rewardAmount: null },
+        }),
+      ]);
+      return updated;
+    }
 
     return this.prisma.choreInstance.update({ where: { id: instanceId }, data: { status, photoKeys: photoObj } });
   }
@@ -226,7 +252,12 @@ export class InstancesService {
       }
     }
 
-    const hasReward = instance.chore.hasReward;
+    // Rewards are for kids: a parent's turn on a paid chore earns nothing.
+    const earners = await this.prisma.user.findMany({
+      where: { id: { in: creditedUsers }, role: 'child' },
+      select: { id: true },
+    });
+    const hasReward = instance.chore.hasReward && earners.length > 0;
     const rewardAmountRaw = body.rewardAmount ?? instance.chore.rewardAmount?.toString();
     if (hasReward && !rewardAmountRaw) {
       throw new BadRequestException('rewardAmount is required for reward chores');
@@ -246,9 +277,9 @@ export class InstancesService {
         },
       });
 
-      if (hasReward && rewardAmountDecimal && creditedUsers.length > 0) {
+      if (hasReward && rewardAmountDecimal) {
         await tx.moneyLedger.createMany({
-          data: creditedUsers.map((userId) => ({
+          data: earners.map(({ id: userId }) => ({
             tenantId,
             userId,
             type: 'earn',

@@ -6,7 +6,7 @@ import { api } from '../lib/api';
 import { choreTitle, firstName, friendlyDue, isOverdue, money, relativeTime, TZ } from '../lib/format';
 import { t } from '../lib/i18n';
 import { useSession } from '../lib/session';
-import { activeDoneAt, type Instance } from '../lib/types';
+import { activeDoneAt, approvesOwnChore, type Instance } from '../lib/types';
 import { Avatar } from './avatar';
 import { Icon } from './icon';
 import { ProofList } from './proof-list';
@@ -32,7 +32,7 @@ export function InstanceSheet({
   const { toast, confirm } = useUi();
   const [mode, setMode] = useState<'view' | 'reschedule'>('view');
   const [rejecting, setRejecting] = useState(false);
-  const [capturing, setCapturing] = useState(false);
+  const [finishing, setFinishing] = useState(false);
   const [dueLocal, setDueLocal] = useState('');
   const [assignee, setAssignee] = useState('');
   const [busy, setBusy] = useState(false);
@@ -42,7 +42,7 @@ export function InstanceSheet({
     if (!instance) return;
     setMode('view');
     setRejecting(false);
-    setCapturing(false);
+    setFinishing(false);
     setError('');
     setDueLocal(DateTime.fromISO(instance.dueAt).setZone(TZ).toFormat("yyyy-LL-dd'T'HH:mm"));
     setAssignee(instance.assignments[0]?.userId || '');
@@ -51,7 +51,8 @@ export function InstanceSheet({
   if (!instance) return null;
   const title = choreTitle(instance.chore);
   const doneAt = activeDoneAt(instance);
-  const reward = instance.rewardAmount || rewardFor?.(instance.choreId) || null;
+  const forKid = instance.assignments.some((a) => people.find((p) => p.id === a.userId)?.role === 'child');
+  const reward = forKid ? instance.rewardAmount || rewardFor?.(instance.choreId) || null : null;
   const editable = instance.status !== 'approved';
   const canMarkDone = instance.status === 'assigned' && instance.assignments.some((a) => a.userId === me.id);
 
@@ -118,14 +119,9 @@ export function InstanceSheet({
             </button>
           </>
         ) : canMarkDone ? (
-          <>
-            <button type="button" className="btn btn-secondary" onClick={() => setCapturing(true)} disabled={busy} aria-label={t('proof.add')}>
-              <Icon name="camera" size={18} />
-            </button>
-            <button type="button" className="btn btn-primary" onClick={markDone} disabled={busy}>
-              <Icon name="check" size={18} /> {t('instance.markDone')}
-            </button>
-          </>
+          <button type="button" className="btn btn-primary" onClick={() => (approvesOwnChore(instance, me) ? markDone() : setFinishing(true))} disabled={busy}>
+            <Icon name="check" size={18} /> {t('instance.markDone')}
+          </button>
         ) : undefined
       }
     >
@@ -194,8 +190,9 @@ export function InstanceSheet({
         </div>
       )}
       <ProofSheet
-        instance={capturing ? instance : null}
-        onClose={() => setCapturing(false)}
+        instance={finishing ? instance : null}
+        onClose={() => setFinishing(false)}
+        onMarkDone={markDone}
         onDone={() => {
           toast(t('proof.sent'));
           onChanged();

@@ -2468,33 +2468,6 @@ select.input {
   transition: border-color 0.2s, background 0.2s, transform 0.1s;
 }
 
-.kid-chore-row {
-  display: flex;
-  align-items: stretch;
-  gap: 8px;
-}
-
-.kid-chore-row .kid-chore {
-  flex: 1;
-  min-width: 0;
-}
-
-.kid-proof {
-  flex: 0 0 56px;
-  display: grid;
-  place-items: center;
-  border-radius: var(--radius-lg);
-  border: 2px solid var(--line);
-  background: var(--surface);
-  color: var(--ink-2);
-  cursor: pointer;
-  box-shadow: var(--shadow-1);
-}
-
-.kid-proof.is-compact {
-  flex-basis: 48px;
-}
-
 .kid-chore:active:not(:disabled) {
   transform: scale(0.98);
 }

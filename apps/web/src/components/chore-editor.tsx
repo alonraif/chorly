@@ -205,6 +205,9 @@ export function ChoreEditor({
 
   const schedule = useMemo(() => buildSchedule(draft), [draft]);
   const chosen = people.filter((p) => draft.assigneeIds.includes(p.id));
+  // Rewards are for kids, so a chore only for parents can't pay one.
+  const canReward = chosen.length === 0 || chosen.some((p) => p.role === 'child');
+  const paysReward = canReward && draft.hasReward;
   const summary = [
     chosen.length
       ? draft.split === 'turns'
@@ -213,7 +216,7 @@ export function ChoreEditor({
       : t('editor.nobody'),
     chosen.length > 1 ? (draft.split === 'turns' ? t('editor.takingTurns') : t('editor.eachOwn')) : null,
     scheduleSummary(schedule),
-    draft.hasReward && Number(draft.rewardAmount) > 0 ? t('editor.reward', { amount: money(draft.rewardAmount, currency) }) : null,
+    paysReward && Number(draft.rewardAmount) > 0 ? t('editor.reward', { amount: money(draft.rewardAmount, currency) }) : null,
   ]
     .filter(Boolean)
     .join(' · ');
@@ -247,7 +250,7 @@ export function ChoreEditor({
     if (draft.assigneeIds.length === 0) return setError(t('editor.errWho'));
     if (draft.freq === 'weekly' && draft.days.length === 0 && !draft.rawRrule) return setError(t('editor.errDay'));
     if (draft.freq === 'once' && !draft.onceDate) return setError(t('editor.errDate'));
-    if (draft.hasReward && !(Number(draft.rewardAmount) > 0)) return setError(t('editor.errReward'));
+    if (paysReward && !(Number(draft.rewardAmount) > 0)) return setError(t('editor.errReward'));
     if (draft.freq !== 'once' && draft.endsMode === 'on' && !draft.endsDate) return setError(t('editor.errEnd'));
 
     // Keep separately-stored Hebrew/English names unless the parent actually renamed the chore.
@@ -256,8 +259,8 @@ export function ChoreEditor({
       const shared = assigneeIds.length > 1;
       return {
         ...(titleChanged ? { title_en: title, title_he: title } : {}),
-        hasReward: draft.hasReward,
-        rewardAmount: draft.hasReward ? String(Number(draft.rewardAmount)) : undefined,
+        hasReward: paysReward,
+        rewardAmount: paysReward ? String(Number(draft.rewardAmount)) : undefined,
         allowNotes: true,
         allowPhotoProof: false,
         schedule,
@@ -494,27 +497,29 @@ export function ChoreEditor({
           )}
         </div>
 
-        <div className="field">
-          <Switch
-            checked={draft.hasReward}
-            onChange={(v) => set('hasReward', v)}
-            label={t('editor.paysReward')}
-            hint={t('editor.paysRewardHint')}
-          />
-          {draft.hasReward && (
-            <div className="money-input">
-              <span>{currencySymbol(currency)}</span>
-              <input
-                className="input"
-                inputMode="decimal"
-                placeholder="5"
-                value={draft.rewardAmount}
-                onChange={(e) => set('rewardAmount', e.target.value.replace(/[^0-9.]/g, ''))}
-                aria-label={t('approvals.rewardAmount')}
-              />
-            </div>
-          )}
-        </div>
+        {canReward && (
+          <div className="field">
+            <Switch
+              checked={draft.hasReward}
+              onChange={(v) => set('hasReward', v)}
+              label={t('editor.paysReward')}
+              hint={t('editor.paysRewardHint')}
+            />
+            {draft.hasReward && (
+              <div className="money-input">
+                <span>{currencySymbol(currency)}</span>
+                <input
+                  className="input"
+                  inputMode="decimal"
+                  placeholder="5"
+                  value={draft.rewardAmount}
+                  onChange={(e) => set('rewardAmount', e.target.value.replace(/[^0-9.]/g, ''))}
+                  aria-label={t('approvals.rewardAmount')}
+                />
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="disclosure">
           <button type="button" className="disclosure-toggle" aria-expanded={showMore} onClick={() => setShowMore((v) => !v)}>

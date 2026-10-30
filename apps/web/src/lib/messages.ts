@@ -289,8 +289,9 @@ export const en = {
   'instance.due': 'Due',
   'instance.who': 'Who',
 
-  'proof.add': 'Mark done with a photo or video',
-  'proof.addFor': 'Add a photo or video for “{chore}”',
+  'proof.askTitle': 'Add proof?',
+  'proof.askBody': 'You can add a photo or video for the parent who approves this.',
+  'proof.add': 'Add proof',
   'proof.title': 'Show it’s done',
   'proof.photo': 'Photo',
   'proof.video': 'Video',
@@ -693,8 +694,9 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'instance.due': 'מועד',
   'instance.who': 'מי',
 
-  'proof.add': 'סימון כבוצע עם תמונה או סרטון',
-  'proof.addFor': 'הוספת תמונה או סרטון ל“{chore}”',
+  'proof.askTitle': 'להוסיף הוכחה?',
+  'proof.askBody': 'אפשר להוסיף תמונה או סרטון להורה שמאשר את המטלה.',
+  'proof.add': 'הוספת הוכחה',
   'proof.title': 'הראו שזה בוצע',
   'proof.photo': 'תמונה',
   'proof.video': 'סרטון',

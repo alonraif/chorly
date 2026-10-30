@@ -6,6 +6,7 @@ export type Instance = {
   dueAt: string;
   status: InstanceStatus;
   approvedAt: string | null;
+  approvedByUserId: string | null;
   rewardAmount: string | null;
   chore: { title_en: string; title_he: string; hasReward: boolean };
   proofs: Array<{ userId: string; key: string; isVideo: boolean }>;
@@ -48,6 +49,11 @@ export type Earnings = {
   }>;
   payoutEntries: Array<{ id: string; amount: string; createdAt: string }>;
 };
+
+// A parent's own chore skips Approvals, so there's nobody to show proof to.
+export function approvesOwnChore(instance: Instance, me: { id: string; isAdmin: boolean }) {
+  return me.isAdmin && instance.assignments.length === 1 && instance.assignments[0].userId === me.id;
+}
 
 export function activeDoneAt(instance: Instance) {
   const entries = Object.values(instance.doneByUserId).filter((d) => !d.undoneAt);

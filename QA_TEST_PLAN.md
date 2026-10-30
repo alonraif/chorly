@@ -61,10 +61,11 @@ Expected:
 - Child A gets a push saying it isn't complete, with the reason if one was given.
 
 ### SMOKE-07 Mark done with a camera photo or video
-1. On a phone, Child A taps the camera button on a chore, takes a photo, and sends it.
+1. On a phone, Child A taps a chore, chooses `Add proof` in the popup, takes a photo, and sends it.
 2. Repeat with a short video on another chore, letting it reach the 15-second limit.
 3. Parent opens `/parent/review`, views both, approves one and rejects the other.
 Expected:
+- Choosing `Mark done` in the popup finishes the chore without proof; closing it leaves the chore to do.
 - The sheet only offers the live camera; nothing opens the photo library or a file picker.
 - Both proofs show on the approval cards, and video plays (including on iPhone).
 - After approving or rejecting, the proof is gone from disk and from `photoKeys`.
@@ -80,12 +81,14 @@ Expected:
 
 ### REG-02 Parent assigns a chore to themselves or another parent
 1. As Parent A, create a chore assigned to Parent A and one assigned to Parent B.
-2. Open `My chores` as each parent, mark the chore done.
-3. Approve from `Approvals`.
+2. Open `My chores` as each parent, mark the chore done, then tap it again.
 Expected:
 - Each parent can check off only their own chore.
-- Parent B gets the "ready for approval" push for Parent A's chore; Parent A doesn't for their own.
-- Any parent can approve, including the one who did the chore.
+- The chore is approved straight away, with no proof popup, no entry in `Approvals` and no push.
+- Tapping it again un-does it.
+- On a chore rotating between a parent and a kid, the kid's turns still go to `Approvals`, and so does a non-admin parent's chore.
+- A parent never earns: no balance on `My chores`, no reward labels, and a reward chore on a parent's turn adds nothing to the ledger.
+- The chore editor hides the reward option when only parents are chosen.
 
 ### REG-02b Kids can't see parents' chores
 1. As a kid, call `GET /api/instances` without `userId`, and with a parent's `userId`.

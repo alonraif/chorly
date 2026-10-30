@@ -20,17 +20,48 @@ function recorderType() {
 
 // Capture happens on a live camera stream on purpose: a file input can always
 // fall back to the photo library, so proof here can only come from the camera.
-export function ProofSheet({
-  instance,
-  onClose,
-  onDone,
-}: {
-  instance: Instance | null;
+type Props = {
   onClose: () => void;
+  onMarkDone: (instance: Instance) => void;
   onDone: (instance: Instance) => void;
-}) {
+};
+
+export function ProofSheet({ instance, ...props }: Props & { instance: Instance | null }) {
   if (!instance) return null;
-  return <Capture key={instance.id} instance={instance} onClose={onClose} onDone={onDone} />;
+  return <Prompt key={instance.id} instance={instance} {...props} />;
+}
+
+function Prompt({ instance, onClose, onMarkDone, onDone }: Props & { instance: Instance }) {
+  const [capturing, setCapturing] = useState(false);
+  if (capturing) return <Capture instance={instance} onClose={onClose} onDone={onDone} />;
+  return (
+    <Sheet
+      open
+      onClose={onClose}
+      title={t('proof.askTitle')}
+      subtitle={choreTitle(instance.chore)}
+      size="sm"
+      footer={
+        <>
+          <button type="button" className="btn btn-secondary" onClick={() => setCapturing(true)}>
+            <Icon name="camera" size={18} /> {t('proof.add')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={() => {
+              onMarkDone(instance);
+              onClose();
+            }}
+          >
+            <Icon name="check" size={18} /> {t('instance.markDone')}
+          </button>
+        </>
+      }
+    >
+      <p className="muted">{t('proof.askBody')}</p>
+    </Sheet>
+  );
 }
 
 function Capture({ instance, onClose, onDone }: { instance: Instance; onClose: () => void; onDone: (instance: Instance) => void }) {
