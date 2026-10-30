@@ -164,6 +164,13 @@ export const PlaceInputSchema = z.object({
 });
 export const UpdatePlaceSchema = PlaceInputSchema.partial();
 
+export const GeocodeSchema = z.object({
+  query: z.string().trim().min(2).max(200),
+  language: z.string().max(10).optional(),
+  // Ranks results around here, so "Herzl 12" means the one in the family's own town.
+  near: z.object({ lat, lng }).optional(),
+});
+
 export const TripSchema = z.object({
   placeId: z.string().min(1),
   mode: z.union([z.literal('walk'), z.literal('drive')]),

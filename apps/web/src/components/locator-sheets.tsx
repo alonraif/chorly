@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { POKE_KINDS } from '@chorly/shared';
 import { api } from '../lib/api';
 import { currencySymbol, firstName, relativeTime, timeOf } from '../lib/format';
-import { t, type MessageKey } from '../lib/i18n';
+import { getLocale, t, type MessageKey } from '../lib/i18n';
 import { useLocationSharing } from '../lib/location';
 import {
   distanceText,
@@ -35,6 +35,7 @@ const ERROR_TEXT: Record<string, MessageKey> = {
   not_your_errand: 'locator.notYourErrand',
   share_first: 'locator.shareFirst',
   already_there: 'locator.alreadyThere',
+  geocode_failed: 'locator.addressFailed',
 };
 
 function currentPosition() {
@@ -65,6 +66,67 @@ function useAction() {
     }
   }
   return { busy, run };
+}
+
+type AddressResult = Point & { label: string };
+
+function AddressSearch({ near, onFound }: { near: Point | null; onFound: (point: Point) => void }) {
+  const { busy, run } = useAction();
+  const [query, setQuery] = useState('');
+  const [results, setResults] = useState<AddressResult[] | null>(null);
+
+  const search = () =>
+    run(async () => {
+      const body = { query: query.trim(), language: getLocale(), ...(near ? { near: { lat: near.lat, lng: near.lng } } : {}) };
+      setResults(await api.post('/location/geocode', body));
+    });
+
+  const choose = ({ label, lat, lng }: AddressResult) => {
+    setQuery(label);
+    setResults(null);
+    onFound({ lat, lng });
+  };
+
+  return (
+    <div className="field">
+      <label className="field-label-sm" htmlFor="place-address">{t('locator.address')}</label>
+      <div className="address-search">
+        <input
+          id="place-address"
+          className="input"
+          value={query}
+          maxLength={200}
+          enterKeyHint="search"
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setResults(null);
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter') return;
+            e.preventDefault();
+            if (!busy && query.trim().length >= 2) search();
+          }}
+          placeholder={t('locator.addressPlaceholder')}
+        />
+        <button type="button" className="btn btn-secondary" onClick={search} disabled={busy || query.trim().length < 2}>
+          {t('locator.addressSearch')}
+        </button>
+      </div>
+      {results?.length === 0 && <p className="field-hint">{t('locator.addressNone')}</p>}
+      {results && results.length > 0 && (
+        <ul className="sheet-list">
+          {results.map((result) => (
+            <li key={`${result.lat},${result.lng}`} className="sheet-list-item">
+              <button type="button" className="sheet-list-main" onClick={() => choose(result)}>
+                <span className="sheet-list-emoji">📍</span>
+                <span className="sheet-list-text">{result.label}</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
 }
 
 function PointField({ value, radiusM, onChange, onPick }: { value: Point | null; radiusM?: number; onChange: (point: Point) => void; onPick: RequestPick }) {
@@ -303,6 +365,7 @@ export function PlacesSheet({
             </select>
             <span className="field-hint">{t(`locator.kindHint.${draft.kind}` as MessageKey)}</span>
           </label>
+          <AddressSearch near={draft.point ?? places[0] ?? null} onFound={(point) => set('point', point)} />
           <PointField value={draft.point} radiusM={draft.radiusM} onChange={(point) => set('point', point)} onPick={onPick} />
           <label className="field">
             <span className="field-label-sm">{t('locator.radius')}</span>

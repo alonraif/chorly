@@ -3202,6 +3202,16 @@ textarea.input {
   gap: 8px;
 }
 
+.address-search {
+  display: flex;
+  gap: 8px;
+}
+
+.address-search .input {
+  flex: 1;
+  min-width: 0;
+}
+
 .point-set {
   color: var(--brand-strong);
   font-weight: 600;

@@ -2,6 +2,7 @@ import { Body, Controller, Delete, Get, Param, Patch, Post, Put, UseGuards } fro
 import { ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import {
   ErrandInputSchema,
+  GeocodeSchema,
   LocationReportSchema,
   LocationSettingsSchema,
   MapTagInputSchema,
@@ -18,6 +19,7 @@ import { RequireUserGuard } from '../common/session/require-user.guard';
 import type { RequestUser } from '../common/session/session.types';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ErrandsService } from './errands.service';
+import { GeocodeService } from './geocode.service';
 import { LocationService } from './location.service';
 import { PlacesService } from './places.service';
 import { TagsService } from './tags.service';
@@ -31,6 +33,7 @@ export class LocationController {
     private readonly places: PlacesService,
     private readonly errands: ErrandsService,
     private readonly tags: TagsService,
+    private readonly geocoder: GeocodeService,
   ) {}
 
   @Get()
@@ -88,6 +91,14 @@ export class LocationController {
   @ApiOperation({ summary: 'Send a family member a quick sticker' })
   poke(@CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(PokeSchema)) body: any) {
     return this.location.poke(user, body);
+  }
+
+  // POST, so a family's addresses stay out of the access logs.
+  @Post('/geocode')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Find an address on the map (parent)' })
+  geocode(@Body(new ZodValidationPipe(GeocodeSchema)) body: any) {
+    return this.geocoder.search(body);
   }
 
   @Post('/places')
