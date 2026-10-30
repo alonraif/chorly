@@ -8,6 +8,7 @@ import { t, type MessageKey } from '../lib/i18n';
 import { SessionProvider, useSession, type Member } from '../lib/session';
 import { clearCurrentUserId, setCurrentLocale } from '../lib/user';
 import { Avatar } from './avatar';
+import { AvatarSheet } from './avatar-sheet';
 import { Icon, type IconName } from './icon';
 import { LanguageRow, PublicLanguageSwitch } from './language-picker';
 import { NotificationsRow } from './notifications-button';
@@ -106,6 +107,7 @@ function useLogout() {
 function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { me, family } = useSession();
   const logout = useLogout();
+  const [pictureOpen, setPictureOpen] = useState(false);
   return (
     <Sheet open={open} onClose={onClose} title={t('account.title')} size="sm">
       <div className="account-head">
@@ -119,6 +121,15 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
       </div>
       <div className="settings-list">
+        <button type="button" className="setting-row setting-button" onClick={() => setPictureOpen(true)}>
+          <span className="setting-icon">
+            <Icon name="camera" size={18} />
+          </span>
+          <span className="setting-text">
+            <span className="setting-label">{t('avatar.title')}</span>
+            <span className="field-hint">{t('avatar.hint')}</span>
+          </span>
+        </button>
         <LanguageRow />
         <NotificationsRow />
         <NotificationPrefsRow />
@@ -132,6 +143,7 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
           </span>
         </button>
       </div>
+      {pictureOpen && <AvatarSheet onClose={() => setPictureOpen(false)} />}
     </Sheet>
   );
 }

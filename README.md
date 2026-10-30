@@ -76,6 +76,8 @@ Database migrations run automatically when the api container starts.
 
 Proofs live in the `chorly_proofs` Docker volume only until a parent approves or rejects the chore, then they're deleted. They aren't part of the nightly backup.
 
+Profile pictures are stored in Postgres, so the nightly backup includes them.
+
 ### Restore a backup
 
 ```bash

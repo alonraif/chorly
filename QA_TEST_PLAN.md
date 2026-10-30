@@ -169,6 +169,16 @@ Expected:
 Expected:
 - Earned amount updates correctly after approval.
 
+### REG-10 Profile pictures
+1. As a kid, open the account sheet → Profile picture → Choose from gallery, pick a photo, and save.
+2. Take a new picture with Take a photo, flip the camera, retake once, and save.
+3. Log in as a parent and check the kid's picture on Family, Home, Approvals, and the chore editor.
+4. As the kid, tap Remove picture.
+Expected:
+- The picture shows as a circle everywhere that member appears, without a reload for the person who changed it.
+- After removal, the member's initials show again.
+- Uploading a non-JPEG to `POST /api/users/me/avatar` returns 400; more than 512 KB returns 413.
+
 ## Diagnostics Checklist (when tests fail)
 - API health: `GET http://localhost:4000/health`
 - Confirm chores exist:

@@ -63,6 +63,8 @@ model User {
   isAway         Boolean  @default(false)
   // Notification types this member turned off, e.g. {"overdue": false}. See NOTIFICATION_PREFS.
   notifyPrefs    Json     @default("{}")
+  // When the current picture was set; null means none. The image itself is in UserAvatar.
+  avatarAt       DateTime?
   createdAt      DateTime @default(now())
 
   assignments       InstanceAssignment[]
@@ -72,9 +74,17 @@ model User {
   sessions          Session[]
   pushSubscriptions PushSubscription[]
   notificationLogs  NotificationLog[]
+  avatar            UserAvatar?
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
+}
+
+// Kept apart from User so loading a member never loads the image.
+model UserAvatar {
+  userId String @id
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jpeg   Bytes
 }
 
 model Session {

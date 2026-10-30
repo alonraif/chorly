@@ -1,9 +1,14 @@
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException, PayloadTooLargeException } from '@nestjs/common';
 import { MoneyLedgerType, Prisma } from '@prisma/client';
+import type { Readable } from 'stream';
 import { PrismaService } from '../prisma.service';
 import type { CreateUser, NotificationPrefs, UpdateUser } from '@chorly/shared';
 import type { RequestUser } from '../common/session/session.types';
 import { hashPassword } from '../common/auth/password';
+
+// The web client always sends a small square JPEG, so anything bigger isn't from it.
+const MAX_AVATAR_BYTES = 512 * 1024;
+const JPEG_START = Buffer.from([0xff, 0xd8, 0xff]);
 
 @Injectable()
 export class UsersService {
@@ -20,6 +25,7 @@ export class UsersService {
     isActive: true,
     isAway: true,
     notifyPrefs: true,
+    avatarAt: true,
     createdAt: true,
   } satisfies Prisma.UserSelect;
 
@@ -68,6 +74,43 @@ export class UsersService {
       data: { notifyPrefs: { ...((user.notifyPrefs as NotificationPrefs | null) ?? {}), ...prefs } },
       select: this.publicUserSelect,
     });
+  }
+
+  async setAvatar(tenantId: string, id: string, contentType: string | undefined, body: Readable) {
+    if ((contentType || '').split(';')[0].trim().toLowerCase() !== 'image/jpeg') {
+      throw new BadRequestException('Only JPEG pictures can be uploaded');
+    }
+    const chunks: Buffer[] = [];
+    let received = 0;
+    for await (const chunk of body) {
+      received += chunk.length;
+      if (received > MAX_AVATAR_BYTES) throw new PayloadTooLargeException('This picture is too big');
+      chunks.push(chunk);
+    }
+    const jpeg = Buffer.concat(chunks);
+    if (!jpeg.subarray(0, 3).equals(JPEG_START)) throw new BadRequestException('Only JPEG pictures can be uploaded');
+
+    await this.get(tenantId, id);
+    const [, user] = await this.prisma.$transaction([
+      this.prisma.userAvatar.upsert({ where: { userId: id }, create: { userId: id, jpeg }, update: { jpeg } }),
+      this.prisma.user.update({ where: { id }, data: { avatarAt: new Date() }, select: this.publicUserSelect }),
+    ]);
+    return user;
+  }
+
+  async removeAvatar(tenantId: string, id: string) {
+    await this.get(tenantId, id);
+    const [, user] = await this.prisma.$transaction([
+      this.prisma.userAvatar.deleteMany({ where: { userId: id } }),
+      this.prisma.user.update({ where: { id }, data: { avatarAt: null }, select: this.publicUserSelect }),
+    ]);
+    return user;
+  }
+
+  async avatar(tenantId: string, id: string) {
+    const avatar = await this.prisma.userAvatar.findFirst({ where: { userId: id, user: { tenantId } } });
+    if (!avatar) throw new NotFoundException('Picture not found');
+    return Buffer.from(avatar.jpeg);
   }
 
   async update(tenantId: string, id: string, data: UpdateUser) {

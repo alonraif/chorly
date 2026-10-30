@@ -1,10 +1,11 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from '../lib/api';
 import { choreTitle } from '../lib/format';
 import { t } from '../lib/i18n';
 import type { Instance } from '../lib/types';
+import { useCamera } from '../lib/use-camera';
 import { Icon } from './icon';
 import { errorMessage, Sheet } from './ui';
 
@@ -65,50 +66,22 @@ function Prompt({ instance, onClose, onMarkDone, onDone }: Props & { instance: I
 }
 
 function Capture({ instance, onClose, onDone }: { instance: Instance; onClose: () => void; onDone: (instance: Instance) => void }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  // Sheet mounts its content a render late, so the stream can arrive before the video element.
-  const attachVideo = useCallback((video: HTMLVideoElement | null) => {
-    videoRef.current = video;
-    if (video) video.srcObject = streamRef.current;
-  }, []);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const [mode, setMode] = useState<'photo' | 'video'>('photo');
   const [facing, setFacing] = useState<'environment' | 'user'>('environment');
   const [shot, setShot] = useState<{ blob: Blob; url: string } | null>(null);
   const [secondsLeft, setSecondsLeft] = useState<number | null>(null);
-  const [cameraError, setCameraError] = useState('');
   const [sendError, setSendError] = useState('');
   const [busy, setBusy] = useState(false);
   const videoType = recorderType();
   const recording = secondsLeft !== null;
 
-  useEffect(() => {
-    if (shot) return;
-    let cancelled = false;
-    if (!navigator.mediaDevices?.getUserMedia) {
-      setCameraError(t('proof.unavailable'));
-      return;
-    }
-    navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: { ideal: facing }, width: { ideal: 1280 }, height: { ideal: 720 } }, audio: false })
-      .then((stream) => {
-        if (cancelled) {
-          stream.getTracks().forEach((track) => track.stop());
-          return;
-        }
-        streamRef.current = stream;
-        if (videoRef.current) videoRef.current.srcObject = stream;
-        setCameraError('');
-      })
-      .catch((err: DOMException) => setCameraError(t(err.name === 'NotAllowedError' ? 'proof.denied' : 'proof.unavailable')));
-    return () => {
-      cancelled = true;
-      if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
-      streamRef.current?.getTracks().forEach((track) => track.stop());
-      streamRef.current = null;
-    };
+  // Before useCamera: on the way out, recording has to stop while the stream is still live.
+  useEffect(() => () => {
+    if (recorderRef.current?.state === 'recording') recorderRef.current.stop();
   }, [facing, shot]);
+
+  const { videoRef, streamRef, attachVideo, cameraError } = useCamera(facing, !shot);
 
   useEffect(() => () => {
     if (shot) URL.revokeObjectURL(shot.url);

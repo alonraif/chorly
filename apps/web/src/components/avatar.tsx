@@ -1,3 +1,8 @@
+'use client';
+
+import { useState } from 'react';
+import { useAvatarAt } from '../lib/session';
+
 const HUES = [24, 262, 205, 338, 145, 42, 186, 290];
 
 function hueFor(id: string) {
@@ -22,6 +27,9 @@ export function Avatar({
   size?: number;
   className?: string;
 }) {
+  const avatarAt = useAvatarAt(user.id);
+  const [failedAt, setFailedAt] = useState<string | null>(null);
+  const showPicture = avatarAt && avatarAt !== failedAt;
   return (
     <span
       className={`avatar ${className}`}
@@ -29,7 +37,11 @@ export function Avatar({
       title={user.displayName}
       aria-hidden="true"
     >
-      {initials(user.displayName)}
+      {showPicture ? (
+        <img src={`/api/users/${user.id}/avatar?v=${encodeURIComponent(avatarAt)}`} alt="" onError={() => setFailedAt(avatarAt)} />
+      ) : (
+        initials(user.displayName)
+      )}
     </span>
   );
 }

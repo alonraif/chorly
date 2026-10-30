@@ -1,6 +1,7 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiTags } from '@nestjs/swagger';
 import { CreateUserSchema, LocaleSchema, NOTIFICATION_PREFS, NotificationPrefsSchema, UpdateUserSchema } from '@chorly/shared';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { UsersService } from './users.service';
@@ -44,6 +45,31 @@ export class UsersController {
     if (body.notifyPrefs) await this.users.updateNotifyPrefs(tenantId, user.id, body.notifyPrefs);
     if (body.locale) return this.users.update(tenantId, user.id, { locale: body.locale });
     return this.users.get(tenantId, user.id);
+  }
+
+  @Post('me/avatar')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Set my own picture (raw image/jpeg body)' })
+  setMyAvatar(@CurrentTenant() tenantId: string, @CurrentUser() user: RequestUser, @Req() req: Request) {
+    return this.users.setAvatar(tenantId, user.id, req.headers['content-type'], req);
+  }
+
+  @Delete('me/avatar')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Remove my own picture' })
+  removeMyAvatar(@CurrentTenant() tenantId: string, @CurrentUser() user: RequestUser) {
+    return this.users.removeAvatar(tenantId, user.id);
+  }
+
+  @Get(':id/avatar')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Get a family member\'s picture' })
+  @ApiParam({ name: 'id' })
+  async avatar(@CurrentTenant() tenantId: string, @Param('id') id: string, @Res() res: Response) {
+    const jpeg = await this.users.avatar(tenantId, id);
+    // Clients add the picture's timestamp to the URL, so a new picture is a new URL.
+    res.set({ 'Content-Type': 'image/jpeg', 'Cache-Control': 'private, max-age=31536000, immutable', 'X-Content-Type-Options': 'nosniff' });
+    res.send(jpeg);
   }
 
   @Get(':id')

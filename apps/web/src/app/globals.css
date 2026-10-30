@@ -770,6 +770,13 @@ select.input {
   }
 }
 
+.avatar img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+}
+
 .avatar-stack {
   display: inline-flex;
 }
@@ -1829,6 +1836,27 @@ select.input {
   inset: 18px;
   border-radius: 4px;
   background: #fff;
+}
+
+.avatar-choices {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+}
+
+.avatar-choices .btn {
+  width: 100%;
+}
+
+.proof-stage.is-square {
+  aspect-ratio: 1;
+}
+
+.avatar-preview {
+  width: min(220px, 70%);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
 }
 
 /* ---------- Chores library ---------- */

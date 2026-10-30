@@ -14,6 +14,7 @@ export type Member = {
   locale: Locale;
   isActive: boolean;
   isAway: boolean;
+  avatarAt: string | null;
 };
 
 export type Family = { id: string; name: string; defaultLocale: Locale; currencyCode?: string };
@@ -25,6 +26,8 @@ type SessionValue = {
   kids: Member[];
   /** Everyone a chore can be assigned to: kids first, then parents. */
   people: Member[];
+  /** When each member's picture was set, by id. Missing or null means no picture. */
+  avatars: Record<string, string | null>;
   currency: string;
   approvalsCount: number;
   refreshMembers: () => Promise<void>;
@@ -68,6 +71,7 @@ export function SessionProvider({ me, children }: { me: Member; children: ReactN
 
   const kids = useMemo(() => members.filter((m) => m.role === 'child'), [members]);
   const people = useMemo(() => [...kids, ...members.filter((m) => m.role !== 'child')], [kids, members]);
+  const avatars = useMemo(() => Object.fromEntries(members.map((m) => [m.id, m.avatarAt])), [members]);
 
   return (
     <SessionContext.Provider
@@ -77,6 +81,7 @@ export function SessionProvider({ me, children }: { me: Member; children: ReactN
         members,
         kids,
         people,
+        avatars,
         currency: family?.currencyCode || 'ILS',
         approvalsCount,
         refreshMembers,
@@ -86,6 +91,11 @@ export function SessionProvider({ me, children }: { me: Member; children: ReactN
       {children}
     </SessionContext.Provider>
   );
+}
+
+// Lets Avatar work from just an id, since chores carry assignees without their member details.
+export function useAvatarAt(userId: string) {
+  return useContext(SessionContext)?.avatars[userId] ?? null;
 }
 
 export function useSession() {
