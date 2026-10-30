@@ -6,5 +6,6 @@
 **/.env
 backups
 deploy/ddns
+deploy/apk
 .pnpm-store
 mobile

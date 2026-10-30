@@ -9,6 +9,7 @@ import { LocationProvider } from '../lib/location';
 import { nativePlugins } from '../lib/native';
 import { SessionProvider, useSession, type Member } from '../lib/session';
 import { clearCurrentUserId, setCurrentLocale } from '../lib/user';
+import { AndroidAppRow } from './android-app-row';
 import { Avatar } from './avatar';
 import { AvatarSheet } from './avatar-sheet';
 import { Icon, type IconName } from './icon';
@@ -150,6 +151,7 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
         <LanguageRow />
         <NotificationsRow />
         <NotificationPrefsRow />
+        <AndroidAppRow />
         <button type="button" className="setting-row setting-button" onClick={logout}>
           <span className="setting-icon">
             <Icon name="logout" size={18} />

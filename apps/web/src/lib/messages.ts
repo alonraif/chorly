@@ -60,6 +60,8 @@ export const en = {
   'account.title': 'Account',
   'account.logout': 'Log out',
 
+  'app.android': 'Get the Android app',
+  'app.androidHint': 'Keeps sharing your location in the background',
   'notif.label': 'Notifications',
   'notif.on': 'On for this device',
   'notif.off': 'Get reminders and approval alerts',
@@ -487,6 +489,8 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'account.title': 'חשבון',
   'account.logout': 'יציאה',
 
+  'app.android': 'להורדת אפליקציית Android',
+  'app.androidHint': 'ממשיכה לשתף את המיקום גם ברקע',
   'notif.label': 'התראות',
   'notif.on': 'פועלות במכשיר הזה',
   'notif.off': 'תזכורות והתראות על אישורים',

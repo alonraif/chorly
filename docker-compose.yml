@@ -36,8 +36,10 @@ services:
       <<: *app-env
       PORT: 4000
       PROOFS_DIR: /data/proofs
+      APK_DIR: /data/apk
     volumes:
       - chorly_proofs:/data/proofs
+      - ./deploy/apk:/data/apk:ro
     depends_on:
       postgres:
         condition: service_healthy

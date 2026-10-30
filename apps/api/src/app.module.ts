@@ -1,4 +1,5 @@
 import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
+import { AppDownloadController } from './app-download.controller';
 import { HealthController } from './health.controller';
 import { UsersModule } from './users/users.module';
 import { ChoresModule } from './chores/chores.module';
@@ -15,7 +16,7 @@ import { LocationModule } from './location/location.module';
 
 @Module({
   imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule, LocationModule],
-  controllers: [HealthController],
+  controllers: [HealthController, AppDownloadController],
   providers: [SessionMiddleware, AdminGuard, RequireUserGuard, RequireTenantGuard],
 })
 export class AppModule implements NestModule {

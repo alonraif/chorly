@@ -2220,6 +2220,8 @@ select.input {
 .setting-button {
   border: 0;
   background: none;
+  color: inherit;
+  text-decoration: none;
   cursor: pointer;
 }
 
