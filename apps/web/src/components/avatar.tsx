@@ -5,7 +5,7 @@ import { useAvatarAt } from '../lib/session';
 
 const HUES = [24, 262, 205, 338, 145, 42, 186, 290];
 
-function hueFor(id: string) {
+export function hueFor(id: string) {
   let hash = 0;
   for (let i = 0; i < id.length; i += 1) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return HUES[hash % HUES.length];

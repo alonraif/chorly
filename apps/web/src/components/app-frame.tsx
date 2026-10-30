@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../lib/api';
 import { t, type MessageKey } from '../lib/i18n';
+import { LocationProvider } from '../lib/location';
 import { SessionProvider, useSession, type Member } from '../lib/session';
 import { clearCurrentUserId, setCurrentLocale } from '../lib/user';
 import { Avatar } from './avatar';
@@ -16,6 +17,7 @@ import { NotificationPrefsRow } from './notification-prefs';
 import { Sheet, Spinner, UiProvider } from './ui';
 
 const PUBLIC_PATHS = ['/', '/register'];
+const KID_PATHS = ['/child', '/locator'];
 
 const PARENT_NAV: Array<{ href: string; label: MessageKey; icon: IconName; badge?: boolean }> = [
   { href: '/parent', label: 'nav.home', icon: 'home' },
@@ -23,6 +25,7 @@ const PARENT_NAV: Array<{ href: string; label: MessageKey; icon: IconName; badge
   { href: '/parent/review', label: 'nav.approvals', icon: 'approve', badge: true },
   { href: '/admin/chores', label: 'nav.chores', icon: 'list' },
   { href: '/admin/users', label: 'nav.family', icon: 'users' },
+  { href: '/locator', label: 'nav.locator', icon: 'pin' },
 ];
 
 export function AppFrame({ children }: { children: ReactNode }) {
@@ -54,9 +57,10 @@ export function AppFrame({ children }: { children: ReactNode }) {
   }, [isPublic, router]);
 
   const isChild = me?.role === 'child';
+  const kidBlocked = isChild && !KID_PATHS.includes(pathname);
   useEffect(() => {
-    if (isChild && pathname !== '/child') router.replace('/child');
-  }, [isChild, pathname, router]);
+    if (kidBlocked) router.replace('/child');
+  }, [kidBlocked, router]);
 
   if (isPublic) {
     return (
@@ -69,7 +73,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
     );
   }
 
-  if (!me || (isChild && pathname !== '/child')) {
+  if (!me || kidBlocked) {
     return (
       <div className="splash">
         <BrandMark />
@@ -81,7 +85,7 @@ export function AppFrame({ children }: { children: ReactNode }) {
   return (
     <UiProvider>
       <SessionProvider me={me}>
-        {isChild ? <KidShell>{children}</KidShell> : <ParentShell>{children}</ParentShell>}
+        <LocationProvider>{isChild ? <KidShell>{children}</KidShell> : <ParentShell>{children}</ParentShell>}</LocationProvider>
       </SessionProvider>
     </UiProvider>
   );
@@ -229,7 +233,9 @@ function ParentShell({ children }: { children: ReactNode }) {
 
 function KidShell({ children }: { children: ReactNode }) {
   const { me } = useSession();
+  const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
+  const onMap = pathname === '/locator';
   return (
     <div className="kid-shell">
       <header className="kid-topbar">
@@ -237,9 +243,14 @@ function KidShell({ children }: { children: ReactNode }) {
           <BrandMark size={28} />
           <span className="brand-name">Chorly</span>
         </span>
-        <button type="button" className="topbar-account" onClick={() => setAccountOpen(true)} aria-label={t('account.title')}>
-          <Avatar user={me} size={36} />
-        </button>
+        <span className="kid-topbar-actions">
+          <Link href={onMap ? '/child' : '/locator'} className="icon-btn" aria-label={t(onMap ? 'nav.myChores' : 'nav.locator')}>
+            <Icon name={onMap ? 'check' : 'pin'} />
+          </Link>
+          <button type="button" className="topbar-account" onClick={() => setAccountOpen(true)} aria-label={t('account.title')}>
+            <Avatar user={me} size={36} />
+          </button>
+        </span>
       </header>
       <main className="kid-main">{children}</main>
       <AccountSheet open={accountOpen} onClose={() => setAccountOpen(false)} />

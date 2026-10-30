@@ -55,6 +55,7 @@ export const en = {
   'nav.approvals': 'Approvals',
   'nav.chores': 'Chores',
   'nav.family': 'Family',
+  'nav.locator': 'Map',
 
   'account.title': 'Account',
   'account.logout': 'Log out',
@@ -289,6 +290,17 @@ export const en = {
   'instance.due': 'Due',
   'instance.who': 'Who',
 
+  'locator.title': 'Family locator',
+  'locator.subtitle': 'See where everyone is right now',
+  'locator.share': 'Share my location from this device',
+  'locator.shareHint': 'Your family can see you while Chorly is open on this device',
+  'locator.denied': 'Location is blocked. Allow it for Chorly in your device settings, then turn this on again.',
+  'locator.unsupported': 'This device can’t share its location.',
+  'locator.stopFailed': 'Couldn’t stop sharing. Try again.',
+  'locator.notSharing': 'Not sharing',
+  'locator.justNow': 'Just now',
+  'locator.you': '{name} (you)',
+
   'avatar.title': 'Profile picture',
   'avatar.hint': 'Pick one from your gallery or take a photo',
   'avatar.gallery': 'Choose from gallery',
@@ -467,6 +479,7 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'nav.approvals': 'אישורים',
   'nav.chores': 'מטלות',
   'nav.family': 'משפחה',
+  'nav.locator': 'מפה',
 
   'account.title': 'חשבון',
   'account.logout': 'יציאה',
@@ -702,6 +715,17 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'instance.skipOne': 'דילוג רק על הפעם הזו',
   'instance.due': 'מועד',
   'instance.who': 'מי',
+
+  'locator.title': 'איתור המשפחה',
+  'locator.subtitle': 'איפה כולם נמצאים עכשיו',
+  'locator.share': 'שיתוף המיקום שלי מהמכשיר הזה',
+  'locator.shareHint': 'המשפחה תראה אתכם כל עוד Chorly פתוחה במכשיר הזה',
+  'locator.denied': 'הגישה למיקום חסומה. אפשרו אותה ל-Chorly בהגדרות המכשיר והפעילו שוב.',
+  'locator.unsupported': 'המכשיר הזה לא יכול לשתף מיקום.',
+  'locator.stopFailed': 'הפסקת השיתוף נכשלה. נסו שוב.',
+  'locator.notSharing': 'לא משתף',
+  'locator.justNow': 'ממש עכשיו',
+  'locator.you': '{name} (את/ה)',
 
   'avatar.title': 'תמונת פרופיל',
   'avatar.hint': 'בחרו תמונה מהגלריה או צלמו אחת',

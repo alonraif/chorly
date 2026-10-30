@@ -84,6 +84,14 @@ Profile pictures are stored in Postgres, so the nightly backup includes them.
 gunzip -c backups/chorly-YYYY-MM-DD.sql.gz | docker compose exec -T postgres psql -U chorly chorly
 ```
 
+## Family locator
+
+Everyone, kids included, can open the map (**Map** tab, or the pin at the top for kids) and turn on **Share my location from this device**. The switch is per device, so a laptop doesn't pull someone away from the phone in their pocket, and sharing is opt-in: the location only leaves the device once its owner turns this on.
+
+Only the last known position is kept (`UserLocation`), never a history. Turning sharing off deletes it. The map is drawn with MapLibre using free OpenFreeMap styles (Positron in light mode, Fiord in dark), which need no key.
+
+**Sharing only runs while Chorly is open and on screen.** Browsers and installed web apps get no location once they're in the background or closed, on both iPhone and Android. Someone who leaves the app stays on the map at their last position, labelled with how long ago that was and faded after 10 minutes. Continuous background sharing needs a native app.
+
 ## Phones (install + notifications)
 
 - **Android / Chrome:** open the site → menu → *Install app*. Tap **🔔 Turn on notifications** in the header.

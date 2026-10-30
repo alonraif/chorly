@@ -92,6 +92,12 @@ const PATHS: Record<string, ReactNode> = {
       <path d="M3 7h16a2 2 0 0 1 2 2v3h-5a2 2 0 0 0 0 4h5" />
     </>
   ),
+  pin: (
+    <>
+      <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0" />
+      <circle cx="12" cy="10" r="3" />
+    </>
+  ),
   arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
   camera: (
     <>

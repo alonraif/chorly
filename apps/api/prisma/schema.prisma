@@ -75,6 +75,7 @@ model User {
   pushSubscriptions PushSubscription[]
   notificationLogs  NotificationLog[]
   avatar            UserAvatar?
+  location          UserLocation?
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
@@ -85,6 +86,16 @@ model UserAvatar {
   userId String @id
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   jpeg   Bytes
+}
+
+// Last known position only, never a history. A row exists only while the member shares.
+model UserLocation {
+  userId    String   @id
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lat       Float
+  lng       Float
+  accuracy  Float?
+  updatedAt DateTime @updatedAt
 }
 
 model Session {

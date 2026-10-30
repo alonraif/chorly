@@ -179,6 +179,19 @@ Expected:
 - After removal, the member's initials show again.
 - Uploading a non-JPEG to `POST /api/users/me/avatar` returns 400; more than 512 KB returns 413.
 
+### REG-11 Family locator
+1. As a parent on a phone, open Map and turn on Share my location from this device. Allow location.
+2. As a kid on another device, tap the pin at the top, turn sharing on, and tap the parent in the list.
+3. Walk around with one phone while watching the other.
+4. Lock one phone for 15 minutes, then check it from the other.
+5. Turn sharing off on one device.
+Expected:
+- Both people appear on the map with their picture or initials and first name.
+- A moving phone updates the other's map within about 15 seconds.
+- A locked phone's person stays in place, shows the time since the last update, and fades after 10 minutes.
+- After turning off, the person leaves the map and shows Not sharing; their `UserLocation` row is gone.
+- Blocking location in the browser shows the blocked message and the switch turns off.
+
 ## Diagnostics Checklist (when tests fail)
 - API health: `GET http://localhost:4000/health`
 - Confirm chores exist:

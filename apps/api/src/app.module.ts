@@ -11,9 +11,10 @@ import { RequireTenantGuard } from './common/session/require-tenant.guard';
 import { FamilyModule } from './family/family.module';
 import { AuthModule } from './auth/auth.module';
 import { PushModule } from './push/push.module';
+import { LocationModule } from './location/location.module';
 
 @Module({
-  imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule],
+  imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule, LocationModule],
   controllers: [HealthController],
   providers: [SessionMiddleware, AdminGuard, RequireUserGuard, RequireTenantGuard],
 })

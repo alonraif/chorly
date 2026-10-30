@@ -98,3 +98,9 @@ export const ApproveInstanceSchema = z.object({
 export const RejectInstanceSchema = z.object({
   reason: z.string().trim().min(1).max(300).optional(),
 });
+
+export const LocationReportSchema = z.object({
+  lat: z.number().min(-90).max(90),
+  lng: z.number().min(-180).max(180),
+  accuracy: z.number().nonnegative().optional(),
+});
