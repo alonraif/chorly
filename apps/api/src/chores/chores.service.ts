@@ -1,9 +1,9 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
 import { ProofsService } from '../proofs/proofs.service';
 import type { AssignmentConfig, ChoreSchedule, CreateChoreDefinition, UpdateChoreDefinition } from '@chorly/shared';
 import { AssignmentConfigSchema, ChoreScheduleSchema } from '@chorly/shared';
-import { Prisma } from '@prisma/client';
+import { Prisma, type PlaceRule } from '@prisma/client';
 import { DateTime } from 'luxon';
 import { RRule } from 'rrule';
 
@@ -177,6 +177,15 @@ export class ChoresService {
     }
   }
 
+  // A rule needs a place and a place needs a rule; either one alone means "no place requirement".
+  private async placeFields(tenantId: string, placeId: string | null | undefined, rule: PlaceRule | null | undefined) {
+    if (placeId === undefined && rule === undefined) return {};
+    if (!placeId || !rule) return { requiredPlaceId: null, placeRule: null };
+    const place = await this.prisma.place.findFirst({ where: { id: placeId, tenantId }, select: { id: true } });
+    if (!place) throw new BadRequestException('Unknown place');
+    return { requiredPlaceId: placeId, placeRule: rule };
+  }
+
   list(tenantId: string) {
     return this.prisma.choreDefinition.findMany({
       where: { tenantId, isTemplate: false, deletedAt: null },
@@ -224,6 +233,7 @@ export class ChoresService {
             : undefined,
         scheduleJson: patch.schedule ? ChoreScheduleSchema.parse(patch.schedule) : undefined,
         assignmentJson: patch.assignment ? AssignmentConfigSchema.parse(patch.assignment) : undefined,
+        ...(await this.placeFields(tenantId, patch.requiredPlaceId, patch.placeRule)),
       },
     });
   }
@@ -257,6 +267,7 @@ export class ChoresService {
         scheduleJson: schedule,
         assignmentJson: assignment,
         isTemplate,
+        ...(await this.placeFields(tenantId, data.requiredPlaceId, data.placeRule)),
       },
     });
     if (!isTemplate) {
@@ -281,6 +292,7 @@ export class ChoresService {
         allowPhotoProof: patch.allowPhotoProof,
         scheduleJson: nextSchedule,
         assignmentJson: nextAssignment,
+        ...(await this.placeFields(tenantId, patch.requiredPlaceId, patch.placeRule)),
       },
     });
     await this.deleteUpcomingProofs(tenantId, id);
@@ -340,6 +352,8 @@ export class ChoresService {
         allowPhotoProof: template.allowPhotoProof,
         scheduleJson: template.scheduleJson as Prisma.InputJsonValue,
         assignmentJson: template.assignmentJson as Prisma.InputJsonValue,
+        requiredPlaceId: template.requiredPlaceId,
+        placeRule: template.placeRule,
         isTemplate: false,
       },
     });

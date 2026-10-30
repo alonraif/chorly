@@ -74,4 +74,65 @@ export const notificationText = {
           title: `📊 ${name}: your week`,
           body: `${approved} ${approved === 1 ? 'chore' : 'chores'} approved, earned ${earned}. ${upcoming} coming up this week.`,
         },
+  placeArrived: (locale: Locale, name: string, place: string) =>
+    locale === 'he' ? { title: `📍 ${name}`, body: `הגיע/ה ל${place}` } : { title: `📍 ${name}`, body: `Arrived at ${place}` },
+
+  placeLeft: (locale: Locale, name: string, place: string) =>
+    locale === 'he' ? { title: `🚶 ${name}`, body: `יצא/ה מ${place}` } : { title: `🚶 ${name}`, body: `Left ${place}` },
+
+  // Sent to the person who just got home, with what is still open today.
+  welcomeHome: (locale: Locale, name: string, chores: string[]) =>
+    locale === 'he'
+      ? { title: `🏠 ${name}, ברוכים השבים`, body: `${chores.length === 1 ? 'מטלה אחת' : `${chores.length} מטלות`} להיום: ${chores.join(' · ')}` }
+      : { title: `🏠 Welcome home, ${name}`, body: `${chores.length} ${chores.length === 1 ? 'chore' : 'chores'} today: ${chores.join(' · ')}` },
+
+  placeReward: (locale: Locale, place: string, amount: string) =>
+    locale === 'he'
+      ? { title: '⭐ הגעת!', body: `${place} (+${amount})` }
+      : { title: '⭐ You made it!', body: `${place} (+${amount})` },
+
+  lowBattery: (locale: Locale, name: string, percent: number) =>
+    locale === 'he'
+      ? { title: `🪫 ${name}`, body: `הסוללה ב-${percent}%` }
+      : { title: `🪫 ${name}`, body: `Battery at ${percent}%` },
+
+  wentQuiet: (locale: Locale, name: string, minutes: number) =>
+    locale === 'he'
+      ? { title: `📵 ${name}`, body: `המיקום לא התעדכן ${minutes} דק׳` }
+      : { title: `📵 ${name}`, body: `No location update for ${minutes} min` },
+
+  tripStarted: (locale: Locale, name: string, place: string, minutes: number) =>
+    locale === 'he'
+      ? { title: `🧭 ${name}`, body: `בדרך ל${place}, בערך ${minutes} דק׳` }
+      : { title: `🧭 ${name}`, body: `Heading to ${place}, about ${minutes} min` },
+
+  errandClosest: (locale: Locale, errand: string) =>
+    locale === 'he'
+      ? { title: '🛒 את/ה הכי קרוב/ה', body: `${errand} — לחצו כדי לקחת` }
+      : { title: '🛒 You’re the closest', body: `${errand} — tap to claim it` },
+
+  errandNearby: (locale: Locale, errand: string) =>
+    locale === 'he' ? { title: '📍 ממש לידך', body: errand } : { title: '📍 Right nearby', body: errand },
+
+  poke: (locale: Locale, name: string, kind: 'wave' | 'comeHome' | 'dinner' | 'onMyWay' | 'thinking') => {
+    const he = {
+      wave: `${name} מנופף/ת לך 👋`,
+      comeHome: `${name} מבקש/ת שתחזרו הביתה 🏠`,
+      dinner: `${name}: ארוחת ערב מוכנה 🍽️`,
+      onMyWay: `${name} בדרך אליך 🚗`,
+      thinking: `${name} חושב/ת עליך 💛`,
+    };
+    const en = {
+      wave: `${name} waved at you 👋`,
+      comeHome: `${name} asks you to come home 🏠`,
+      dinner: `${name}: dinner’s ready 🍽️`,
+      onMyWay: `${name} is on the way 🚗`,
+      thinking: `${name} is thinking of you 💛`,
+    };
+    return { title: 'Chorly', body: (locale === 'he' ? he : en)[kind] };
+  },
+
+  // Lines are "name – place hours".
+  placeRecap: (locale: Locale, lines: string[]) =>
+    locale === 'he' ? { title: '🗺️ השבוע במפה', body: lines.join(' · ') } : { title: '🗺️ The week on the map', body: lines.join(' · ') },
 };

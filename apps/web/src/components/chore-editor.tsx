@@ -22,6 +22,7 @@ import {
 import { joinNames, listJoin, t, tn } from '../lib/i18n';
 import { useSession } from '../lib/session';
 import type { Chore } from '../lib/types';
+import { KIND_EMOJI, type Place } from '../lib/places';
 import { Avatar } from './avatar';
 import { Icon } from './icon';
 import { errorMessage, Segmented, Sheet, Switch, useUi } from './ui';
@@ -49,6 +50,8 @@ type Draft = {
   endsDate: string;
   grace: number;
   skipAway: boolean;
+  placeId: string;
+  placeRule: 'at_place' | 'visited';
   rawRrule: string | null;
 };
 
@@ -82,6 +85,8 @@ function emptyDraft(defaultAssignees: string[], defaultDate?: string | null): Dr
     endsDate: '',
     grace: 60,
     skipAway: true,
+    placeId: '',
+    placeRule: 'at_place',
     rawRrule: null,
   };
 }
@@ -151,6 +156,11 @@ export function ChoreEditor({
   const [originalTitle, setOriginalTitle] = useState('');
   const [templates, setTemplates] = useState<Chore[]>([]);
   const [saveFavorite, setSaveFavorite] = useState(false);
+  const [places, setPlaces] = useState<Place[]>([]);
+
+  useEffect(() => {
+    api.get('/location/places').then(setPlaces).catch(() => undefined);
+  }, []);
   const [showMore, setShowMore] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -186,6 +196,8 @@ export function ChoreEditor({
             hasReward: chore.hasReward,
             rewardAmount: chore.rewardAmount ? String(Number(chore.rewardAmount)) : '',
             skipAway: chore.assignmentJson?.skipAwayUsers ?? true,
+            placeId: chore.requiredPlaceId ?? '',
+            placeRule: chore.placeRule ?? 'at_place',
           });
         })
         .catch((err) => setError(errorMessage(err, t('editor.couldNotLoad'))))
@@ -270,6 +282,8 @@ export function ChoreEditor({
           skipAwayUsers: draft.skipAway,
           assigneeIds,
         },
+        requiredPlaceId: draft.placeId || null,
+        placeRule: draft.placeId ? draft.placeRule : null,
       };
     };
     // Each occurrence has a single assignee, so "each does it" becomes one chore per person.
@@ -556,6 +570,29 @@ export function ChoreEditor({
                   {![0, 15, 30, 60, 120, 240].includes(draft.grace) && <option value={draft.grace}>{tn('editor.minutes', draft.grace)}</option>}
                 </select>
               </label>
+              {places.length > 0 && (
+                <div className="field">
+                  <label className="field-label-sm" htmlFor="chore-place">{t('editor.place')}</label>
+                  <select id="chore-place" className="input" value={draft.placeId} onChange={(e) => set('placeId', e.target.value)}>
+                    <option value="">{t('editor.placeNone')}</option>
+                    {places.map((place) => (
+                      <option key={place.id} value={place.id}>{`${KIND_EMOJI[place.kind]} ${place.name}`}</option>
+                    ))}
+                  </select>
+                  {draft.placeId && (
+                    <Segmented
+                      label={t('editor.place')}
+                      value={draft.placeRule}
+                      onChange={(v) => set('placeRule', v)}
+                      options={[
+                        { value: 'at_place', label: t('editor.placeRuleAt') },
+                        { value: 'visited', label: t('editor.placeRuleVisited') },
+                      ]}
+                    />
+                  )}
+                  <span className="field-hint">{t('editor.placeHint')}</span>
+                </div>
+              )}
               <Switch
                 checked={draft.skipAway}
                 onChange={(v) => set('skipAway', v)}

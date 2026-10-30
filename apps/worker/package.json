@@ -10,6 +10,8 @@
     "reminders:overdue": "tsx src/overdue-nags.ts",
     "reminders:parents": "tsx src/parent-nag.ts",
     "summary:weekly": "tsx src/weekly-summary.ts",
+    "location:watch": "tsx src/location-watch.ts",
+    "summary:places": "tsx src/place-recap.ts",
     "start": "tsx src/scheduler.ts"
   },
   "dependencies": {

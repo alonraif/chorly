@@ -192,6 +192,60 @@ Expected:
 - After turning off, the person leaves the map and shows Not sharing; their `UserLocation` row is gone.
 - Blocking location in the browser shows the blocked message and the switch turns off.
 
+### REG-12 Places and arrival alerts
+1. As a parent, open Map → Places → Add a place. Create Home (kind Home) and School (kind School, reward 5) by tapping the map for each spot.
+2. As a kid, open Places. Try to add one.
+3. With a kid's phone sharing, walk into the School circle, then out, then back in. Watch a parent's phone.
+4. Walk to the edge of Home and stay there a few minutes.
+Expected:
+- Parents can add, edit and delete places; kids see them but have no add, edit or delete buttons.
+- The family gets "Arrived at School" and "Left School" pushes; the person who moved doesn't get their own.
+- The kid gets the 5 reward once that day, not on the second arrival.
+- Standing on the Home edge doesn't send repeated arrive/leave pushes.
+- Turning off "Arrivals and departures" under Choose notifications stops those pushes.
+
+### REG-13 Sharing modes and timers
+1. Start sharing as Nearby for an hour. From another phone look at the person.
+2. Switch to Paused, then back to Exact.
+3. Share until tonight; set the phone's clock or the row's `shareUntil` in the past.
+Expected:
+- Nearby shows a dashed halo about 1.5 km wide, no street position, no speed, a "Nearby only" chip.
+- Paused shows the person in the list as paused with no marker; nothing is reported while paused.
+- When a timed share ends the person leaves the map within 5 minutes (the worker) or at the next report, and the device stops reporting.
+
+### REG-14 Chores and places
+1. Add a place and, in a chore's more options, tie the chore to it with "Be there". Assign it to a kid.
+2. As the kid away from the place, open the chore and tap Mark done.
+3. Walk to the place and try again.
+4. Change the rule to "Visit that day", mark done after a visit, and again before one.
+5. Leave a kid at a School place with an overdue chore until the evening nag time.
+Expected:
+- The chore shows "Be at X to mark it done"; away from X, Mark done is refused with a message in the kid's language.
+- At the place, Mark done works. With "Visit that day", a visit earlier that day is enough.
+- Parents can mark such a chore done from anywhere.
+- No overdue or due-soon push reaches a kid who is at a School or Work place; it arrives once they leave.
+- Arriving at a Home place pushes today's open chores, at most once every three hours.
+
+### REG-15 Errands, things and stickers
+1. Pin an errand near a kid's phone from a parent's phone. As the kid, claim it.
+2. Pin another near nobody, then walk past it with a phone.
+3. Add a Thing (the dog), move it with "Move to me", then "Move on map".
+4. Tap a family member and send a sticker, twice in a row.
+5. Tap "Heading to…", choose Home and Walking.
+Expected:
+- The nearest sharing member gets "You're the closest"; claiming shows "Taken by"; another person's claim is refused.
+- Passing within 300 m reminds once.
+- The Thing moves on everyone's map; the sticker arrives in each person's language; the second one within 20 seconds is refused.
+- An "Home in N min" bubble appears on the avatar and ends on arrival.
+
+### REG-16 Phone alerts and recap
+1. With a child's Android app sharing, let the battery fall under 15% unplugged, or set `UserLocation.battery` to 10.
+2. Stop the Android app reporting for 45+ minutes during the day.
+3. Turn on the weekly map recap in the share sheet for two members, then run `pnpm --filter chorly-worker summary:places`.
+Expected:
+- Parents get one low-battery push, and one "went quiet" push, each only once per episode; both can be turned off under Phone alerts.
+- Only members who joined the recap get it, and it lists only members who joined.
+
 ## Diagnostics Checklist (when tests fail)
 - API health: `GET http://localhost:4000/health`
 - Confirm chores exist:

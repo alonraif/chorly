@@ -5,6 +5,7 @@ import { localDay } from './lib/time';
 import { notifyUser } from './lib/notify';
 import { findOverdue } from './lib/overdue';
 import { markSent, sentKeys } from './lib/notification-log';
+import { busyAway } from './lib/presence';
 
 const prisma = new PrismaClient();
 
@@ -13,11 +14,12 @@ async function runForTenant(tenantId: string) {
   const day = localDay();
   const overdue = await findOverdue(prisma, tenantId);
   const sent = await sentKeys(prisma, 'overdue', day, overdue.map((o) => o.instance.id));
+  const busy = await busyAway(prisma, overdue.flatMap((o) => o.pending.map((u) => u.id)));
 
   const nagsByUser = new Map<string, { id: string; email: string | null; notifyPrefs: unknown; displayName: string; locale: Locale; lines: string[]; instanceIds: string[] }>();
   for (const { instance, pending } of overdue) {
     for (const user of pending) {
-      if (sent.has(user.id, instance.id)) continue;
+      if (sent.has(user.id, instance.id) || busy.has(user.id)) continue;
       const entry = nagsByUser.get(user.id) || { id: user.id, email: user.email, notifyPrefs: user.notifyPrefs, displayName: user.displayName, locale: user.locale, lines: [], instanceIds: [] };
       entry.lines.push(choreName(instance.chore, user.locale));
       entry.instanceIds.push(instance.id);

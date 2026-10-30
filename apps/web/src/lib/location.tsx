@@ -8,8 +8,6 @@ import { useSession } from './session';
 
 export type SharingStatus = 'off' | 'on' | 'denied' | 'unsupported';
 
-export type FamilyLocation = { userId: string; lat: number; lng: number; accuracy: number | null; updatedAt: string };
-
 // A moving phone reports at most this often...
 const MIN_REPORT_MS = 10_000;
 // ...and a still one keeps reporting at this pace, so the family can see it's live.
@@ -19,15 +17,17 @@ const MAX_FIX_AGE_MS = 120_000;
 // The Android app only hears about a phone that moved at least this far.
 const NATIVE_DISTANCE_FILTER_M = 20;
 
+export type StartOptions = { mode: 'exact' | 'blurred'; durationMinutes: number | null; recap: boolean };
+
 type LocationValue = {
   status: SharingStatus;
-  start: () => void;
+  start: (options: StartOptions) => Promise<void>;
   stop: () => Promise<void>;
 };
 
 const LocationContext = createContext<LocationValue | null>(null);
 
-type Fix = { lat: number; lng: number; accuracy: number | null; time: number };
+type Fix = { lat: number; lng: number; accuracy: number | null; speed: number | null; time: number };
 
 // Reports this device's position while the app is open. Browsers stop geolocation once the app
 // is in the background, so this can't run while Chorly is closed there; the Android app keeps
@@ -45,10 +45,15 @@ export function LocationProvider({ children }: { children: ReactNode }) {
     else setStatus(localStorage.getItem(flagKey) ? 'on' : 'off');
   }, [flagKey]);
 
-  const start = useCallback(() => {
-    localStorage.setItem(flagKey, '1');
-    setStatus('on');
-  }, [flagKey]);
+  // The terms are saved before the first position goes out, so the family never sees more than was chosen.
+  const start = useCallback(
+    async (options: StartOptions) => {
+      await api.put('/location/me/settings', options);
+      localStorage.setItem(flagKey, '1');
+      setStatus('on');
+    },
+    [flagKey],
+  );
 
   const halt = useCallback(
     async (next: SharingStatus) => {
@@ -76,12 +81,28 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       // The native watcher stays quiet while the phone is still, so its last fix doesn't go stale.
       if (Date.now() - reportedAt < minGapMs || (!native && Date.now() - fix.time > MAX_FIX_AGE_MS)) return;
       reportedAt = Date.now();
-      const { lat, lng, accuracy } = fix;
+      const { lat, lng, accuracy, speed } = fix;
       const send = native ? nativePost : api.post;
-      lastReport.current = send('/location/me', { lat, lng, accuracy }).catch(() => undefined);
+      lastReport.current = send('/location/me', {
+        lat,
+        lng,
+        accuracy,
+        speed,
+        battery: battery ? Math.round(battery.level * 100) : null,
+        charging: battery ? battery.charging : null,
+      })
+        // The timed share ran out: the server has forgotten the position and this device stops reporting.
+        .then((result: any) => {
+          if (result?.sharing === false) halt('off').catch(() => undefined);
+        })
+        .catch(() => undefined);
     };
 
     const timer = window.setInterval(() => report(HEARTBEAT_MS), HEARTBEAT_MS);
+
+    // Not every browser has the Battery Status API (Safari doesn't); the family just sees no battery then.
+    let battery: { level: number; charging: boolean } | null = null;
+    (navigator as any).getBattery?.().then((b: any) => (battery = b)).catch(() => undefined);
 
     if (native) {
       let stopped = false;
@@ -104,7 +125,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
                 return;
               }
               if (!location) return;
-              fix = { lat: location.latitude, lng: location.longitude, accuracy: location.accuracy, time: location.time };
+              fix = { lat: location.latitude, lng: location.longitude, accuracy: location.accuracy, speed: location.speed ?? null, time: location.time };
               report(MIN_REPORT_MS);
             },
           );
@@ -118,7 +139,7 @@ export function LocationProvider({ children }: { children: ReactNode }) {
 
     const watchId = navigator.geolocation.watchPosition(
       ({ coords, timestamp }) => {
-        fix = { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, time: timestamp };
+        fix = { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, speed: coords.speed, time: timestamp };
         report(MIN_REPORT_MS);
       },
       (error) => {

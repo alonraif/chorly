@@ -94,6 +94,20 @@ Only the last known position is kept (`UserLocation`), never a history. Turning 
 
 **The Android app keeps sharing in the background**, with a permanent "Sharing your location" notification while it does. Swiping the app away stops it, and some phones' battery savers can too.
 
+### Places, alerts and the rest of the map
+
+- **How you share.** The share sheet picks what the family sees (**Exact**, **Nearby** for only the neighbourhood, a couple of kilometres wide with no street or speed, or **Paused**, which shows as paused rather than silently disappearing) and for how long (an hour, until tonight, or until you stop). A timed share forgets the position by itself. Switching to Nearby blurs the stored position at once, on the server.
+- **Places** (parents add them; everyone sees them): home, school, work, a favourite spot with a note, or anything else, each a circle on the map. Arriving at or leaving one sends a push to the rest of the family (`placeAlerts`). A phone has to be well inside or outside the circle, with a decent fix, before it counts, so GPS jitter on the edge doesn't spam the family.
+- **Chores meet the map.** Arriving at a *home* place sends the person today's open chores. Reminders for overdue and due-soon chores wait while someone is at a *school* or *work* place. A chore can be tied to a place (chore editor, more options): the child can mark it done only while at the place, or only after visiting it that day. Parents are exempt. A place can also pay a child a reward the first time they arrive each day.
+- **Errands.** Pin a task on the map ("pick up milk"). The nearest sharing member gets a nudge and can claim it; passing within 300 m reminds whoever took it, or anyone if nobody has.
+- **Things.** The dog, a bike, the car: put them on the map and move them by hand.
+- **Heading to…** Share an estimated arrival at a place, as a bubble on your avatar. The estimate is straight-line distance with a route factor, not a routing service.
+- **Status.** Each person gets a battery chip and a status bubble worked out from where they are and how fast they move (home, school, walking, driving, asleep). People standing within 80 m of each other show as together. A tap on someone sends a sticker (wave, come home, dinner's ready).
+- **Phone alerts for parents.** Battery at or under 15% and not charging, or, for Android app users, no update for 45 minutes during the day.
+- **Weekly recap** (Saturday 19:30, opt-in per member): time at the family's places over the past week, sent only to members who joined it, about members who joined it.
+
+The only trail kept is `PlaceVisit`, the stays at the family's own places, and the worker deletes visits after 14 days (`location-watch`). Everything else is still the last known position only. Alert types can each be turned off under **Choose notifications**. Alerts for places work in every sharing mode, including Nearby.
+
 ## Phones (install + notifications)
 
 - **Android app:** install the APK (see below) and tap **Turn on notifications** under Account.
@@ -129,6 +143,8 @@ Notifications sent:
 - 17:00 + 20:00 overdue chores → the kid. Each chore at most once a day, and only for 3 days after it was due.
 - 20:00 overdue chores across the family → parents.
 - Saturday 19:00 weekly summary: kids get their own week, parents get the family's.
+- Every 5 minutes, `location-watch`: ends timed shares, alerts parents to low batteries and quiet phones, and tidies old visits, errands and trips.
+- Saturday 19:30 map recap for members who opted in.
 
 Nobody is notified about their own action (a parent approving their own chore, say). Each member can turn any type off under **Account → Choose notifications**; this applies to email too.
 
@@ -159,4 +175,6 @@ pnpm --filter chorly-worker reminders:due-soon
 pnpm --filter chorly-worker reminders:overdue
 pnpm --filter chorly-worker reminders:parents
 pnpm --filter chorly-worker summary:weekly
+pnpm --filter chorly-worker location:watch
+pnpm --filter chorly-worker summary:places
 ```

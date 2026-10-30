@@ -8,7 +8,7 @@ export type Instance = {
   approvedAt: string | null;
   approvedByUserId: string | null;
   rewardAmount: string | null;
-  chore: { title_en: string; title_he: string; hasReward: boolean };
+  chore: { title_en: string; title_he: string; hasReward: boolean; place: { id: string; name: string; rule: 'at_place' | 'visited' } | null };
   proofs: Array<{ userId: string; key: string; isVideo: boolean }>;
   assignments: Array<{ userId: string; displayName: string }>;
   doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }>;
@@ -30,6 +30,8 @@ export type Chore = {
   scheduleJson: ScheduleJson;
   assignmentJson: AssignmentJson;
   isTemplate?: boolean;
+  requiredPlaceId?: string | null;
+  placeRule?: 'at_place' | 'visited' | null;
 };
 
 export type Earnings = {

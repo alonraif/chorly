@@ -10,6 +10,8 @@ const jobs: Array<{ name: string; file: string; schedule: string }> = [
   { name: 'due-soon', file: 'due-soon.ts', schedule: process.env.CRON_DUE_SOON || '*/5 * * * *' },
   { name: 'overdue-nags', file: 'overdue-nags.ts', schedule: process.env.CRON_OVERDUE || '0 17,20 * * *' },
   { name: 'parent-nag', file: 'parent-nag.ts', schedule: process.env.CRON_PARENT_NAG || '0 20 * * *' },
+  { name: 'location-watch', file: 'location-watch.ts', schedule: process.env.CRON_LOCATION || '*/5 * * * *' },
+  { name: 'place-recap', file: 'place-recap.ts', schedule: process.env.CRON_PLACE_RECAP || '30 19 * * 6' },
   { name: 'weekly-summary', file: 'weekly-summary.ts', schedule: process.env.CRON_WEEKLY || '0 19 * * 6' },
 ];
 

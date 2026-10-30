@@ -7,11 +7,40 @@ import { useSession } from '../lib/session';
 import { Icon } from './icon';
 import { errorMessage, Switch } from './ui';
 
-type Pref = 'readyForApproval' | 'approved' | 'rejected' | 'morning' | 'dueSoon' | 'overdue' | 'parentDigest' | 'weekly';
+type Pref =
+  | 'readyForApproval'
+  | 'approved'
+  | 'rejected'
+  | 'morning'
+  | 'dueSoon'
+  | 'overdue'
+  | 'parentDigest'
+  | 'weekly'
+  | 'placeAlerts'
+  | 'arrivalNudge'
+  | 'errands'
+  | 'pokes'
+  | 'deviceAlerts'
+  | 'placeRecap';
 type Prefs = Partial<Record<Pref, boolean>>;
 
-const PARENT_ONLY: Pref[] = ['readyForApproval', 'parentDigest'];
-const ORDER: Pref[] = ['readyForApproval', 'parentDigest', 'approved', 'rejected', 'morning', 'dueSoon', 'overdue', 'weekly'];
+const PARENT_ONLY: Pref[] = ['readyForApproval', 'parentDigest', 'deviceAlerts'];
+const ORDER: Pref[] = [
+  'readyForApproval',
+  'parentDigest',
+  'approved',
+  'rejected',
+  'morning',
+  'dueSoon',
+  'overdue',
+  'weekly',
+  'placeAlerts',
+  'arrivalNudge',
+  'errands',
+  'pokes',
+  'deviceAlerts',
+  'placeRecap',
+];
 
 // Which notification types this member gets. Saved to their profile, so it applies on every device and to email.
 export function NotificationPrefsRow() {

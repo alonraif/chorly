@@ -20,11 +20,12 @@ export function nativePush() {
 // Android throttles requests made by the page after a few minutes in the background, so anything
 // sent from there goes through native HTTP. It shares the page's login cookie.
 export async function nativePost(path: string, body: unknown) {
-  await nativePlugins()?.CapacitorHttp.post({
+  const response = await nativePlugins()?.CapacitorHttp.post({
     url: `${window.location.origin}/api${path}`,
     headers: { 'Content-Type': 'application/json' },
     data: body,
   });
+  return response?.data;
 }
 
 // Registers this device with Firebase and links it to the signed-in family member.

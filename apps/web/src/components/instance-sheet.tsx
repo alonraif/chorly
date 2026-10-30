@@ -66,7 +66,16 @@ export function InstanceSheet({
       refreshApprovals().catch(() => undefined);
       onClose();
     } catch (err) {
-      setError(errorMessage(err, t('common.somethingWrong')));
+      const message = errorMessage(err, t('common.somethingWrong'));
+      // A place-bound chore refused the tap: say so in the member's language, where they will see it.
+      const blocked = /^place_required:(at_place|visited)$/.exec(message);
+      if (blocked && instance?.chore.place) {
+        const text = t(blocked[1] === 'visited' ? 'instance.placeBlockedVisited' : 'instance.placeBlockedAt', { place: instance.chore.place.name });
+        setError(text);
+        toast(text, 'error');
+      } else {
+        setError(message);
+      }
     } finally {
       setBusy(false);
     }
@@ -144,6 +153,11 @@ export function InstanceSheet({
             ))}
           </div>
           {doneAt && <p className="muted small">{t('instance.markedDone', { time: relativeTime(doneAt) })}</p>}
+          {instance.chore.place && canMarkDone && !me.isAdmin && (
+            <p className="callout">
+              {t(instance.chore.place.rule === 'visited' ? 'instance.placeVisited' : 'instance.placeAt', { place: instance.chore.place.name })}
+            </p>
+          )}
           {isOverdue(instance.dueAt, instance.status) && <p className="callout callout-warn">{t('instance.overdue')}</p>}
           <ProofList instance={instance} />
 

@@ -30,6 +30,36 @@ enum MoneyLedgerType {
   payout
 }
 
+enum PlaceKind {
+  home
+  school
+  work
+  fun
+  other
+}
+
+// exact: precise position. blurred: only the neighbourhood. paused: nothing shown, but the family sees it's paused.
+enum SharingMode {
+  exact
+  blurred
+  paused
+}
+
+enum TripMode {
+  walk
+  drive
+}
+
+enum PlaceRule {
+  at_place
+  visited
+}
+
+enum ErrandStatus {
+  open
+  done
+}
+
 enum FamilyRole {
   parent
   child
@@ -47,36 +77,44 @@ model Tenant {
   chores      ChoreDefinition[]
   instances   ChoreInstance[]
   moneyLedger MoneyLedger[]
+  places      Place[]
+  errands     Errand[]
+  mapTags     MapTag[]
 }
 
 model User {
-  id             String   @id @default(cuid())
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  email          String?  @unique
-  passwordHash   String?
-  displayName    String
-  role           FamilyRole @default(parent)
-  isAdmin        Boolean  @default(false)
-  locale         Locale   @default(he)
-  isActive       Boolean  @default(true)
-  isAway         Boolean  @default(false)
+  id           String     @id @default(cuid())
+  tenantId     String
+  tenant       Tenant     @relation(fields: [tenantId], references: [id])
+  email        String?    @unique
+  passwordHash String?
+  displayName  String
+  role         FamilyRole @default(parent)
+  isAdmin      Boolean    @default(false)
+  locale       Locale     @default(he)
+  isActive     Boolean    @default(true)
+  isAway       Boolean    @default(false)
   // Notification types this member turned off, e.g. {"overdue": false}. See NOTIFICATION_PREFS.
-  notifyPrefs    Json     @default("{}")
+  notifyPrefs  Json       @default("{}")
   // When the current picture was set; null means none. The image itself is in UserAvatar.
-  avatarAt       DateTime?
-  createdAt      DateTime @default(now())
+  avatarAt     DateTime?
+  createdAt    DateTime   @default(now())
 
   assignments       InstanceAssignment[]
   completions       ChoreCompletion[]
-  approvedInstances ChoreInstance[]   @relation("InstanceApprover")
+  approvedInstances ChoreInstance[]      @relation("InstanceApprover")
   ledgerEntries     MoneyLedger[]
   sessions          Session[]
   pushSubscriptions PushSubscription[]
-  fcmTokens FcmToken[]
+  fcmTokens         FcmToken[]
   notificationLogs  NotificationLog[]
   avatar            UserAvatar?
   location          UserLocation?
+  locationSettings  LocationSettings?
+  placeVisits       PlaceVisit[]
+  errandsCreated    Errand[]             @relation("ErrandCreator")
+  errandsClaimed    Errand[]             @relation("ErrandClaimer")
+  mapTagsUpdated    MapTag[]
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
@@ -90,22 +128,128 @@ model UserAvatar {
 }
 
 // Last known position only, never a history. A row exists only while the member shares.
+// Coordinates are what the family sees: already blurred when the member shares only their neighbourhood.
 model UserLocation {
-  userId    String   @id
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  lat       Float
-  lng       Float
-  accuracy  Float?
-  updatedAt DateTime @updatedAt
+  userId      String    @id
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lat         Float
+  lng         Float
+  accuracy    Float?
+  battery     Int?
+  charging    Boolean?
+  // Metres per second.
+  speed       Float?
+  // The family place the member is inside, and since when.
+  placeId     String?
+  place       Place?    @relation("CurrentPlace", fields: [placeId], references: [id], onDelete: SetNull)
+  placeSince  DateTime?
+  // "I'm heading to ..." with the arrival time estimated at the last report.
+  tripPlaceId String?
+  tripPlace   Place?    @relation("TripPlace", fields: [tripPlaceId], references: [id], onDelete: SetNull)
+  tripMode    TripMode?
+  tripEtaAt   DateTime?
+  updatedAt   DateTime  @updatedAt
+
+  @@index([placeId])
+}
+
+// How a member shares, kept apart from UserLocation because it outlives a single sharing session
+// and because the worker records its alerts here without making the position look fresh.
+model LocationSettings {
+  userId              String      @id
+  user                User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mode                SharingMode @default(exact)
+  // Sharing ends by itself at this time; null means until the member stops it.
+  shareUntil          DateTime?
+  // Opt in to the weekly "time at places" digest, for the member and for the family's copy of it.
+  recap               Boolean     @default(false)
+  lowBatteryAlertedAt DateTime?
+  quietAlertedAt      DateTime?
+}
+
+// An area the family cares about. Arriving and leaving it is announced.
+model Place {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name         String
+  kind         PlaceKind @default(other)
+  note         String?
+  lat          Float
+  lng          Float
+  radiusM      Int       @default(150)
+  // Paid to a child once a day on arrival.
+  rewardAmount Decimal?
+  createdAt    DateTime  @default(now())
+
+  visits  PlaceVisit[]
+  present UserLocation[]    @relation("CurrentPlace")
+  heading UserLocation[]    @relation("TripPlace")
+  chores  ChoreDefinition[]
+
+  @@index([tenantId])
+}
+
+// A stay at a family place. The only trail kept, and only for a short while: see the worker's location-watch.
+model PlaceVisit {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  placeId   String
+  place     Place     @relation(fields: [placeId], references: [id], onDelete: Cascade)
+  arrivedAt DateTime  @default(now())
+  leftAt    DateTime?
+  rewarded  Boolean   @default(false)
+
+  @@index([userId, arrivedAt])
+  @@index([placeId])
+}
+
+// A pin with a task on it: "pick up milk". Whoever claims it, or passes close by, gets reminded.
+model Errand {
+  id          String       @id @default(cuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  title       String
+  note        String?
+  lat         Float
+  lng         Float
+  status      ErrandStatus @default(open)
+  createdById String
+  createdBy   User         @relation("ErrandCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  claimedById String?
+  claimedBy   User?        @relation("ErrandClaimer", fields: [claimedById], references: [id], onDelete: SetNull)
+  // Who was already reminded on passing by, so nobody is reminded twice.
+  remindedIds String[]
+  createdAt   DateTime     @default(now())
+  doneAt      DateTime?
+
+  @@index([tenantId, status])
+}
+
+// A thing with a spot on the map that people move by hand: the dog, a bike, the car.
+model MapTag {
+  id          String   @id @default(cuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  emoji       String
+  lat         Float
+  lng         Float
+  updatedById String?
+  updatedBy   User?    @relation(fields: [updatedById], references: [id], onDelete: SetNull)
+  updatedAt   DateTime @updatedAt
+
+  @@index([tenantId])
 }
 
 model Session {
-  id         String   @id @default(cuid())
-  tokenHash  String   @unique
-  userId     String
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  tokenHash String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
 
   @@index([userId])
 }
@@ -150,22 +294,26 @@ model NotificationLog {
 }
 
 model ChoreDefinition {
-  id                String   @id @default(cuid())
-  tenantId          String
-  tenant            Tenant   @relation(fields: [tenantId], references: [id])
-  title_en          String
-  title_he          String
-  hasReward         Boolean  @default(false)
-  rewardAmount      Decimal?
-  allowNotes        Boolean  @default(true)
-  allowPhotoProof   Boolean  @default(false)
-  scheduleJson      Json
-  assignmentJson    Json
+  id                 String     @id @default(cuid())
+  tenantId           String
+  tenant             Tenant     @relation(fields: [tenantId], references: [id])
+  title_en           String
+  title_he           String
+  hasReward          Boolean    @default(false)
+  rewardAmount       Decimal?
+  allowNotes         Boolean    @default(true)
+  allowPhotoProof    Boolean    @default(false)
+  scheduleJson       Json
+  assignmentJson     Json
   lastAssignedUserId String?
-  isTemplate        Boolean  @default(false)
-  deletedAt         DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  isTemplate         Boolean    @default(false)
+  // Tied to a family place: see PlaceRule. Dropping the place drops the requirement.
+  requiredPlaceId    String?
+  requiredPlace      Place?     @relation(fields: [requiredPlaceId], references: [id], onDelete: SetNull)
+  placeRule          PlaceRule?
+  deletedAt          DateTime?
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
 
   instances ChoreInstance[]
 
@@ -190,9 +338,9 @@ model ChoreInstance {
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
 
-  assignments   InstanceAssignment[]
-  completions   ChoreCompletion[]
-  ledgerEntries MoneyLedger[]
+  assignments      InstanceAssignment[]
+  completions      ChoreCompletion[]
+  ledgerEntries    MoneyLedger[]
   notificationLogs NotificationLog[]
 
   @@unique([tenantId, choreId, dueAt])
@@ -227,16 +375,16 @@ model ChoreCompletion {
 }
 
 model MoneyLedger {
-  id         String         @id @default(cuid())
+  id         String          @id @default(cuid())
   tenantId   String
-  tenant     Tenant         @relation(fields: [tenantId], references: [id])
+  tenant     Tenant          @relation(fields: [tenantId], references: [id])
   userId     String
-  user       User           @relation(fields: [userId], references: [id])
+  user       User            @relation(fields: [userId], references: [id])
   type       MoneyLedgerType
   amount     Decimal
   instanceId String?
-  instance   ChoreInstance? @relation(fields: [instanceId], references: [id], onDelete: SetNull)
-  createdAt  DateTime       @default(now())
+  instance   ChoreInstance?  @relation(fields: [instanceId], references: [id], onDelete: SetNull)
+  createdAt  DateTime        @default(now())
 
   @@index([tenantId, userId, createdAt])
   @@index([instanceId])

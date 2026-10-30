@@ -4,6 +4,7 @@ import { TENANT_ID_FILTER, APP_BASE_URL, DUE_SOON_MINUTES, QUIET_HOURS } from '.
 import { inQuietHours, localDay } from './lib/time';
 import { notifyUser } from './lib/notify';
 import { markSent, sentKeys } from './lib/notification-log';
+import { busyAway } from './lib/presence';
 
 const prisma = new PrismaClient();
 
@@ -22,12 +23,14 @@ async function runForTenant(tenantId: string) {
   const days = new Set(instances.map((i) => localDay(i.dueAt)));
   const sentByDay = new Map(await Promise.all([...days].map(async (d) => [d, await sentKeys(prisma, 'due_soon', d, instances.map((i) => i.id))] as const)));
 
+  const busy = await busyAway(prisma, instances.flatMap((i) => i.assignments.map((a) => a.userId)));
+
   const byUser = new Map<string, { id: string; email: string | null; notifyPrefs: unknown; displayName: string; locale: Locale; firstDue: Date; lines: string[]; sent: Array<{ instanceId: string; day: string }> }>();
   for (const instance of instances) {
     const day = localDay(instance.dueAt);
     const activeDone = new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
     for (const { user } of instance.assignments) {
-      if (!user.isActive || activeDone.has(user.id) || sentByDay.get(day)!.has(user.id, instance.id)) continue;
+      if (!user.isActive || busy.has(user.id) || activeDone.has(user.id) || sentByDay.get(day)!.has(user.id, instance.id)) continue;
       const entry = byUser.get(user.id) || { id: user.id, email: user.email, notifyPrefs: user.notifyPrefs, displayName: user.displayName, locale: user.locale, firstDue: instance.dueAt, lines: [], sent: [] };
       entry.lines.push(choreName(instance.chore, user.locale));
       entry.sent.push({ instanceId: instance.id, day });

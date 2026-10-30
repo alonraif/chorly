@@ -1,12 +1,15 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type InstanceStatus } from '@prisma/client';
+import { DateTime } from 'luxon';
 import type { Request } from 'express';
 import { PrismaService } from '../prisma.service';
 import { ProofsService } from '../proofs/proofs.service';
 import { PushService } from '../push/push.service';
 import { ChoresService } from '../chores/chores.service';
-import { AssignmentConfigSchema, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto, type RejectInstanceDto } from '@chorly/shared';
+import { AssignmentConfigSchema, FRESH_LOCATION_MS, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto, type RejectInstanceDto } from '@chorly/shared';
 import type { RequestUser } from '../common/session/session.types';
+
+const TZ = process.env.TIMEZONE || 'Asia/Jerusalem';
 
 function activeDoneUserIds(instance: { completions: Array<{ userId: string; undoneAt: Date | null }> }) {
   return new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
@@ -61,7 +64,7 @@ export class InstancesService {
         ],
       },
       include: {
-        chore: true,
+        chore: { include: { requiredPlace: { select: { id: true, name: true } } } },
         assignments: { include: { user: true } },
         completions: true,
       },
@@ -84,6 +87,9 @@ export class InstancesService {
           title_en: instance.chore.title_en,
           title_he: instance.chore.title_he,
           hasReward: instance.chore.hasReward,
+          place: instance.chore.requiredPlace && instance.chore.placeRule
+            ? { id: instance.chore.requiredPlace.id, name: instance.chore.requiredPlace.name, rule: instance.chore.placeRule }
+            : null,
         },
         dueAt: instance.dueAt.toISOString(),
         status: instance.status,
@@ -114,11 +120,33 @@ export class InstancesService {
     return instance;
   }
 
+  // Place-bound chores: the member has to be at the place now, or to have been there that day.
+  // Parents are trusted to mark their own chores. The client reads the message to explain it in the member's language.
+  private async assertPlaceRule(
+    instance: { dueAt: Date; chore: { requiredPlaceId: string | null; placeRule: 'at_place' | 'visited' | null } },
+    actor: RequestUser,
+  ) {
+    const { requiredPlaceId: placeId, placeRule: rule } = instance.chore;
+    if (actor.isAdmin || !placeId || !rule) return;
+
+    const location = await this.prisma.userLocation.findUnique({ where: { userId: actor.id } });
+    const hereNow = !!location && location.placeId === placeId && Date.now() - location.updatedAt.getTime() <= FRESH_LOCATION_MS;
+    if (hereNow) return;
+    if (rule === 'visited') {
+      const since = DateTime.fromJSDate(instance.dueAt).setZone(TZ).startOf('day').toUTC().toJSDate();
+      const visit = await this.prisma.placeVisit.findFirst({ where: { userId: actor.id, placeId, arrivedAt: { gte: since } } });
+      if (visit) return;
+    }
+    throw new ForbiddenException(`place_required:${rule}`);
+  }
+
   async markDone(tenantId: string, instanceId: string, actor: RequestUser, body: MarkDoneDto) {
     const instance = await this.getInstanceOrThrow(tenantId, instanceId);
     if (!instance.assignments.some((a) => a.userId === actor.id)) {
       throw new ForbiddenException('User is not assigned to this instance');
     }
+
+    await this.assertPlaceRule(instance, actor);
 
     for (const key of body.photoKeys ?? []) {
       if (!key.startsWith(`${actor.id}-`) || !(await this.proofs.exists(instanceId, key))) {
