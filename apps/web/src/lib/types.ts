@@ -8,6 +8,7 @@ export type Instance = {
   approvedAt: string | null;
   rewardAmount: string | null;
   chore: { title_en: string; title_he: string; hasReward: boolean };
+  proofs: Array<{ userId: string; key: string; isVideo: boolean }>;
   assignments: Array<{ userId: string; displayName: string }>;
   doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }>;
 };

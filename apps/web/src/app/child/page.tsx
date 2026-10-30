@@ -10,6 +10,7 @@ import { useSession } from '../../lib/session';
 import { rangeQuery, type Chore, type Earnings, type Instance } from '../../lib/types';
 import { Avatar, ProgressRing } from '../../components/avatar';
 import { Icon } from '../../components/icon';
+import { ProofSheet } from '../../components/proof-sheet';
 import { statusOf } from '../../components/status';
 import { EmptyState, errorMessage, Sheet, useUi } from '../../components/ui';
 
@@ -26,6 +27,7 @@ export default function KidPage() {
   const [walletOpen, setWalletOpen] = useState(false);
   const [celebrate, setCelebrate] = useState(false);
   const [pending, setPending] = useState<Set<string>>(new Set());
+  const [capturing, setCapturing] = useState<Instance | null>(null);
 
   useEffect(() => {
     if (!isParent || targetId || people.length === 0) return;
@@ -84,6 +86,12 @@ export default function KidPage() {
     .filter((i) => i.status === 'done')
     .reduce((sum, i) => sum + Number(rewardFor(i) || 0), 0);
 
+  function celebrateIfLast(item: Instance) {
+    if (dayKey(item.dueAt) !== todayKey || doneToday + 1 !== today.length) return;
+    setCelebrate(true);
+    window.setTimeout(() => setCelebrate(false), 2200);
+  }
+
   async function toggle(item: Instance) {
     if (!canCheck || item.status === 'approved' || pending.has(item.id)) return;
     const wasDone = isMineDone(item);
@@ -103,10 +111,7 @@ export default function KidPage() {
     setPending((prev) => new Set(prev).add(item.id));
     try {
       await api.post(`/instances/${item.id}/${wasDone ? 'undo' : 'mark-done'}`, {});
-      if (!wasDone && dayKey(item.dueAt) === todayKey && doneToday + 1 === today.length) {
-        setCelebrate(true);
-        window.setTimeout(() => setCelebrate(false), 2200);
-      }
+      if (!wasDone) celebrateIfLast(item);
     } catch (err) {
       toast(errorMessage(err, t('kid.couldNotUpdate')), 'error');
     } finally {
@@ -203,7 +208,7 @@ export default function KidPage() {
           </h2>
           <ul className="kid-list">
             {missed.map((item) => (
-              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} showDay />
+              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} onCapture={setCapturing} showDay />
             ))}
           </ul>
         </section>
@@ -220,7 +225,7 @@ export default function KidPage() {
         ) : (
           <ul className="kid-list">
             {today.map((item) => (
-              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} />
+              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} onCapture={setCapturing} />
             ))}
           </ul>
         )}
@@ -234,7 +239,7 @@ export default function KidPage() {
               <h3>{friendlyDay(DateTime.fromISO(day, { zone: zoned(list[0].dueAt).zone }))}</h3>
               <ul className="kid-list kid-list-compact">
                 {list.map((item) => (
-                  <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} compact />
+                  <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={!canCheck} onToggle={toggle} onCapture={setCapturing} compact />
                 ))}
               </ul>
             </div>
@@ -252,6 +257,16 @@ export default function KidPage() {
           <p>{t('kid.celebrate')}</p>
         </div>
       )}
+
+      <ProofSheet
+        instance={capturing}
+        onClose={() => setCapturing(null)}
+        onDone={(item) => {
+          toast(t('proof.sent'));
+          celebrateIfLast(item);
+          load();
+        }}
+      />
 
       <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title={viewingOther ? t('kid.theirMoney', { name }) : t('kid.yourMoney')}>
         {earnings && (
@@ -324,6 +339,7 @@ function KidChore({
   currency,
   disabled,
   onToggle,
+  onCapture,
   compact,
   showDay,
 }: {
@@ -333,6 +349,7 @@ function KidChore({
   currency: string;
   disabled: boolean;
   onToggle: (item: Instance) => void;
+  onCapture: (item: Instance) => void;
   compact?: boolean;
   showDay?: boolean;
 }) {
@@ -344,7 +361,7 @@ function KidChore({
       ? t('kid.waitingParent')
       : `${showDay ? `${friendlyDay(zoned(item.dueAt))} · ` : ''}${t('kid.by', { time: timeOf(item.dueAt) })}`;
   return (
-    <li>
+    <li className="kid-chore-row">
       <button
         type="button"
         className={`kid-chore ${compact ? 'is-compact' : ''} ${done ? 'is-done' : ''} ${approved ? 'is-approved' : ''} ${state === 'overdue' ? 'is-overdue' : ''}`}
@@ -365,6 +382,16 @@ function KidChore({
           </span>
         )}
       </button>
+      {!disabled && item.status === 'assigned' && (
+        <button
+          type="button"
+          className={`kid-proof ${compact ? 'is-compact' : ''}`}
+          onClick={() => onCapture(item)}
+          aria-label={t('proof.addFor', { chore: choreTitle(item.chore) })}
+        >
+          <Icon name="camera" size={compact ? 18 : 22} />
+        </button>
+      )}
     </li>
   );
 }

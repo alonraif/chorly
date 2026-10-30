@@ -11,6 +11,7 @@ coverage
 .pnpm-store/
 !.env.example
 backups/
+apps/api/data/
 deploy/ddns/*
 !deploy/ddns/*.example.json
 *.tsbuildinfo

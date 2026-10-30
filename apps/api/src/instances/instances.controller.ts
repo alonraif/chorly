@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, Res, UseGuards } from '@nestjs/common';
 import { ApiBody, ApiOperation, ApiParam, ApiQuery, ApiTags } from '@nestjs/swagger';
 import {
   ApproveInstanceSchema,
@@ -7,6 +7,7 @@ import {
   RejectInstanceSchema,
   UndoDoneSchema,
 } from '@chorly/shared';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 import { AdminGuard } from '../common/session/admin.guard';
 import { CurrentTenant } from '../common/session/current-tenant.decorator';
@@ -56,6 +57,36 @@ export class InstancesController {
     @Body(new ZodValidationPipe(MarkDoneSchema)) body: any,
   ) {
     return this.instances.markDone(tenantId, id, user, body);
+  }
+
+  @Post(':id/proof')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Upload a photo or clip for mark-done (raw image/jpeg, video/mp4 or video/webm body)' })
+  @ApiParam({ name: 'id' })
+  uploadProof(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Req() req: Request,
+  ) {
+    return this.instances.uploadProof(tenantId, id, user, req);
+  }
+
+  @Get(':id/proofs/:key')
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'Stream a proof (family admin, or the person who took it)' })
+  @ApiParam({ name: 'id' })
+  @ApiParam({ name: 'key' })
+  async proof(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+    @Param('key') key: string,
+    @CurrentUser() user: RequestUser,
+    @Res() res: Response,
+  ) {
+    const file = await this.instances.proofPath(tenantId, id, key, user);
+    // sendFile handles Range requests, which Safari needs to play video.
+    res.sendFile(file, { cacheControl: false, headers: { 'Cache-Control': 'private, max-age=3600' } });
   }
 
   @Post(':id/undo')

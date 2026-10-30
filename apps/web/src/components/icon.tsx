@@ -93,6 +93,18 @@ const PATHS: Record<string, ReactNode> = {
     </>
   ),
   arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
+  camera: (
+    <>
+      <path d="M14.5 4h-5L7.5 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3.5z" />
+      <circle cx="12" cy="13" r="3.5" />
+    </>
+  ),
+  video: (
+    <>
+      <rect x="2" y="6" width="14" height="12" rx="2" />
+      <path d="m22 8-6 4 6 4z" />
+    </>
+  ),
   more: (
     <>
       <circle cx="5" cy="12" r="1" />

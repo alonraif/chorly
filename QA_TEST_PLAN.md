@@ -60,6 +60,16 @@ Expected:
 - The chore is unchecked on the child's page and can be marked done again.
 - Child A gets a push saying it isn't complete, with the reason if one was given.
 
+### SMOKE-07 Mark done with a camera photo or video
+1. On a phone, Child A taps the camera button on a chore, takes a photo, and sends it.
+2. Repeat with a short video on another chore, letting it reach the 15-second limit.
+3. Parent opens `/parent/review`, views both, approves one and rejects the other.
+Expected:
+- The sheet only offers the live camera; nothing opens the photo library or a file picker.
+- Both proofs show on the approval cards, and video plays (including on iPhone).
+- After approving or rejecting, the proof is gone from disk and from `photoKeys`.
+- A kid requesting a sibling's proof URL gets 404.
+
 ## Suite: REGRESSION
 
 ### REG-01 Assignee options include the whole family

@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma.service';
+import { ProofsService } from '../proofs/proofs.service';
 import type { AssignmentConfig, ChoreSchedule, CreateChoreDefinition, UpdateChoreDefinition } from '@chorly/shared';
 import { AssignmentConfigSchema, ChoreScheduleSchema } from '@chorly/shared';
 import { Prisma } from '@prisma/client';
@@ -10,7 +11,10 @@ const TZ = process.env.TIMEZONE || 'Asia/Jerusalem';
 
 @Injectable()
 export class ChoresService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly proofs: ProofsService,
+  ) {}
 
   private parseDueTime(base: DateTime, dueTime?: string) {
     if (!dueTime) return base;
@@ -279,6 +283,7 @@ export class ChoresService {
         assignmentJson: nextAssignment,
       },
     });
+    await this.deleteUpcomingProofs(tenantId, id);
     const now = new Date();
     await this.prisma.choreInstance.deleteMany({
       where: {
@@ -292,8 +297,17 @@ export class ChoresService {
     return updated;
   }
 
+  private async deleteUpcomingProofs(tenantId: string, choreId: string) {
+    const instances = await this.prisma.choreInstance.findMany({
+      where: { tenantId, choreId, dueAt: { gte: new Date() }, status: { not: 'approved' } },
+      select: { id: true },
+    });
+    await this.proofs.removeForInstances(instances.map((i) => i.id));
+  }
+
   async remove(tenantId: string, id: string) {
     await this.get(tenantId, id);
+    await this.deleteUpcomingProofs(tenantId, id);
     const now = new Date();
     await this.prisma.$transaction(async (tx) => {
       await tx.choreDefinition.update({ where: { id }, data: { deletedAt: now } });

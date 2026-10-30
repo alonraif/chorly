@@ -86,7 +86,7 @@ export const InstanceListQuerySchema = z.object({
 
 export const MarkDoneSchema = z.object({
   note: z.string().trim().min(1).optional(),
-  photoKeys: z.array(z.string().min(1)).optional(),
+  photoKeys: z.array(z.string().min(1)).max(1).optional(),
 });
 
 export const UndoDoneSchema = z.object({});

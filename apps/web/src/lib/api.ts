@@ -7,7 +7,7 @@ const API_BASE = '/api';
 
 async function request(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers || {});
-  headers.set('Content-Type', 'application/json');
+  if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
@@ -42,4 +42,5 @@ export const api = {
   post: (path: string, body?: unknown) => request(path, { method: 'POST', body: JSON.stringify(body ?? {}) }),
   patch: (path: string, body?: unknown) => request(path, { method: 'PATCH', body: JSON.stringify(body ?? {}) }),
   delete: (path: string) => request(path, { method: 'DELETE' }),
+  upload: (path: string, blob: Blob) => request(path, { method: 'POST', body: blob, headers: { 'Content-Type': blob.type } }),
 };

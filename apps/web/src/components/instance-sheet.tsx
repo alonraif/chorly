@@ -9,6 +9,8 @@ import { useSession } from '../lib/session';
 import { activeDoneAt, type Instance } from '../lib/types';
 import { Avatar } from './avatar';
 import { Icon } from './icon';
+import { ProofList } from './proof-list';
+import { ProofSheet } from './proof-sheet';
 import { RejectSheet } from './reject-sheet';
 import { StatusPill } from './status';
 import { errorMessage, Sheet, useUi } from './ui';
@@ -30,6 +32,7 @@ export function InstanceSheet({
   const { toast, confirm } = useUi();
   const [mode, setMode] = useState<'view' | 'reschedule'>('view');
   const [rejecting, setRejecting] = useState(false);
+  const [capturing, setCapturing] = useState(false);
   const [dueLocal, setDueLocal] = useState('');
   const [assignee, setAssignee] = useState('');
   const [busy, setBusy] = useState(false);
@@ -39,6 +42,7 @@ export function InstanceSheet({
     if (!instance) return;
     setMode('view');
     setRejecting(false);
+    setCapturing(false);
     setError('');
     setDueLocal(DateTime.fromISO(instance.dueAt).setZone(TZ).toFormat("yyyy-LL-dd'T'HH:mm"));
     setAssignee(instance.assignments[0]?.userId || '');
@@ -114,9 +118,14 @@ export function InstanceSheet({
             </button>
           </>
         ) : canMarkDone ? (
-          <button type="button" className="btn btn-primary" onClick={markDone} disabled={busy}>
-            <Icon name="check" size={18} /> {t('instance.markDone')}
-          </button>
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setCapturing(true)} disabled={busy} aria-label={t('proof.add')}>
+              <Icon name="camera" size={18} />
+            </button>
+            <button type="button" className="btn btn-primary" onClick={markDone} disabled={busy}>
+              <Icon name="check" size={18} /> {t('instance.markDone')}
+            </button>
+          </>
         ) : undefined
       }
     >
@@ -140,6 +149,7 @@ export function InstanceSheet({
           </div>
           {doneAt && <p className="muted small">{t('instance.markedDone', { time: relativeTime(doneAt) })}</p>}
           {isOverdue(instance.dueAt, instance.status) && <p className="callout callout-warn">{t('instance.overdue')}</p>}
+          <ProofList instance={instance} />
 
           <div className="action-list">
             {editable && (
@@ -183,6 +193,16 @@ export function InstanceSheet({
           {error && <p className="callout callout-error">{error}</p>}
         </div>
       )}
+      <ProofSheet
+        instance={capturing ? instance : null}
+        onClose={() => setCapturing(false)}
+        onDone={() => {
+          toast(t('proof.sent'));
+          onChanged();
+          refreshApprovals().catch(() => undefined);
+          onClose();
+        }}
+      />
       <RejectSheet
         instance={rejecting ? instance : null}
         onClose={() => setRejecting(false)}

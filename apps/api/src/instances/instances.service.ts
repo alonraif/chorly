@@ -1,6 +1,8 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, type InstanceStatus } from '@prisma/client';
+import type { Request } from 'express';
 import { PrismaService } from '../prisma.service';
+import { ProofsService } from '../proofs/proofs.service';
 import { PushService } from '../push/push.service';
 import { ChoresService } from '../chores/chores.service';
 import { AssignmentConfigSchema, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto, type RejectInstanceDto } from '@chorly/shared';
@@ -8,6 +10,14 @@ import type { RequestUser } from '../common/session/session.types';
 
 function activeDoneUserIds(instance: { completions: Array<{ userId: string; undoneAt: Date | null }> }) {
   return new Set(instance.completions.filter((c) => !c.undoneAt).map((c) => c.userId));
+}
+
+// Proofs are shown to parents and to whoever took them, never to siblings.
+function visibleProofs(photoKeys: unknown, actor: RequestUser) {
+  const byUser = (photoKeys as Record<string, string[]> | null) ?? {};
+  return Object.entries(byUser)
+    .filter(([userId]) => actor.isAdmin || userId === actor.id)
+    .flatMap(([userId, keys]) => keys.map((key) => ({ userId, key, isVideo: !key.endsWith('.jpg') })));
 }
 
 function instanceStatusFromCompletion(
@@ -30,6 +40,7 @@ export class InstancesService {
     private readonly prisma: PrismaService,
     private readonly push: PushService,
     private readonly chores: ChoresService,
+    private readonly proofs: ProofsService,
   ) {}
 
   async list(tenantId: string, actor: RequestUser, from: Date, to: Date, userId?: string) {
@@ -73,6 +84,7 @@ export class InstancesService {
         status: instance.status,
         approvedAt: instance.approvedAt ? instance.approvedAt.toISOString() : null,
         rewardAmount: instance.rewardAmount?.toString() ?? null,
+        proofs: visibleProofs(instance.photoKeys, actor),
         assignments: instance.assignments.map((a) => ({
           userId: a.userId,
           displayName: a.user.displayName,
@@ -100,6 +112,12 @@ export class InstancesService {
     const instance = await this.getInstanceOrThrow(tenantId, instanceId);
     if (!instance.assignments.some((a) => a.userId === actor.id)) {
       throw new ForbiddenException('User is not assigned to this instance');
+    }
+
+    for (const key of body.photoKeys ?? []) {
+      if (!key.startsWith(`${actor.id}-`) || !(await this.proofs.exists(instanceId, key))) {
+        throw new BadRequestException('Unknown proof');
+      }
     }
 
     await this.prisma.choreCompletion.upsert({
@@ -139,6 +157,24 @@ export class InstancesService {
     return updated;
   }
 
+  async uploadProof(tenantId: string, instanceId: string, actor: RequestUser, req: Request) {
+    const instance = await this.getInstanceOrThrow(tenantId, instanceId);
+    if (!instance.assignments.some((a) => a.userId === actor.id)) {
+      throw new ForbiddenException('User is not assigned to this instance');
+    }
+    if (instance.status !== 'assigned') throw new BadRequestException('This chore is already done');
+
+    const key = await this.proofs.save(instanceId, actor.id, req.headers['content-type'], Number(req.headers['content-length'] || 0), req);
+    return { key };
+  }
+
+  async proofPath(tenantId: string, instanceId: string, key: string, actor: RequestUser) {
+    const instance = await this.getInstanceOrThrow(tenantId, instanceId);
+    const proof = visibleProofs(instance.photoKeys, actor).find((p) => p.key === key);
+    if (!proof) throw new NotFoundException('Proof not found');
+    return this.proofs.path(instanceId, proof.key);
+  }
+
   async undo(tenantId: string, instanceId: string, actor: RequestUser) {
     const instance = await this.getInstanceOrThrow(tenantId, instanceId);
     if (!instance.assignments.some((a) => a.userId === actor.id)) {
@@ -163,7 +199,11 @@ export class InstancesService {
       activeDoneUserIds(refreshed),
     );
 
-    return this.prisma.choreInstance.update({ where: { id: instanceId }, data: { status } });
+    const photoObj = { ...((instance.photoKeys as Record<string, string[]> | null) ?? {}) };
+    delete photoObj[actor.id];
+    await this.proofs.removeForUser(instanceId, actor.id);
+
+    return this.prisma.choreInstance.update({ where: { id: instanceId }, data: { status, photoKeys: photoObj } });
   }
 
   async approve(tenantId: string, instanceId: string, actor: RequestUser, body: ApproveInstanceDto) {
@@ -202,6 +242,7 @@ export class InstancesService {
           approvedAt: new Date(),
           approvedByUserId: actor.id,
           rewardAmount: rewardAmountDecimal,
+          photoKeys: Prisma.DbNull,
         },
       });
 
@@ -219,6 +260,8 @@ export class InstancesService {
 
       return updated;
     });
+
+    await this.proofs.removeForInstances([instanceId]);
 
     const reward = hasReward && rewardAmountDecimal ? rewardAmountDecimal.toString() : null;
     // A parent approving their own chore doesn't need to be told.
@@ -242,8 +285,10 @@ export class InstancesService {
         where: { instanceId, undoneAt: null },
         data: { undoneAt: new Date() },
       });
-      return tx.choreInstance.update({ where: { id: instanceId }, data: { status: 'assigned' } });
+      return tx.choreInstance.update({ where: { id: instanceId }, data: { status: 'assigned', photoKeys: Prisma.DbNull } });
     });
+
+    await this.proofs.removeForInstances([instanceId]);
 
     // A parent rejecting their own chore doesn't need to be told.
     void this.push.sendToUsers(doneUserIds.filter((id) => id !== actor.id), 'rejected', (locale) => ({
@@ -257,6 +302,7 @@ export class InstancesService {
   async remove(tenantId: string, instanceId: string) {
     await this.getInstanceOrThrow(tenantId, instanceId);
     await this.prisma.choreInstance.delete({ where: { id: instanceId } });
+    await this.proofs.removeForInstances([instanceId]);
     return { ok: true };
   }
 
@@ -300,6 +346,7 @@ export class InstancesService {
           data: {
             dueAt,
             status: patch.assigneeUserId ? 'assigned' : undefined,
+            photoKeys: patch.assigneeUserId ? Prisma.DbNull : undefined,
             approvedAt: null,
             approvedByUserId: null,
           },
@@ -310,6 +357,8 @@ export class InstancesService {
           },
         });
       });
+
+      if (patch.assigneeUserId) await this.proofs.removeForInstances([instanceId]);
 
       const doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }> = {};
       for (const completion of updated.completions) {

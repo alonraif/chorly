@@ -34,6 +34,9 @@ services:
     environment:
       <<: *app-env
       PORT: 4000
+      PROOFS_DIR: /data/proofs
+    volumes:
+      - chorly_proofs:/data/proofs
     depends_on:
       postgres:
         condition: service_healthy
@@ -107,5 +110,6 @@ services:
 
 volumes:
   chorly_pg:
+  chorly_proofs:
   caddy_data:
   caddy_config:

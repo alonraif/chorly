@@ -10,6 +10,7 @@ import { Avatar } from '../../../components/avatar';
 import { ChoreEditor } from '../../../components/chore-editor';
 import { Icon } from '../../../components/icon';
 import { InstanceSheet } from '../../../components/instance-sheet';
+import { ProofList } from '../../../components/proof-list';
 import { RejectSheet } from '../../../components/reject-sheet';
 import { statusOf } from '../../../components/status';
 import { EmptyState, errorMessage, useUi } from '../../../components/ui';
@@ -146,6 +147,7 @@ export default function ApprovalsPage() {
                       </p>
                     </div>
                   </div>
+                  <ProofList instance={item} />
                   <div className="approval-actions">
                     {item.chore.hasReward && (
                       <label className="money-input money-input-sm">
