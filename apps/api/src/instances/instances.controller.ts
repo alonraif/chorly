@@ -35,8 +35,13 @@ export class InstancesController {
   @ApiQuery({ name: 'from', required: true, type: String })
   @ApiQuery({ name: 'to', required: true, type: String })
   @ApiQuery({ name: 'userId', required: false, type: String })
-  list(@CurrentTenant() tenantId: string, @Query(new ZodValidationPipe(InstanceListQuerySchema)) query: any) {
-    return this.instances.list(tenantId, new Date(query.from), new Date(query.to), query.userId);
+  @UseGuards(RequireUserGuard)
+  list(
+    @CurrentTenant() tenantId: string,
+    @CurrentUser() user: RequestUser,
+    @Query(new ZodValidationPipe(InstanceListQuerySchema)) query: any,
+  ) {
+    return this.instances.list(tenantId, user, new Date(query.from), new Date(query.to), query.userId);
   }
 
   @Post(':id/mark-done')

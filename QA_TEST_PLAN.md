@@ -76,6 +76,14 @@ Expected:
 - Each parent can check off only their own chore.
 - Parent B gets the "ready for approval" push for Parent A's chore; Parent A doesn't for their own.
 - Any parent can approve, including the one who did the chore.
+
+### REG-02b Kids can't see parents' chores
+1. As a kid, call `GET /api/instances` without `userId`, and with a parent's `userId`.
+2. Call `GET /api/chores` and `GET /api/chores/:id` for a parent's chore.
+Expected:
+- No instance assigned to a parent is returned; kids' own instances are unaffected.
+- `/api/chores` lists only the kid's own chores, without assignment data; `/api/chores/:id` returns 403.
+- On a chore rotating between a kid and a parent, the kid sees only their own turns.
 - Assignment mode is implicit round-robin for shared tasks.
 
 ### REG-02B Shared round-robin alternation (daily)

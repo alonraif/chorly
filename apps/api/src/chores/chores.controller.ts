@@ -9,7 +9,10 @@ import {
 import { z } from 'zod';
 import { AdminGuard } from '../common/session/admin.guard';
 import { CurrentTenant } from '../common/session/current-tenant.decorator';
+import { CurrentUser } from '../common/session/current-user.decorator';
+import type { RequestUser } from '../common/session/session.types';
 import { RequireTenantGuard } from '../common/session/require-tenant.guard';
+import { RequireUserGuard } from '../common/session/require-user.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { ChoresService } from './chores.service';
 
@@ -60,13 +63,15 @@ export class ChoresController {
   constructor(private readonly chores: ChoresService) {}
 
   @Get('/chores')
-  @ApiOperation({ summary: 'List chore definitions' })
-  list(@CurrentTenant() tenantId: string) {
-    return this.chores.list(tenantId);
+  @UseGuards(RequireUserGuard)
+  @ApiOperation({ summary: 'List chore definitions (kids get only their own, without assignees)' })
+  list(@CurrentTenant() tenantId: string, @CurrentUser() user: RequestUser) {
+    return user.isAdmin ? this.chores.list(tenantId) : this.chores.listForKid(tenantId, user.id);
   }
 
   @Get('/chores/:id')
-  @ApiOperation({ summary: 'Get chore definition' })
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Get chore definition (family admin)' })
   @ApiParam({ name: 'id' })
   get(@CurrentTenant() tenantId: string, @Param('id') id: string) {
     return this.chores.get(tenantId, id);

@@ -180,6 +180,15 @@ export class ChoresService {
     });
   }
 
+  // Kids only need reward amounts for their own chores; assignees stay private (chores can include parents).
+  listForKid(tenantId: string, userId: string) {
+    return this.prisma.choreDefinition.findMany({
+      where: { tenantId, isTemplate: false, deletedAt: null, instances: { some: { assignments: { some: { userId } } } } },
+      orderBy: { createdAt: 'asc' },
+      select: { id: true, title_en: true, title_he: true, hasReward: true, rewardAmount: true },
+    });
+  }
+
   templates(tenantId: string) {
     return this.prisma.choreDefinition.findMany({
       where: { tenantId, isTemplate: true, deletedAt: null },

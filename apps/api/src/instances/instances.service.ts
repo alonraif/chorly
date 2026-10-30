@@ -32,13 +32,17 @@ export class InstancesService {
     private readonly chores: ChoresService,
   ) {}
 
-  async list(tenantId: string, from: Date, to: Date, userId?: string) {
+  async list(tenantId: string, actor: RequestUser, from: Date, to: Date, userId?: string) {
     await this.chores.materializeAllThrough(tenantId, to);
     const instances = await this.prisma.choreInstance.findMany({
       where: {
         tenantId,
         dueAt: { gte: from, lte: to },
-        ...(userId ? { assignments: { some: { userId } } } : {}),
+        AND: [
+          ...(userId ? [{ assignments: { some: { userId } } }] : []),
+          // Parents' chores are private from kids, whatever the query asks for.
+          ...(actor.isAdmin ? [] : [{ assignments: { none: { user: { role: 'parent' as const } } } }]),
+        ],
       },
       include: {
         chore: true,
