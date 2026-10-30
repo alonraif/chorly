@@ -19,6 +19,11 @@ export const notificationText = {
       ? { title: '⭐ אושר!', body: reward ? `${chore} (+${reward})` : chore }
       : { title: '⭐ Approved!', body: reward ? `${chore} (+${reward})` : chore },
 
+  rejected: (locale: Locale, chore: string, reason: string | null) =>
+    locale === 'he'
+      ? { title: '↩️ המטלה עוד לא הושלמה', body: reason ? `${chore}: ${reason}` : chore }
+      : { title: '↩️ Chore not complete yet', body: reason ? `${chore}: ${reason}` : chore },
+
   test: (locale: Locale, name: string) =>
     locale === 'he'
       ? { title: 'Chorly', body: `ההתראות עובדות, ${name}!` }

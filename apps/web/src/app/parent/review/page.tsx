@@ -10,6 +10,7 @@ import { Avatar } from '../../../components/avatar';
 import { ChoreEditor } from '../../../components/chore-editor';
 import { Icon } from '../../../components/icon';
 import { InstanceSheet } from '../../../components/instance-sheet';
+import { RejectSheet } from '../../../components/reject-sheet';
 import { statusOf } from '../../../components/status';
 import { EmptyState, errorMessage, useUi } from '../../../components/ui';
 
@@ -23,6 +24,7 @@ export default function ApprovalsPage() {
   const [loaded, setLoaded] = useState(false);
   const [error, setError] = useState('');
   const [openInstance, setOpenInstance] = useState<Instance | null>(null);
+  const [rejecting, setRejecting] = useState<Instance | null>(null);
   const [editorChoreId, setEditorChoreId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -160,6 +162,9 @@ export default function ApprovalsPage() {
                     <button type="button" className="icon-btn icon-btn-outline" onClick={() => setOpenInstance(item)} aria-label={t('common.moreOptions')}>
                       <Icon name="more" />
                     </button>
+                    <button type="button" className="btn btn-secondary" onClick={() => setRejecting(item)} disabled={busy.has(item.id)}>
+                      <Icon name="x" size={18} /> {t('common.reject')}
+                    </button>
                     <button type="button" className="btn btn-success" onClick={() => approve(item)} disabled={busy.has(item.id)}>
                       <Icon name="check" size={18} /> {t('common.approve')}
                     </button>
@@ -213,6 +218,7 @@ export default function ApprovalsPage() {
         }}
         rewardFor={(id) => chores.find((c) => c.id === id)?.rewardAmount ?? null}
       />
+      <RejectSheet instance={rejecting} onClose={() => setRejecting(null)} onRejected={load} />
       <ChoreEditor open={!!editorChoreId} choreId={editorChoreId} onClose={() => setEditorChoreId(null)} onSaved={load} />
     </div>
   );

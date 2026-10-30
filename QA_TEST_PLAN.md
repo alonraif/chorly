@@ -52,6 +52,14 @@ Expected:
 Expected:
 - Status transitions `assigned -> done -> approved`.
 
+### SMOKE-06 Reject an approval
+1. Child A marks one assigned instance as done.
+2. Parent rejects it in `/parent/review`, with or without a reason.
+Expected:
+- Status transitions `assigned -> done -> assigned`, and no reward is paid.
+- The chore is unchecked on the child's page and can be marked done again.
+- Child A gets a push saying it isn't complete, with the reason if one was given.
+
 ## Suite: REGRESSION
 
 ### REG-01 Assignee dropdown excludes parents

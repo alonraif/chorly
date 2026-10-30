@@ -12,6 +12,7 @@ import type {
   MarkDoneSchema,
   UndoDoneSchema,
   ApproveInstanceSchema,
+  RejectInstanceSchema,
   InstanceListQuerySchema,
 } from './schemas';
 
@@ -31,3 +32,4 @@ export type InstanceListQuery = z.infer<typeof InstanceListQuerySchema>;
 export type MarkDoneDto = z.infer<typeof MarkDoneSchema>;
 export type UndoDoneDto = z.infer<typeof UndoDoneSchema>;
 export type ApproveInstanceDto = z.infer<typeof ApproveInstanceSchema>;
+export type RejectInstanceDto = z.infer<typeof RejectInstanceSchema>;

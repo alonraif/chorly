@@ -4,6 +4,7 @@ import {
   ApproveInstanceSchema,
   InstanceListQuerySchema,
   MarkDoneSchema,
+  RejectInstanceSchema,
   UndoDoneSchema,
 } from '@chorly/shared';
 import { z } from 'zod';
@@ -78,6 +79,20 @@ export class InstancesController {
     @Body(new ZodValidationPipe(ApproveInstanceSchema)) body: any,
   ) {
     return this.instances.approve(tenantId, id, user, body);
+  }
+
+  @Post(':id/reject')
+  @UseGuards(AdminGuard)
+  @ApiOperation({ summary: 'Reject a done instance back to not done (family admin)' })
+  @ApiParam({ name: 'id' })
+  @ApiBody({ schema: { type: 'object', properties: { reason: { type: 'string' } } } })
+  reject(
+    @CurrentTenant() tenantId: string,
+    @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
+    @Body(new ZodValidationPipe(RejectInstanceSchema)) body: any,
+  ) {
+    return this.instances.reject(tenantId, id, user, body);
   }
 
   @Delete(':id')

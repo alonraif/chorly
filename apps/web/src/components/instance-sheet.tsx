@@ -9,6 +9,7 @@ import { useSession } from '../lib/session';
 import { activeDoneAt, type Instance } from '../lib/types';
 import { Avatar } from './avatar';
 import { Icon } from './icon';
+import { RejectSheet } from './reject-sheet';
 import { StatusPill } from './status';
 import { errorMessage, Sheet, useUi } from './ui';
 
@@ -28,6 +29,7 @@ export function InstanceSheet({
   const { kids, currency, refreshApprovals } = useSession();
   const { toast, confirm } = useUi();
   const [mode, setMode] = useState<'view' | 'reschedule'>('view');
+  const [rejecting, setRejecting] = useState(false);
   const [dueLocal, setDueLocal] = useState('');
   const [assignee, setAssignee] = useState('');
   const [busy, setBusy] = useState(false);
@@ -36,6 +38,7 @@ export function InstanceSheet({
   useEffect(() => {
     if (!instance) return;
     setMode('view');
+    setRejecting(false);
     setError('');
     setDueLocal(DateTime.fromISO(instance.dueAt).setZone(TZ).toFormat("yyyy-LL-dd'T'HH:mm"));
     setAssignee(instance.assignments[0]?.userId || '');
@@ -99,10 +102,15 @@ export function InstanceSheet({
             <button type="button" className="btn btn-primary" onClick={saveChanges} disabled={busy}>{t('common.save')}</button>
           </>
         ) : instance.status === 'done' ? (
-          <button type="button" className="btn btn-primary btn-block" onClick={approve} disabled={busy}>
-            <Icon name="check" size={18} /> {t('common.approve')}
-            {reward ? ` · ${money(reward, currency)}` : ''}
-          </button>
+          <>
+            <button type="button" className="btn btn-secondary" onClick={() => setRejecting(true)} disabled={busy}>
+              <Icon name="x" size={18} /> {t('common.reject')}
+            </button>
+            <button type="button" className="btn btn-primary" onClick={approve} disabled={busy}>
+              <Icon name="check" size={18} /> {t('common.approve')}
+              {reward ? ` · ${money(reward, currency)}` : ''}
+            </button>
+          </>
         ) : undefined
       }
     >
@@ -169,6 +177,14 @@ export function InstanceSheet({
           {error && <p className="callout callout-error">{error}</p>}
         </div>
       )}
+      <RejectSheet
+        instance={rejecting ? instance : null}
+        onClose={() => setRejecting(false)}
+        onRejected={() => {
+          onChanged();
+          onClose();
+        }}
+      />
     </Sheet>
   );
 }

@@ -3,7 +3,7 @@ import { Prisma, type InstanceStatus } from '@prisma/client';
 import { PrismaService } from '../prisma.service';
 import { PushService } from '../push/push.service';
 import { ChoresService } from '../chores/chores.service';
-import { AssignmentConfigSchema, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto } from '@chorly/shared';
+import { AssignmentConfigSchema, choreName, notificationText, type ApproveInstanceDto, type MarkDoneDto, type RejectInstanceDto } from '@chorly/shared';
 import type { RequestUser } from '../common/session/session.types';
 
 function activeDoneUserIds(instance: { completions: Array<{ userId: string; undoneAt: Date | null }> }) {
@@ -220,6 +220,30 @@ export class InstancesService {
     // A parent approving their own chore doesn't need to be told.
     void this.push.sendToUsers(creditedUsers.filter((id) => id !== actor.id), 'approved', (locale) => ({
       ...notificationText.approved(locale, choreName(instance.chore, locale), reward),
+      url: '/child',
+    }));
+
+    return result;
+  }
+
+  async reject(tenantId: string, instanceId: string, actor: RequestUser, body: RejectInstanceDto) {
+    const instance = await this.getInstanceOrThrow(tenantId, instanceId);
+    if (!actor.isAdmin) throw new ForbiddenException('Admin is required to reject');
+    if (instance.status !== 'done') throw new BadRequestException('Only done instances can be rejected');
+
+    const doneUserIds = [...activeDoneUserIds(instance)];
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      await tx.choreCompletion.updateMany({
+        where: { instanceId, undoneAt: null },
+        data: { undoneAt: new Date() },
+      });
+      return tx.choreInstance.update({ where: { id: instanceId }, data: { status: 'assigned' } });
+    });
+
+    // A parent rejecting their own chore doesn't need to be told.
+    void this.push.sendToUsers(doneUserIds.filter((id) => id !== actor.id), 'rejected', (locale) => ({
+      ...notificationText.rejected(locale, choreName(instance.chore, locale), body.reason ?? null),
       url: '/child',
     }));
 

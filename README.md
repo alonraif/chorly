@@ -86,6 +86,7 @@ gunzip -c backups/chorly-YYYY-MM-DD.sql.gz | docker compose exec -T postgres psq
 Notifications sent:
 - Kid marks a chore done → parents ("ready for approval").
 - Parent approves → kid (with reward).
+- Parent rejects → kid (with the reason, if given); the chore goes back to not done.
 - 07:00 today's chores.
 - 30 minutes before a chore's due time → the kid (once per chore; only chores with a time set, none during quiet hours `21:00-07:00`).
 - 17:00 + 20:00 overdue chores → the kid. Each chore at most once a day, and only for 3 days after it was due.

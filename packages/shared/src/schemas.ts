@@ -15,7 +15,7 @@ export const CreateUserSchema = z.object({
 export const UpdateUserSchema = CreateUserSchema.partial();
 
 // Notification types a member can turn off. Missing keys mean "on".
-export const NOTIFICATION_PREFS = ['readyForApproval', 'approved', 'morning', 'dueSoon', 'overdue', 'parentDigest', 'weekly'] as const;
+export const NOTIFICATION_PREFS = ['readyForApproval', 'approved', 'rejected', 'morning', 'dueSoon', 'overdue', 'parentDigest', 'weekly'] as const;
 export type NotificationPref = (typeof NOTIFICATION_PREFS)[number];
 export const NotificationPrefsSchema = z
   .object(Object.fromEntries(NOTIFICATION_PREFS.map((k) => [k, z.boolean()])) as Record<NotificationPref, z.ZodBoolean>)
@@ -93,4 +93,8 @@ export const UndoDoneSchema = z.object({});
 
 export const ApproveInstanceSchema = z.object({
   rewardAmount: z.string().optional(),
+});
+
+export const RejectInstanceSchema = z.object({
+  reason: z.string().trim().min(1).max(300).optional(),
 });
