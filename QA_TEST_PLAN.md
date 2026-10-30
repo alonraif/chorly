@@ -62,17 +62,20 @@ Expected:
 
 ## Suite: REGRESSION
 
-### REG-01 Assignee dropdown excludes parents
+### REG-01 Assignee options include the whole family
 1. Open `/admin/chores#new-chore`.
 2. Inspect assignee options.
 Expected:
-- Only users with `role=child` are listed.
+- All active members are listed: kids first, then parents.
 
-### REG-02 Shared chore child selection
-1. Toggle `Shared chore`.
-2. Verify shared list contains only children.
+### REG-02 Parent assigns a chore to themselves or another parent
+1. As Parent A, create a chore assigned to Parent A and one assigned to Parent B.
+2. Open `My chores` as each parent, mark the chore done.
+3. Approve from `Approvals`.
 Expected:
-- Only child users appear.
+- Each parent can check off only their own chore.
+- Parent B gets the "ready for approval" push for Parent A's chore; Parent A doesn't for their own.
+- Any parent can approve, including the one who did the chore.
 - Assignment mode is implicit round-robin for shared tasks.
 
 ### REG-02B Shared round-robin alternation (daily)

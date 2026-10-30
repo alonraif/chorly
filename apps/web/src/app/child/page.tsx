@@ -14,7 +14,7 @@ import { statusOf } from '../../components/status';
 import { EmptyState, errorMessage, Sheet, useUi } from '../../components/ui';
 
 export default function KidPage() {
-  const { me, kids, currency } = useSession();
+  const { me, people, currency } = useSession();
   const { toast, confirm } = useUi();
   const isParent = me.role === 'parent';
   const [targetId, setTargetId] = useState<string>(isParent ? '' : me.id);
@@ -28,14 +28,14 @@ export default function KidPage() {
   const [pending, setPending] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (!isParent || targetId) return;
+    if (!isParent || targetId || people.length === 0) return;
     const fromQuery = new URLSearchParams(window.location.search).get('user');
-    const pick = kids.find((k) => k.id === fromQuery) || kids[0];
-    if (pick) setTargetId(pick.id);
-  }, [isParent, kids, targetId]);
+    setTargetId(people.find((p) => p.id === fromQuery)?.id || me.id);
+  }, [isParent, people, targetId, me.id]);
 
-  const target = isParent ? kids.find((k) => k.id === targetId) : me;
+  const target = isParent ? people.find((p) => p.id === targetId) : me;
   const canCheck = targetId === me.id;
+  const viewingOther = isParent && !canCheck;
 
   const load = useCallback(async () => {
     if (!targetId) return;
@@ -136,14 +136,6 @@ export default function KidPage() {
     }
   }
 
-  if (isParent && kids.length === 0) {
-    return (
-      <div className="page">
-        <EmptyState icon="users" title={t('kid.noKids')}>{t('kid.noKidsHint')}</EmptyState>
-      </div>
-    );
-  }
-
   const name = target ? firstName(target.displayName) : '';
   const left = today.length - doneToday;
   const heroLine =
@@ -159,15 +151,15 @@ export default function KidPage() {
         <div className="viewing-as">
           <span className="small">{t('kid.viewingAs')}</span>
           <div className="chip-row">
-            {kids.map((k) => (
+            {people.map((p) => (
               <button
-                key={k.id}
+                key={p.id}
                 type="button"
-                className={`chip chip-person ${k.id === targetId ? 'is-on' : ''}`}
-                aria-pressed={k.id === targetId}
-                onClick={() => setTargetId(k.id)}
+                className={`chip chip-person ${p.id === targetId ? 'is-on' : ''}`}
+                aria-pressed={p.id === targetId}
+                onClick={() => setTargetId(p.id)}
               >
-                <Avatar user={k} size={22} /> {firstName(k.displayName)}
+                <Avatar user={p} size={22} /> {firstName(p.displayName)}
               </button>
             ))}
           </div>
@@ -191,7 +183,7 @@ export default function KidPage() {
         <button type="button" className="wallet-tile" onClick={() => setWalletOpen(true)}>
           <span className="wallet-icon"><Icon name="coin" size={24} /></span>
           <span className="wallet-text">
-            <span className="small">{isParent ? t('kid.theirBalance', { name }) : t('kid.yourBalance')}</span>
+            <span className="small">{viewingOther ? t('kid.theirBalance', { name }) : t('kid.yourBalance')}</span>
             <strong className="wallet-amount">{money(earnings.dueAmount, earnings.currencyCode)}</strong>
             {waitingAmount > 0 && (
               <span className="small">{t('kid.waitingAmount', { amount: money(waitingAmount, earnings.currencyCode) })}</span>
@@ -202,7 +194,7 @@ export default function KidPage() {
       )}
 
       {error && <p className="callout callout-error">{error}</p>}
-      {isParent && <p className="callout callout-info">{t('kid.onlyThem', { name })}</p>}
+      {viewingOther && <p className="callout callout-info">{t('kid.onlyThem', { name })}</p>}
 
       {missed.length > 0 && (
         <section className="kid-section">
@@ -261,7 +253,7 @@ export default function KidPage() {
         </div>
       )}
 
-      <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title={isParent ? t('kid.theirMoney', { name }) : t('kid.yourMoney')}>
+      <Sheet open={walletOpen} onClose={() => setWalletOpen(false)} title={viewingOther ? t('kid.theirMoney', { name }) : t('kid.yourMoney')}>
         {earnings && (
           <div className="stack-lg">
             <div className="wallet-stats">

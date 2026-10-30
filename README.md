@@ -9,7 +9,7 @@ A family chores hub: parents create chores, kids mark them done on their phones,
 
 Single family per install. The first visitor sets up the family (`/register`); after that, setup is locked and parents add members on **Family members** (`/admin/users`). Kids need an email + password to log in (any address works, it's only a username).
 
-Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their chores.
+Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their chores. Chores can also be assigned to parents, themselves or each other: they check them off under **My chores** and any parent, including the one who did it, approves them.
 
 ## Production on this Mac (Docker Desktop)
 

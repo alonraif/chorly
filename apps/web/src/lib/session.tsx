@@ -23,6 +23,8 @@ type SessionValue = {
   family: Family | null;
   members: Member[];
   kids: Member[];
+  /** Everyone a chore can be assigned to: kids first, then parents. */
+  people: Member[];
   currency: string;
   approvalsCount: number;
   refreshMembers: () => Promise<void>;
@@ -65,6 +67,7 @@ export function SessionProvider({ me, children }: { me: Member; children: ReactN
   }, [me.id, me.locale, refreshMembers, refreshApprovals]);
 
   const kids = useMemo(() => members.filter((m) => m.role === 'child'), [members]);
+  const people = useMemo(() => [...kids, ...members.filter((m) => m.role !== 'child')], [kids, members]);
 
   return (
     <SessionContext.Provider
@@ -73,6 +76,7 @@ export function SessionProvider({ me, children }: { me: Member; children: ReactN
         family,
         members,
         kids,
+        people,
         currency: family?.currencyCode || 'ILS',
         approvalsCount,
         refreshMembers,

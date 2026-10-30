@@ -28,7 +28,7 @@ import { errorMessage, Segmented, Sheet, Switch, useUi } from './ui';
 
 type Freq = 'once' | 'daily' | 'weekly' | 'monthly' | 'interval';
 
-// With several kids: 'each' = everyone does their own (one chore per kid), 'turns' = rotate between them.
+// With several people: 'each' = everyone does their own (one chore per person), 'turns' = rotate between them.
 type Split = 'each' | 'turns';
 
 type Draft = {
@@ -142,7 +142,7 @@ export function ChoreEditor({
   defaultDate?: string | null;
   onSaved: () => void;
 }) {
-  const { kids, currency } = useSession();
+  const { me, kids, people, currency } = useSession();
   const { toast, confirm } = useUi();
   const isEdit = !!choreId;
   const [draft, setDraft] = useState<Draft>(() => emptyDraft([]));
@@ -166,7 +166,9 @@ export function ChoreEditor({
     setShowMore(false);
     setSaveFavorite(false);
     const currentKids = kidsRef.current;
-    const base = emptyDraft(currentKids.length === 1 ? [currentKids[0].id] : [], choreId ? null : defaultDate);
+    // Preselect when there's an obvious pick: the only kid, or the parent in a family without kids yet.
+    const defaultAssignees = currentKids.length === 1 ? [currentKids[0].id] : currentKids.length === 0 ? [me.id] : [];
+    const base = emptyDraft(defaultAssignees, choreId ? null : defaultDate);
     if (choreId) {
       setLoading(true);
       api
@@ -197,24 +199,24 @@ export function ChoreEditor({
       setDraft(base);
     }
     api.get('/templates').then(setTemplates).catch(() => setTemplates([]));
-  }, [open, choreId, template, defaultDate]);
+  }, [open, choreId, template, defaultDate, me.id]);
 
   const schedule = useMemo(() => buildSchedule(draft), [draft]);
-  const chosenKids = kids.filter((k) => draft.assigneeIds.includes(k.id));
+  const chosen = people.filter((p) => draft.assigneeIds.includes(p.id));
   const summary = [
-    chosenKids.length
+    chosen.length
       ? draft.split === 'turns'
-        ? joinNames(chosenKids.map((k) => firstName(k.displayName)), t('editor.turnsArrow'))
-        : listJoin(chosenKids.map((k) => firstName(k.displayName)))
+        ? joinNames(chosen.map((p) => firstName(p.displayName)), t('editor.turnsArrow'))
+        : listJoin(chosen.map((p) => firstName(p.displayName)))
       : t('editor.nobody'),
-    chosenKids.length > 1 ? (draft.split === 'turns' ? t('editor.takingTurns') : t('editor.eachOwn')) : null,
+    chosen.length > 1 ? (draft.split === 'turns' ? t('editor.takingTurns') : t('editor.eachOwn')) : null,
     scheduleSummary(schedule),
     draft.hasReward && Number(draft.rewardAmount) > 0 ? t('editor.reward', { amount: money(draft.rewardAmount, currency) }) : null,
   ]
     .filter(Boolean)
     .join(' · ');
 
-  function toggleKid(id: string) {
+  function togglePerson(id: string) {
     set('assigneeIds', draft.assigneeIds.includes(id) ? draft.assigneeIds.filter((x) => x !== id) : [...draft.assigneeIds, id]);
   }
 
@@ -265,7 +267,7 @@ export function ChoreEditor({
         },
       };
     };
-    // Each occurrence has a single kid, so "each does it" becomes one chore per kid.
+    // Each occurrence has a single assignee, so "each does it" becomes one chore per person.
     const groups =
       draft.split === 'each' && draft.assigneeIds.length > 1 ? draft.assigneeIds.map((id) => [id]) : [draft.assigneeIds];
     const [first, ...rest] = groups;
@@ -361,28 +363,24 @@ export function ChoreEditor({
 
         <div className="field">
           <span className="field-label">{t('editor.who')}</span>
-          {kids.length === 0 ? (
-            <p className="callout callout-warn">{t('editor.addKidFirst')}</p>
-          ) : (
-            <div className="chip-row">
-              {kids.map((kid) => {
-                const on = draft.assigneeIds.includes(kid.id);
-                return (
-                  <button
-                    key={kid.id}
-                    type="button"
-                    className={`chip chip-person ${on ? 'is-on' : ''}`}
-                    aria-pressed={on}
-                    onClick={() => toggleKid(kid.id)}
-                  >
-                    <Avatar user={kid} size={26} />
-                    {firstName(kid.displayName)}
-                    {on && <Icon name="check" size={16} />}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="chip-row">
+            {people.map((person) => {
+              const on = draft.assigneeIds.includes(person.id);
+              return (
+                <button
+                  key={person.id}
+                  type="button"
+                  className={`chip chip-person ${on ? 'is-on' : ''}`}
+                  aria-pressed={on}
+                  onClick={() => togglePerson(person.id)}
+                >
+                  <Avatar user={person} size={26} />
+                  {firstName(person.displayName)}
+                  {on && <Icon name="check" size={16} />}
+                </button>
+              );
+            })}
+          </div>
           {draft.assigneeIds.length > 1 && (
             <>
               <Segmented<Split>

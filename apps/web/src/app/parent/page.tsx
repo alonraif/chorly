@@ -54,7 +54,7 @@ function eachDay(from: DateTime, count: number) {
 }
 
 export default function ParentHomePage() {
-  const { me, kids, approvalsCount } = useSession();
+  const { me, kids, people, approvalsCount } = useSession();
   const [items, setItems] = useState<Instance[]>([]);
   const [chores, setChores] = useState<Chore[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -253,7 +253,7 @@ export default function ParentHomePage() {
         </div>
       )}
 
-      {kids.length > 0 && (
+      {people.length > 0 && (
         <section className="section">
           <div className="section-head">
             <h2>{t('common.today')}</h2>
@@ -262,25 +262,25 @@ export default function ParentHomePage() {
             )}
           </div>
           <div className="kid-progress-grid">
-            {kids.map((kid) => {
-              const mine = todayItems.filter((i) => i.assignments.some((a) => a.userId === kid.id));
+            {people.map((person) => {
+              const mine = todayItems.filter((i) => i.assignments.some((a) => a.userId === person.id));
               const done = mine.filter((i) => i.status !== 'assigned').length;
-              const active = kidFilter === kid.id;
+              const active = kidFilter === person.id;
               return (
                 <button
-                  key={kid.id}
+                  key={person.id}
                   type="button"
                   className={`kid-progress ${active ? 'is-active' : ''}`}
                   aria-pressed={active}
-                  onClick={() => setKidFilter(active ? null : kid.id)}
+                  onClick={() => setKidFilter(active ? null : person.id)}
                 >
                   <ProgressRing value={done} total={mine.length} size={52}>
-                    <Avatar user={kid} size={38} />
+                    <Avatar user={person} size={38} />
                   </ProgressRing>
                   <span className="kid-progress-text">
-                    <strong>{firstName(kid.displayName)}</strong>
+                    <strong>{firstName(person.displayName)}</strong>
                     <span className="small muted">
-                      {kid.isAway
+                      {person.isAway
                         ? t('common.away')
                         : mine.length === 0
                           ? t('parent.nothingToday')
@@ -296,7 +296,7 @@ export default function ParentHomePage() {
         </section>
       )}
 
-      {kids.length > 0 && (
+      {people.length > 0 && (
         <section className="section">
           <div className="home-cal-head">
             <Segmented<View>

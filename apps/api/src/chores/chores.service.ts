@@ -126,7 +126,6 @@ export class ChoresService {
         tenantId,
         id: { in: assignment.assigneeIds },
         isActive: true,
-        role: 'child',
         ...(assignment.skipAwayUsers ? { isAway: false } : {}),
       },
       select: { id: true },

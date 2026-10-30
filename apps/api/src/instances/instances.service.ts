@@ -267,13 +267,12 @@ export class InstancesService {
         where: {
           id: patch.assigneeUserId,
           tenantId,
-          role: 'child',
           isActive: true,
         },
         select: { id: true },
       });
       if (!nextAssignee) {
-        throw new BadRequestException('Assignee must be an active child user in this family');
+        throw new BadRequestException('Assignee must be an active member of this family');
       }
     }
 

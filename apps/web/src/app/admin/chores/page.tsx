@@ -17,7 +17,7 @@ type EditorState = { open: boolean; choreId?: string | null; template?: Chore | 
 type SuggestionState = { open: boolean; template?: Chore | null };
 
 export default function ChoresPage() {
-  const { kids, currency } = useSession();
+  const { people, currency } = useSession();
   const [chores, setChores] = useState<Chore[]>([]);
   const [templates, setTemplates] = useState<Chore[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -73,7 +73,7 @@ export default function ChoresPage() {
     }
   };
 
-  const kidName = (id: string) => kids.find((k) => k.id === id);
+  const personOf = (id: string) => people.find((p) => p.id === id);
   const visible = chores.filter((c) => !kidFilter || c.assignmentJson?.assigneeIds?.includes(kidFilter));
 
   return (
@@ -90,20 +90,20 @@ export default function ChoresPage() {
 
       {error && <p className="callout callout-error">{error}</p>}
 
-      {kids.length > 1 && chores.length > 0 && (
+      {people.length > 1 && chores.length > 0 && (
         <div className="chip-row filter-row" role="group" aria-label={t('choresPage.filterByKid')}>
           <button type="button" className={`chip ${!kidFilter ? 'is-on' : ''}`} aria-pressed={!kidFilter} onClick={() => setKidFilter(null)}>
             {t('common.everyone')}
           </button>
-          {kids.map((kid) => (
+          {people.map((person) => (
             <button
-              key={kid.id}
+              key={person.id}
               type="button"
-              className={`chip chip-person ${kidFilter === kid.id ? 'is-on' : ''}`}
-              aria-pressed={kidFilter === kid.id}
-              onClick={() => setKidFilter(kidFilter === kid.id ? null : kid.id)}
+              className={`chip chip-person ${kidFilter === person.id ? 'is-on' : ''}`}
+              aria-pressed={kidFilter === person.id}
+              onClick={() => setKidFilter(kidFilter === person.id ? null : person.id)}
             >
-              <Avatar user={kid} size={22} /> {firstName(kid.displayName)}
+              <Avatar user={person} size={22} /> {firstName(person.displayName)}
             </button>
           ))}
         </div>
@@ -127,8 +127,8 @@ export default function ChoresPage() {
         ) : (
           <ul className="rows">
             {visible.map((chore) => {
-              const people = (chore.assignmentJson?.assigneeIds || []).map(kidName).filter(Boolean) as typeof kids;
-              const takesTurns = people.length > 1;
+              const assignees = (chore.assignmentJson?.assigneeIds || []).map(personOf).filter(Boolean) as typeof people;
+              const takesTurns = assignees.length > 1;
               return (
                 <li key={chore.id}>
                   <button type="button" className="row" onClick={() => setEditor({ open: true, choreId: chore.id })}>
@@ -146,7 +146,7 @@ export default function ChoresPage() {
                       </span>
                     )}
                     <span className="row-people" title={takesTurns ? t('choresPage.takesTurns') : undefined}>
-                      <AvatarStack users={people} size={26} />
+                      <AvatarStack users={assignees} size={26} />
                       {takesTurns && <Icon name="repeat" size={14} />}
                     </span>
                     <Icon name="chevronRight" size={18} className="row-chevron" />

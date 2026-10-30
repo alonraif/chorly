@@ -26,7 +26,7 @@ export function InstanceSheet({
   onEditSeries: (choreId: string) => void;
   rewardFor?: (choreId: string) => string | null;
 }) {
-  const { kids, currency, refreshApprovals } = useSession();
+  const { me, people, currency, refreshApprovals } = useSession();
   const { toast, confirm } = useUi();
   const [mode, setMode] = useState<'view' | 'reschedule'>('view');
   const [rejecting, setRejecting] = useState(false);
@@ -49,6 +49,7 @@ export function InstanceSheet({
   const doneAt = activeDoneAt(instance);
   const reward = instance.rewardAmount || rewardFor?.(instance.choreId) || null;
   const editable = instance.status !== 'approved';
+  const canMarkDone = instance.status === 'assigned' && instance.assignments.some((a) => a.userId === me.id);
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true);
@@ -67,6 +68,7 @@ export function InstanceSheet({
   }
 
   const approve = () => run(() => api.post(`/instances/${instance.id}/approve`, {}), t('instance.approvedChore', { chore: title }));
+  const markDone = () => run(() => api.post(`/instances/${instance.id}/mark-done`, {}), t('instance.updated'));
 
   const saveChanges = () =>
     run(
@@ -111,6 +113,10 @@ export function InstanceSheet({
               {reward ? ` · ${money(reward, currency)}` : ''}
             </button>
           </>
+        ) : canMarkDone ? (
+          <button type="button" className="btn btn-primary" onClick={markDone} disabled={busy}>
+            <Icon name="check" size={18} /> {t('instance.markDone')}
+          </button>
         ) : undefined
       }
     >
@@ -161,15 +167,15 @@ export function InstanceSheet({
           <div className="field">
             <span className="field-label-sm">{t('instance.who')}</span>
             <div className="chip-row">
-              {kids.map((kid) => (
+              {people.map((person) => (
                 <button
-                  key={kid.id}
+                  key={person.id}
                   type="button"
-                  className={`chip chip-person ${assignee === kid.id ? 'is-on' : ''}`}
-                  aria-pressed={assignee === kid.id}
-                  onClick={() => setAssignee(kid.id)}
+                  className={`chip chip-person ${assignee === person.id ? 'is-on' : ''}`}
+                  aria-pressed={assignee === person.id}
+                  onClick={() => setAssignee(person.id)}
                 >
-                  <Avatar user={kid} size={26} /> {firstName(kid.displayName)}
+                  <Avatar user={person} size={26} /> {firstName(person.displayName)}
                 </button>
               ))}
             </div>

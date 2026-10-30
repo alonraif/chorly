@@ -18,6 +18,7 @@ const PUBLIC_PATHS = ['/', '/register'];
 
 const PARENT_NAV: Array<{ href: string; label: MessageKey; icon: IconName; badge?: boolean }> = [
   { href: '/parent', label: 'nav.home', icon: 'home' },
+  { href: '/child', label: 'nav.myChores', icon: 'check' },
   { href: '/parent/review', label: 'nav.approvals', icon: 'approve', badge: true },
   { href: '/admin/chores', label: 'nav.chores', icon: 'list' },
   { href: '/admin/users', label: 'nav.family', icon: 'users' },
