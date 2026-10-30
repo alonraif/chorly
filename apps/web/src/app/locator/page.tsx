@@ -69,15 +69,22 @@ export default function LocatorPage() {
           <h1>{t('locator.title')}</h1>
           <p className="muted">{t('locator.subtitle')}</p>
         </div>
+        {status === 'on' && (
+          <button type="button" className="btn btn-sm btn-ghost-danger" onClick={() => toggleSharing(false)}>
+            {t('locator.stop')}
+          </button>
+        )}
       </header>
 
-      <div className="locator-share">
-        {status === 'unsupported' ? (
-          <p className="muted">{t('locator.unsupported')}</p>
-        ) : (
-          <Switch checked={status === 'on'} onChange={toggleSharing} label={t('locator.share')} hint={sharedHint} />
-        )}
-      </div>
+      {status !== 'on' && (
+        <div className="locator-share">
+          {status === 'unsupported' ? (
+            <p className="muted">{t('locator.unsupported')}</p>
+          ) : (
+            <Switch checked={false} onChange={toggleSharing} label={t('locator.share')} hint={sharedHint} />
+          )}
+        </div>
+      )}
 
       <FamilyMap people={mapPeople} focus={focus} />
 
