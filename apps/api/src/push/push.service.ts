@@ -1,4 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { cert, initializeApp } from 'firebase-admin/app';
+import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 import webpush from 'web-push';
 import type { Locale } from '@prisma/client';
 import { wantsNotification, type NotificationPref } from '@chorly/shared';
@@ -13,8 +15,13 @@ export class PushService {
   private readonly logger = new Logger(PushService.name);
   readonly publicKey = process.env.VAPID_PUBLIC_KEY || '';
   private readonly enabled: boolean;
+  private readonly fcm: Messaging | null;
 
   constructor(private readonly prisma: PrismaService) {
+    const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT || '';
+    this.fcm = serviceAccount
+      ? getMessaging(initializeApp({ credential: cert(JSON.parse(Buffer.from(serviceAccount, 'base64').toString())) }))
+      : null;
     const privateKey = process.env.VAPID_PRIVATE_KEY || '';
     this.enabled = !!this.publicKey && !!privateKey;
     if (this.enabled) {
@@ -36,9 +43,48 @@ export class PushService {
     await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
   }
 
+  async subscribeFcm(userId: string, token: string) {
+    await this.prisma.fcmToken.upsert({ where: { token }, create: { userId, token }, update: { userId } });
+  }
+
   // `pref` is the notification type; users who turned it off are skipped. Null always sends (e.g. the test push).
   async sendToUsers(userIds: string[], pref: NotificationPref | null, payload: PayloadFor) {
-    if (!this.enabled || userIds.length === 0) return;
+    if (userIds.length === 0) return;
+    await Promise.all([this.sendWebPush(userIds, pref, payload), this.sendFcm(userIds, pref, payload)]);
+  }
+
+  private async sendFcm(userIds: string[], pref: NotificationPref | null, payload: PayloadFor) {
+    const fcm = this.fcm;
+    if (!fcm) return;
+    const devices = await this.prisma.fcmToken.findMany({
+      where: { userId: { in: userIds } },
+      include: { user: { select: { locale: true, notifyPrefs: true } } },
+    });
+    await Promise.all(
+      devices
+        .filter((device) => !pref || wantsNotification(device.user.notifyPrefs, pref))
+        .map(async (device) => {
+          const { title, body, url } = typeof payload === 'function' ? payload(device.user.locale) : payload;
+          try {
+            await fcm.send({
+              token: device.token,
+              notification: { title, body },
+              data: url ? { url } : undefined,
+              android: { priority: 'high' },
+            });
+          } catch (err: any) {
+            if (err?.code === 'messaging/registration-token-not-registered') {
+              await this.prisma.fcmToken.delete({ where: { id: device.id } }).catch(() => undefined);
+            } else {
+              this.logger.warn(`fcm failed: ${err?.code || err?.message}`);
+            }
+          }
+        }),
+    );
+  }
+
+  private async sendWebPush(userIds: string[], pref: NotificationPref | null, payload: PayloadFor) {
+    if (!this.enabled) return;
     const subs = await this.prisma.pushSubscription.findMany({
       where: { userId: { in: userIds } },
       include: { user: { select: { locale: true, notifyPrefs: true } } },

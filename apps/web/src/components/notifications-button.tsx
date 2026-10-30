@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { api } from '../lib/api';
 import { t } from '../lib/i18n';
+import { nativePush, registerNativePush } from '../lib/native';
 import { Icon } from './icon';
 
 type State = 'unsupported' | 'ios-install' | 'off' | 'on' | 'denied' | 'working';
@@ -31,6 +32,23 @@ export function NotificationsRow() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    const push = nativePush();
+    if (push) {
+      push
+        .checkPermissions()
+        .then(async ({ receive }: { receive: string }) => {
+          if (receive === 'denied') {
+            setState('denied');
+          } else if (receive === 'granted') {
+            await registerNativePush(push);
+            setState('on');
+          } else {
+            setState('off');
+          }
+        })
+        .catch(() => setState('off'));
+      return;
+    }
     if (!('serviceWorker' in navigator) || !('PushManager' in window) || !('Notification' in window)) {
       setState(isIos() && !isStandalone() ? 'ios-install' : 'unsupported');
       return;
@@ -56,6 +74,18 @@ export function NotificationsRow() {
     setError('');
     setState('working');
     try {
+      const push = nativePush();
+      if (push) {
+        const { receive } = await push.requestPermissions();
+        if (receive !== 'granted') {
+          setState(receive === 'denied' ? 'denied' : 'off');
+          return;
+        }
+        await registerNativePush(push);
+        await api.post('/push/test');
+        setState('on');
+        return;
+      }
       const permission = await Notification.requestPermission();
       if (permission !== 'granted') {
         setState(permission === 'denied' ? 'denied' : 'off');

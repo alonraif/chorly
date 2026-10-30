@@ -17,6 +17,7 @@
     "@nestjs/platform-express": "^10.4.4",
     "@nestjs/swagger": "7.4.2",
     "@prisma/client": "^5.22.0",
+    "firebase-admin": "^13.10.0",
     "luxon": "^3.7.2",
     "reflect-metadata": "^0.2.2",
     "rrule": "^2.8.1",

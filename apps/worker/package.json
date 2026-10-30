@@ -15,6 +15,7 @@
   "dependencies": {
     "@chorly/shared": "workspace:*",
     "@prisma/client": "^5.22.0",
+    "firebase-admin": "^13.10.0",
     "luxon": "^3.7.2",
     "node-cron": "^3.0.3",
     "nodemailer": "^7.0.5",

@@ -73,6 +73,7 @@ model User {
   ledgerEntries     MoneyLedger[]
   sessions          Session[]
   pushSubscriptions PushSubscription[]
+  fcmTokens FcmToken[]
   notificationLogs  NotificationLog[]
   avatar            UserAvatar?
   location          UserLocation?
@@ -116,6 +117,17 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+// Android app devices, which get notifications through Firebase instead of web push.
+model FcmToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
   createdAt DateTime @default(now())
 
   @@index([userId])

@@ -15,6 +15,8 @@ const SubscribeSchema = z.object({
 
 const UnsubscribeSchema = z.object({ endpoint: z.string().url() });
 
+const FcmSchema = z.object({ token: z.string().min(1).max(4096) });
+
 @ApiTags('push')
 @Controller('/push')
 @UseGuards(RequireUserGuard)
@@ -38,6 +40,13 @@ export class PushController {
   @ApiOperation({ summary: 'Remove this device from push notifications' })
   async unsubscribe(@CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(UnsubscribeSchema)) body: any) {
     await this.push.unsubscribe(user.id, body.endpoint);
+    return { ok: true };
+  }
+
+  @Post('/fcm')
+  @ApiOperation({ summary: 'Register this Android app install for push notifications' })
+  async fcm(@CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(FcmSchema)) body: any) {
+    await this.push.subscribeFcm(user.id, body.token);
     return { ok: true };
   }
 

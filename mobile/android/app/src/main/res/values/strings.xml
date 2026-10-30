@@ -1,0 +1,9 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Chorly</string>
+    <string name="title_activity_main">Chorly</string>
+    <string name="package_name">me.theraifs.chorly</string>
+    <string name="custom_url_scheme">me.theraifs.chorly</string>
+    <string name="capacitor_background_geolocation_notification_channel_name">Location sharing</string>
+    <string name="capacitor_background_geolocation_notification_icon">drawable/ic_notification</string>
+</resources>

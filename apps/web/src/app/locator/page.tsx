@@ -5,6 +5,7 @@ import { api } from '../../lib/api';
 import { firstName, relativeTime } from '../../lib/format';
 import { t } from '../../lib/i18n';
 import { useLocationSharing, type FamilyLocation } from '../../lib/location';
+import { nativePlugins } from '../../lib/native';
 import { useAutoRefresh } from '../../lib/refresh';
 import { useSession, type Member } from '../../lib/session';
 import { Avatar } from '../../components/avatar';
@@ -59,7 +60,7 @@ export default function LocatorPage() {
     }
   }
 
-  const sharedHint = status === 'denied' ? t('locator.denied') : t('locator.shareHint');
+  const sharedHint = status === 'denied' ? t('locator.denied') : t(nativePlugins() ? 'locator.shareHintNative' : 'locator.shareHint');
 
   return (
     <div className="page">

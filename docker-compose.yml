@@ -9,6 +9,7 @@ x-app-env: &app-env
   VAPID_PUBLIC_KEY: ${VAPID_PUBLIC_KEY:-}
   VAPID_PRIVATE_KEY: ${VAPID_PRIVATE_KEY:-}
   VAPID_SUBJECT: mailto:${ACME_EMAIL:-admin@example.com}
+  FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
 
 services:
   postgres:

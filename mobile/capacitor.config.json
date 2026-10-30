@@ -1,0 +1,16 @@
+{
+  "appId": "me.theraifs.chorly",
+  "appName": "Chorly",
+  "webDir": "www",
+  "server": {
+    "url": "https://chores.the-raifs.me"
+  },
+  "android": {
+    "useLegacyBridge": true
+  },
+  "plugins": {
+    "PushNotifications": {
+      "presentationOptions": ["alert", "sound", "badge"]
+    }
+  }
+}

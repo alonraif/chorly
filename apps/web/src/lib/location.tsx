@@ -2,6 +2,8 @@
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { api } from './api';
+import { t } from './i18n';
+import { nativePlugins, nativePost } from './native';
 import { useSession } from './session';
 
 export type SharingStatus = 'off' | 'on' | 'denied' | 'unsupported';
@@ -14,6 +16,8 @@ const MIN_REPORT_MS = 10_000;
 const HEARTBEAT_MS = 30_000;
 // A fix this old (the app was suspended) isn't where the person is now.
 const MAX_FIX_AGE_MS = 120_000;
+// The Android app only hears about a phone that moved at least this far.
+const NATIVE_DISTANCE_FILTER_M = 20;
 
 type LocationValue = {
   status: SharingStatus;
@@ -23,9 +27,12 @@ type LocationValue = {
 
 const LocationContext = createContext<LocationValue | null>(null);
 
+type Fix = { lat: number; lng: number; accuracy: number | null; time: number };
+
 // Reports this device's position while the app is open. Browsers stop geolocation once the app
-// is in the background, so this can't run while Chorly is closed. The switch is per device: a
-// laptop left open shouldn't move someone away from the phone in their pocket.
+// is in the background, so this can't run while Chorly is closed there; the Android app keeps
+// going through a native watcher. The switch is per device: a laptop left open shouldn't move
+// someone away from the phone in their pocket.
 export function LocationProvider({ children }: { children: ReactNode }) {
   const { me } = useSession();
   const flagKey = `chorly.shareLocation.${me.id}`;
@@ -60,20 +67,58 @@ export function LocationProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (status !== 'on') return;
     reporting.current = true;
-    let fix: GeolocationPosition | null = null;
+    const native = nativePlugins();
+    let fix: Fix | null = null;
     let reportedAt = 0;
 
     const report = (minGapMs: number) => {
       if (!fix || !reporting.current) return;
-      if (Date.now() - reportedAt < minGapMs || Date.now() - fix.timestamp > MAX_FIX_AGE_MS) return;
+      // The native watcher stays quiet while the phone is still, so its last fix doesn't go stale.
+      if (Date.now() - reportedAt < minGapMs || (!native && Date.now() - fix.time > MAX_FIX_AGE_MS)) return;
       reportedAt = Date.now();
-      const { latitude: lat, longitude: lng, accuracy } = fix.coords;
-      lastReport.current = api.post('/location/me', { lat, lng, accuracy }).catch(() => undefined);
+      const { lat, lng, accuracy } = fix;
+      const send = native ? nativePost : api.post;
+      lastReport.current = send('/location/me', { lat, lng, accuracy }).catch(() => undefined);
     };
 
+    const timer = window.setInterval(() => report(HEARTBEAT_MS), HEARTBEAT_MS);
+
+    if (native) {
+      let stopped = false;
+      // Android 13+ hides the "sharing your location" notification without this permission.
+      const watcher = Promise.resolve(native.PushNotifications.requestPermissions())
+        .catch(() => undefined)
+        .then(() => {
+          if (stopped) return null;
+          return native.BackgroundGeolocation.addWatcher(
+            {
+              backgroundTitle: t('locator.backgroundTitle'),
+              backgroundMessage: t('locator.backgroundMessage'),
+              requestPermissions: true,
+              stale: false,
+              distanceFilter: NATIVE_DISTANCE_FILTER_M,
+            },
+            (location: any, error: any) => {
+              if (error) {
+                if (error.code === 'NOT_AUTHORIZED') halt('denied').catch(() => undefined);
+                return;
+              }
+              if (!location) return;
+              fix = { lat: location.latitude, lng: location.longitude, accuracy: location.accuracy, time: location.time };
+              report(MIN_REPORT_MS);
+            },
+          );
+        });
+      return () => {
+        stopped = true;
+        window.clearInterval(timer);
+        watcher.then((id) => id && native.BackgroundGeolocation.removeWatcher({ id })).catch(() => undefined);
+      };
+    }
+
     const watchId = navigator.geolocation.watchPosition(
-      (position) => {
-        fix = position;
+      ({ coords, timestamp }) => {
+        fix = { lat: coords.latitude, lng: coords.longitude, accuracy: coords.accuracy, time: timestamp };
         report(MIN_REPORT_MS);
       },
       (error) => {
@@ -81,7 +126,6 @@ export function LocationProvider({ children }: { children: ReactNode }) {
       },
       { enableHighAccuracy: true, maximumAge: MIN_REPORT_MS },
     );
-    const timer = window.setInterval(() => report(HEARTBEAT_MS), HEARTBEAT_MS);
     return () => {
       navigator.geolocation.clearWatch(watchId);
       window.clearInterval(timer);

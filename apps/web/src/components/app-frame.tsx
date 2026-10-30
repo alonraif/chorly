@@ -6,6 +6,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../lib/api';
 import { t, type MessageKey } from '../lib/i18n';
 import { LocationProvider } from '../lib/location';
+import { nativePlugins } from '../lib/native';
 import { SessionProvider, useSession, type Member } from '../lib/session';
 import { clearCurrentUserId, setCurrentLocale } from '../lib/user';
 import { Avatar } from './avatar';
@@ -39,6 +40,18 @@ export function AppFrame({ children }: { children: ReactNode }) {
       navigator.serviceWorker.register('/sw.js').catch(() => undefined);
     }
   }, []);
+
+  useEffect(() => {
+    const listener = nativePlugins()?.PushNotifications.addListener(
+      'pushNotificationActionPerformed',
+      ({ notification }: { notification: { data?: { url?: string } } }) => {
+        if (notification.data?.url) router.push(notification.data.url);
+      },
+    );
+    return () => {
+      Promise.resolve(listener).then((handle) => handle?.remove());
+    };
+  }, [router]);
 
   useEffect(() => {
     if (isPublic) {

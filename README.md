@@ -90,12 +90,35 @@ Everyone, kids included, can open the map (**Map** tab, or the pin at the top fo
 
 Only the last known position is kept (`UserLocation`), never a history. Turning sharing off deletes it. The map is drawn with MapLibre using free OpenFreeMap styles (Positron in light mode, Fiord in dark), which need no key.
 
-**Sharing only runs while Chorly is open and on screen.** Browsers and installed web apps get no location once they're in the background or closed, on both iPhone and Android. Someone who leaves the app stays on the map at their last position, labelled with how long ago that was and faded after 10 minutes. Continuous background sharing needs a native app.
+**In a browser or installed web app, sharing only runs while Chorly is open and on screen.** They get no location once they're in the background or closed, on both iPhone and Android. Someone who leaves the app stays on the map at their last position, labelled with how long ago that was and faded after 10 minutes.
+
+**The Android app keeps sharing in the background**, with a permanent "Sharing your location" notification while it does. Swiping the app away stops it, and some phones' battery savers can too.
 
 ## Phones (install + notifications)
 
+- **Android app:** install the APK (see below) and tap **Turn on notifications** under Account.
 - **Android / Chrome:** open the site → menu → *Install app*. Tap **🔔 Turn on notifications** in the header.
 - **iPhone (iOS 16.4+):** open in Safari → Share → *Add to Home Screen*, open Chorly from the icon, then tap **🔔 Turn on notifications**. iOS only allows web push for home-screen apps.
+
+### Android app
+
+`mobile/` is a Capacitor wrapper that loads the live site, so web and API deploys reach it without a new APK. Rebuild only when something in `mobile/` changes (plugins, permissions, icon); bump `versionCode` in `mobile/android/app/build.gradle` first.
+
+Building needs JDK 21 and the Android SDK (platform 35, build-tools 35):
+
+```bash
+cd mobile
+npm install
+export JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME=/opt/homebrew/share/android-commandlinetools
+npm run apk
+```
+
+The APK lands in `mobile/android/app/build/outputs/apk/release/app-release.apk`. It's signed with `mobile/android/chorly-release.keystore` and the passwords in `keystore.properties`, both outside git. Back them up: phones only accept an update signed with the same key.
+
+**Notifications** go through Firebase, so they need a free Firebase project with an Android app using the package name `me.theraifs.chorly`:
+
+1. Put its `google-services.json` in `mobile/android/app/` and rebuild. An APK built without it works, but offers no notifications.
+2. In *Project settings → Service accounts*, generate a private key and put it in `.env` as `FIREBASE_SERVICE_ACCOUNT` (`base64 -i key.json`), then `docker compose up -d`.
 
 Notifications sent:
 - Kid marks a chore done → parents ("ready for approval").
