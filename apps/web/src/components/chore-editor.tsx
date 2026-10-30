@@ -62,17 +62,19 @@ function startDay(defaultDate?: string | null): DateTime {
 
 function emptyDraft(defaultAssignees: string[], defaultDate?: string | null): Draft {
   const day = startDay(defaultDate);
+  // Past the usual due time today, keep a new chore from starting out overdue.
+  const lateToday = day.hasSame(now(), 'day') && now().hour >= 18;
   return {
     title: '',
     assigneeIds: defaultAssignees,
     split: 'each',
-    freq: 'daily',
+    freq: 'once',
     days: [weekdayCodeOf(day)],
     monthlyPos: 1,
     monthlyDay: 'SU',
     intervalDays: 2,
     onceDate: day.toISODate() || '',
-    onceTime: '18:00',
+    onceTime: lateToday ? '23:59' : '18:00',
     dueTime: '18:00',
     hasReward: false,
     rewardAmount: '',

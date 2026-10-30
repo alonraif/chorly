@@ -4,7 +4,7 @@ import { DateTime } from 'luxon';
 import Link from 'next/link';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../../lib/api';
-import { choreTitle, dayKey, firstName, friendlyDay, greeting, longDate, now, timeOf, TZ, weekdayCodeOf, weekdayName } from '../../lib/format';
+import { choreTitle, dayKey, firstName, friendlyDay, greeting, longDate, now, scheduleSummary, timeOf, TZ, weekdayCodeOf, weekdayName, type ScheduleJson } from '../../lib/format';
 import { joinNames, t, tn } from '../../lib/i18n';
 import { useAutoRefresh } from '../../lib/refresh';
 import { useSession } from '../../lib/session';
@@ -51,6 +51,16 @@ function daysBetween(from: DateTime, to: DateTime) {
 
 function eachDay(from: DateTime, count: number) {
   return Array.from({ length: count }, (_, i) => from.plus({ days: i }));
+}
+
+function RepeatMark({ schedule }: { schedule?: ScheduleJson }) {
+  if (!schedule || schedule.type === 'one_time') return null;
+  const summary = scheduleSummary(schedule);
+  return (
+    <span className="row-people" role="img" aria-label={summary} title={summary}>
+      <Icon name="repeat" size={14} />
+    </span>
+  );
 }
 
 export default function ParentHomePage() {
@@ -430,6 +440,7 @@ export default function ParentHomePage() {
                         <span className="row-sub">
                           <AvatarStack users={item.assignments.map((a) => ({ id: a.userId, displayName: a.displayName }))} size={20} />
                           {joinNames(item.assignments.map((a) => firstName(a.displayName)))}
+                          <RepeatMark schedule={chores.find((c) => c.id === item.choreId)?.scheduleJson} />
                         </span>
                       </span>
                       <StatusPill instance={item} />
