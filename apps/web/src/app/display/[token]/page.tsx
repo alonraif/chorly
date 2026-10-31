@@ -1,29 +1,28 @@
 'use client';
 
 import { useParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
-import { ProgressRing, hueFor, initials } from '../../../components/avatar';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { hueFor, initials } from '../../../components/avatar';
 import { Icon } from '../../../components/icon';
 import { api } from '../../../lib/api';
-import { choreTitle, firstName, longDate, now, timeOf, type ChoreTitle } from '../../../lib/format';
+import { choreTitle, firstName, now, timeOf, zoned, type ChoreTitle } from '../../../lib/format';
 import { applyLocale, getLocale, t, type Locale } from '../../../lib/i18n';
 import './display.css';
 
 type ChoreState = 'todo' | 'overdue' | 'waiting' | 'approved';
 type BoardChore = ChoreTitle & { id: string; dueAt: string; state: ChoreState };
-type BoardKid = { id: string; displayName: string; avatarAt: string | null; isAway: boolean; chores: BoardChore[]; missed: number };
-type Board = { family: { name: string; locale: Locale }; kids: BoardKid[] };
+type BoardPerson = { id: string; displayName: string; avatarAt: string | null; chores: BoardChore[]; missed: number };
+type Board = { family: { name: string; locale: Locale }; sun: { rise: string; set: string }; people: BoardPerson[] };
 
 const REFRESH_MS = 30_000;
 const CLOCK_MS = 15_000;
-// What's left to do comes first, so a long list only ever hides finished chores.
-const STATE_ORDER: Record<ChoreState, number> = { overdue: 0, todo: 1, waiting: 2, approved: 3 };
+const MAX_TEXT = 44;
+const MIN_TEXT = 22;
+const ANY_LENGTH = Number.POSITIVE_INFINITY;
+const ROOM_FOR_NAME = 32;
 
 const isFinished = (chore: BoardChore) => chore.state === 'waiting' || chore.state === 'approved';
-
-function isNight(hour: number) {
-  return hour >= 19 || hour < 7;
-}
+const rowOrder = (chore: BoardChore) => (chore.state === 'overdue' ? 0 : isFinished(chore) ? 2 : 1);
 
 export default function DisplayPage() {
   const { token } = useParams<{ token: string }>();
@@ -32,6 +31,8 @@ export default function DisplayPage() {
   const [updatedAt, setUpdatedAt] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [clock, setClock] = useState(now);
+  const [rowLimit, setRowLimit] = useState(ANY_LENGTH);
+  const columns = useRef<HTMLDivElement>(null);
 
   const load = useCallback(async () => {
     try {
@@ -39,6 +40,7 @@ export default function DisplayPage() {
       // The room's language, not the language of whoever last used this device.
       if (next.family.locale !== getLocale()) applyLocale(next.family.locale);
       setBoard(next);
+      setRowLimit(ANY_LENGTH);
       setUpdatedAt(new Date().toISOString());
       setOffline(false);
       setLinkOff(false);
@@ -59,13 +61,35 @@ export default function DisplayPage() {
     };
   }, [load]);
 
-  const night = isNight(clock.hour);
+  const night = !!board && (clock < zoned(board.sun.rise) || clock >= zoned(board.sun.set));
   useEffect(() => {
     document.documentElement.dataset.theme = night ? 'dark' : 'light';
     return () => {
       delete document.documentElement.dataset.theme;
     };
   }, [night]);
+
+  // Largest text that fits every chore in full. Hiding rows is the last resort, for a day too long to fit at all.
+  const fit = useCallback(() => {
+    const el = columns.current;
+    if (!el) return;
+    const overflows = () => Array.from(el.children).some((column) => column.scrollHeight > column.clientHeight + 1);
+    let size = MAX_TEXT;
+    el.style.setProperty('--text', `${size}px`);
+    while (size > MIN_TEXT && overflows()) {
+      size -= 1;
+      el.style.setProperty('--text', `${size}px`);
+    }
+    if (overflows()) {
+      const longest = Math.max(...(board?.people ?? []).map((p) => p.chores.length));
+      setRowLimit((limit) => Math.max(1, Math.min(limit, longest) - 1));
+    }
+  }, [board]);
+
+  useLayoutEffect(fit, [fit, rowLimit]);
+  useEffect(() => {
+    document.fonts?.ready.then(fit);
+  }, [fit]);
 
   if (linkOff) {
     return (
@@ -80,65 +104,64 @@ export default function DisplayPage() {
   return (
     <main className="display">
       <header className="display-head">
-        <div>
-          <h1><bdi>{board.family.name}</bdi></h1>
-          <p>{longDate(clock)}</p>
-        </div>
-        <div className="display-time">
+        <div className="display-date">
+          <strong>{clock.toLocaleString({ weekday: 'long' })}</strong>
+          <span>{clock.toLocaleString({ month: 'long', day: 'numeric' })}</span>
           {offline && updatedAt && <span className="display-offline">{t('display.offline', { time: timeOf(updatedAt) })}</span>}
-          <strong>{clock.toFormat('HH:mm')}</strong>
         </div>
+        <time className="display-clock">{clock.toFormat('HH:mm')}</time>
       </header>
-      <div className="display-kids" style={{ ['--columns' as any]: Math.min(board.kids.length, 4) }}>
-        {board.kids.map((kid) => (
-          <KidColumn key={kid.id} kid={kid} token={token} maxRows={board.kids.length > 4 ? 3 : 7} />
-        ))}
-      </div>
+      {board.people.length === 0 ? (
+        <p className="display-free">{t('display.nothingToday')}</p>
+      ) : (
+        <div className="display-people" ref={columns}>
+          {board.people.map((person) => (
+            <PersonColumn key={person.id} person={person} token={token} rowLimit={rowLimit} />
+          ))}
+        </div>
+      )}
     </main>
   );
 }
 
-function KidColumn({ kid, token, maxRows }: { kid: BoardKid; token: string; maxRows: number }) {
-  const chores = [...kid.chores].sort((a, b) => STATE_ORDER[a.state] - STATE_ORDER[b.state] || a.dueAt.localeCompare(b.dueAt));
-  const finished = chores.filter(isFinished).length;
-  const hidden = Math.max(0, chores.length - maxRows);
-  const shown = chores.slice(0, hidden ? maxRows - 1 : maxRows);
-  const allDone = chores.length > 0 && finished === chores.length;
+function PersonColumn({ person, token, rowLimit }: { person: BoardPerson; token: string; rowLimit: number }) {
+  // What's left comes first, so a day too long to fit only ever hides finished chores.
+  const chores = [...person.chores].sort(
+    (a, b) => rowOrder(a) - rowOrder(b) || a.dueAt.localeCompare(b.dueAt),
+  );
+  const shown = chores.slice(0, rowLimit);
+  const hidden = chores.length - shown.length;
+  const textLength = chores.reduce((total, chore) => total + choreTitle(chore).length, 0);
 
   return (
-    <section className={`display-kid${allDone ? ' is-complete' : ''}`}>
+    // Width follows the amount of text, so everyone's chores can stay the same large size.
+    <section className="display-person" style={{ flexGrow: textLength + ROOM_FOR_NAME }}>
       <header>
-        <span className="avatar" style={{ ['--hue' as any]: hueFor(kid.id), width: 44, height: 44, fontSize: 18 }} aria-hidden="true">
-          {kid.avatarAt ? (
-            <img src={`/api/display/${token}/avatars/${kid.id}?v=${encodeURIComponent(kid.avatarAt)}`} alt="" />
+        <span className="avatar" style={{ ['--hue' as any]: hueFor(person.id) }} aria-hidden="true">
+          {person.avatarAt ? (
+            <img src={`/api/display/${token}/avatars/${person.id}?v=${encodeURIComponent(person.avatarAt)}`} alt="" />
           ) : (
-            initials(kid.displayName)
+            initials(person.displayName)
           )}
         </span>
-        <h2><bdi>{firstName(kid.displayName)}</bdi></h2>
-        <ProgressRing value={finished} total={chores.length} size={44} stroke={5}>
-          <span className="display-count">{finished}/{chores.length}</span>
-        </ProgressRing>
+        <h2><bdi>{firstName(person.displayName)}</bdi></h2>
       </header>
-      {chores.length === 0 ? (
-        <p className="display-empty">{kid.isAway ? t('common.away') : t('display.nothingToday')}</p>
-      ) : allDone ? (
-        <p className="display-done"><Icon name="check" size={28} /> {t('display.allDone')}</p>
-      ) : (
-        <ul>
-          {shown.map((chore) => (
-            <li key={chore.id} className={`display-chore is-${chore.state}`}>
-              <span className="display-mark" aria-hidden="true">
-                {isFinished(chore) && <Icon name="check" size={16} />}
-              </span>
-              <span className="display-title"><bdi>{choreTitle(chore)}</bdi></span>
-              {chore.state === 'overdue' && <span className="display-flag">{t('status.overdue')}</span>}
-            </li>
-          ))}
-          {hidden > 0 && <li className="display-more">{t('display.more', { count: hidden + 1 })}</li>}
-        </ul>
+      <ul>
+        {shown.map((chore) => (
+          <li key={chore.id} className={isFinished(chore) ? 'is-finished' : chore.state === 'overdue' ? 'is-overdue' : undefined}>
+            <span className="display-mark" aria-hidden="true">
+              {isFinished(chore) && <Icon name="check" />}
+            </span>
+            <bdi>{choreTitle(chore)}</bdi>
+          </li>
+        ))}
+      </ul>
+      {(hidden > 0 || person.missed > 0) && (
+        <footer>
+          {hidden > 0 && <span>{t('display.more', { count: hidden })}</span>}
+          {person.missed > 0 && <span className="display-missed">{t('display.missed', { count: person.missed })}</span>}
+        </footer>
       )}
-      {kid.missed > 0 && <p className="display-missed">{t('display.missed', { count: kid.missed })}</p>}
     </section>
   );
 }

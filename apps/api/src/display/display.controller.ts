@@ -34,14 +34,14 @@ export class DisplayController {
   // The token stands in for a session here: a Nest Hub can't sign in.
   @Get('/display/:token')
   @Header('Cache-Control', 'no-store')
-  @ApiOperation({ summary: "Today's chores for each kid, read-only" })
+  @ApiOperation({ summary: "Today's chores for everyone who has some, read-only" })
   @ApiParam({ name: 'token' })
   board(@Param('token') token: string) {
     return this.display.board(token);
   }
 
   @Get('/display/:token/avatars/:userId')
-  @ApiOperation({ summary: "A kid's picture for the display" })
+  @ApiOperation({ summary: "A family member's picture for the display" })
   @ApiParam({ name: 'token' })
   @ApiParam({ name: 'userId' })
   async avatar(@Param('token') token: string, @Param('userId') userId: string, @Res() res: Response) {

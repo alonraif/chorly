@@ -219,7 +219,7 @@ Profile pictures are stored in Postgres, so the nightly backup includes them.
 
 ### Kitchen display
 
-A read-only board of today's chores for each kid, for a Nest Hub or a tablet. It shows names, chores and pictures, but no money, proofs, locations or parents' chores.
+A read-only board of today's chores for a Nest Hub or a tablet, with a large clock and date. It shows everyone who has chores today, parents included, and turns dark at sunset, worked out from your Home place. It shows names, chores and pictures, but no money, proofs or locations.
 
 1. In the app, go to **Family → Kitchen display → Create link** and copy the link. It's shown once. **New link** replaces it and **Turn off** ends it.
 2. Find the Hub's IP in the Google Home app (*Device → Settings → Device information*), and reserve it on the router so it doesn't change.

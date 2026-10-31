@@ -364,7 +364,6 @@ export const en = {
   'proof.unavailable': 'The camera isn’t available on this device.',
   'proof.review': 'Photo or video from {who}',
 
-  'display.allDone': 'All done',
   'display.nothingToday': 'Nothing today',
   'display.more': '+{count} more',
   'display.missed': '{count} missed earlier',
@@ -372,7 +371,7 @@ export const en = {
   'display.linkOff': 'This display link is off',
   'display.linkOffHint': 'A parent can make a new one under Family.',
   'display.title': 'Kitchen display',
-  'display.hint': 'A read-only board of the kids\' chores for a Nest Hub or tablet. Anyone with the link can see it, without signing in.',
+  'display.hint': 'A read-only board of the family\'s chores for a Nest Hub or tablet. Anyone with the link can see it, without signing in.',
   'display.statusOn': 'On',
   'display.statusOff': 'Off',
   'display.turnOn': 'Create link',
@@ -991,7 +990,6 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'proof.unavailable': 'המצלמה לא זמינה במכשיר הזה.',
   'proof.review': 'תמונה או סרטון מ{who}',
 
-  'display.allDone': 'הכול בוצע',
   'display.nothingToday': 'אין מטלות היום',
   'display.more': 'ועוד {count}',
   'display.missed': 'פוספסו קודם: {count}',
@@ -999,7 +997,7 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'display.linkOff': 'קישור התצוגה כבוי',
   'display.linkOffHint': 'הורה יכול ליצור קישור חדש במסך המשפחה.',
   'display.title': 'תצוגה למטבח',
-  'display.hint': 'לוח מטלות של הילדים לקריאה בלבד, ל-Nest Hub או לטאבלט. כל מי שיש לו את הקישור יכול לראות אותו בלי להתחבר.',
+  'display.hint': 'לוח מטלות של המשפחה לקריאה בלבד, ל-Nest Hub או לטאבלט. כל מי שיש לו את הקישור יכול לראות אותו בלי להתחבר.',
   'display.statusOn': 'פעיל',
   'display.statusOff': 'כבוי',
   'display.turnOn': 'יצירת קישור',
