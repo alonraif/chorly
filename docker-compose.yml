@@ -94,6 +94,18 @@ services:
       - ./deploy/ddns:/updater/data
     profiles: ["ddns"]
 
+  # Keeps the chores board up on a Nest Hub during the day (opt-in profile). Settings: "Kitchen display" in the README.
+  cast:
+    build: ./deploy/cast
+    restart: unless-stopped
+    environment:
+      TZ: ${TIMEZONE:-Asia/Jerusalem}
+      HUB_IP: ${HUB_IP:-}
+      DISPLAY_URL: ${DISPLAY_URL:-}
+      CAST_FROM: ${CAST_FROM:-07:00}
+      CAST_UNTIL: ${CAST_UNTIL:-21:00}
+    profiles: ["cast"]
+
   # Nightly pg_dump into ./backups, keeping 14 days.
   backup:
     image: postgres:16

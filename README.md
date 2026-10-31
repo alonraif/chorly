@@ -160,6 +160,7 @@ The stack in `docker-compose.yml`:
 | postgres | database (not exposed outside Docker) |
 | backup   | nightly `pg_dump` into `./backups`, keeps 14 days |
 | ddns     | keeps the DNS record pointed at your home IP (opt-in profile) |
+| cast     | keeps the chores board on a Nest Hub during the day (opt-in profile) |
 
 ### 1. DNS + dynamic IP
 
@@ -215,6 +216,32 @@ Database migrations run automatically when the api container starts.
 Proofs live in the `chorly_proofs` Docker volume only until a parent approves or rejects the chore, then they're deleted. They aren't part of the nightly backup.
 
 Profile pictures are stored in Postgres, so the nightly backup includes them.
+
+### Kitchen display
+
+A read-only board of today's chores for each kid, for a Nest Hub or a tablet. It shows names, chores and pictures, but no money, proofs, locations or parents' chores.
+
+1. In the app, go to **Family → Kitchen display → Create link** and copy the link. It's shown once. **New link** replaces it and **Turn off** ends it.
+2. Find the Hub's IP in the Google Home app (*Device → Settings → Device information*), and reserve it on the router so it doesn't change.
+3. Add both to `.env`, along with the hours the board should be up:
+
+   ```bash
+   HUB_IP=192.168.10.18
+   DISPLAY_URL=https://chores.the-raifs.me/display/...
+   CAST_FROM=07:00
+   CAST_UNTIL=21:00
+   ```
+
+4. Let Docker reach the Hub: System Settings → Privacy & Security → Local Network → turn Docker on, then restart Docker Desktop. If it's already on and the `cast` logs still show `Can't reach the Hub`, turn it off and on again, then restart Docker Desktop.
+5. Start it:
+
+   ```bash
+   docker compose --profile ddns --profile cast up -d --build
+   ```
+
+The `cast` service checks the Hub every 30 seconds. If it's idle during those hours, the board goes back up. If it's playing something else, it's left alone until that ends. After `CAST_UNTIL` the board comes off. See what it's doing with `docker compose logs -f cast`. Casting relies on catt and DashCast, not on anything Google supports, so a Hub firmware update can break it.
+
+For a tablet, open the link in a kiosk browser instead. The `cast` service isn't needed.
 
 ### Restore a backup
 

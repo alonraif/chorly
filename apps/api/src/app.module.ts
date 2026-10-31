@@ -13,9 +13,10 @@ import { FamilyModule } from './family/family.module';
 import { AuthModule } from './auth/auth.module';
 import { PushModule } from './push/push.module';
 import { LocationModule } from './location/location.module';
+import { DisplayModule } from './display/display.module';
 
 @Module({
-  imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule, LocationModule],
+  imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule, LocationModule, DisplayModule],
   controllers: [HealthController, AppDownloadController],
   providers: [SessionMiddleware, AdminGuard, RequireUserGuard, RequireTenantGuard],
 })

@@ -33,7 +33,9 @@ const PARENT_NAV: Array<{ href: string; label: MessageKey; icon: IconName; badge
 export function AppFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const isPublic = PUBLIC_PATHS.includes(pathname);
+  // The kitchen display has no session and no app chrome: its link is the only key it needs.
+  const isDisplay = pathname.startsWith('/display/');
+  const isPublic = isDisplay || PUBLIC_PATHS.includes(pathname);
   const [me, setMe] = useState<Member | null>(null);
 
   useEffect(() => {
@@ -75,6 +77,8 @@ export function AppFrame({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (kidBlocked) router.replace('/child');
   }, [kidBlocked, router]);
+
+  if (isDisplay) return <>{children}</>;
 
   if (isPublic) {
     return (

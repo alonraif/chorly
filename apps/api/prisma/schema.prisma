@@ -67,11 +67,13 @@ enum FamilyRole {
 }
 
 model Tenant {
-  id            String   @id
-  name          String
-  currencyCode  String   @default("ILS")
-  defaultLocale Locale   @default(he)
-  createdAt     DateTime @default(now())
+  id               String   @id
+  name             String
+  currencyCode     String   @default("ILS")
+  defaultLocale    Locale   @default(he)
+  // Hash of the secret in the read-only display link (Nest Hub); null means the link is off.
+  displayTokenHash String?  @unique
+  createdAt        DateTime @default(now())
 
   users       User[]
   chores      ChoreDefinition[]

@@ -3366,3 +3366,34 @@ textarea.input {
   font-size: 1.8rem;
   line-height: 1;
 }
+
+/* Family page: kitchen display link */
+.display-link-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--surface);
+}
+
+.display-link-card p {
+  margin: 0;
+}
+
+.display-link-card .callout {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.display-link-card .input {
+  width: 100%;
+}
+
+.display-link-actions {
+  display: flex;
+  gap: 8px;
+}

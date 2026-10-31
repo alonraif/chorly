@@ -1,0 +1,217 @@
+/* Kitchen display: fills a 1024×600 Nest Hub and is read from across the room. */
+
+.display {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px 22px;
+  overflow: hidden;
+  background: var(--bg);
+  color: var(--ink);
+  cursor: none;
+}
+
+.display-message {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: var(--ink-2);
+}
+
+.display-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.display-head h1 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.2;
+}
+
+.display-head p {
+  margin: 0;
+  font-size: 18px;
+  color: var(--ink-2);
+}
+
+.display-time {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.display-time strong {
+  font-family: var(--font-heading);
+  font-size: 44px;
+  font-weight: 600;
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+
+.display-offline {
+  font-size: 16px;
+  color: var(--warn);
+}
+
+.display-kids {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: repeat(var(--columns), minmax(0, 1fr));
+  grid-auto-rows: minmax(0, 1fr);
+  gap: 12px;
+}
+
+.display-kid {
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px;
+  overflow: hidden;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow-1);
+}
+
+.display-kid.is-complete {
+  background: var(--brand-soft);
+}
+
+.display-kid > header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.display-kid h2 {
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 24px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.display-count {
+  font-size: 12px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.display-kid ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.display-chore {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 44px;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.display-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 2px solid var(--line-strong);
+  border-radius: 50%;
+}
+
+.display-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-height: 1.15;
+}
+
+.display-chore.is-overdue .display-mark {
+  border-color: var(--danger);
+}
+
+.display-flag {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.display-chore.is-waiting,
+.display-chore.is-approved {
+  color: var(--ink-3);
+  font-weight: 500;
+}
+
+.display-chore.is-waiting .display-mark {
+  border-color: var(--waiting);
+  color: var(--waiting);
+}
+
+.display-chore.is-approved .display-mark {
+  border-color: var(--brand);
+  background: var(--brand);
+  color: var(--brand-ink);
+}
+
+.display-more,
+.display-empty {
+  margin: 0;
+  font-size: 18px;
+  color: var(--ink-2);
+}
+
+.display-missed {
+  margin: auto 0 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.display-done {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 0;
+  font-family: var(--font-heading);
+  font-size: 26px;
+  font-weight: 600;
+  color: var(--brand-strong);
+}
+
+@media (max-width: 640px) {
+  .display {
+    position: static;
+    min-height: 100dvh;
+    overflow: visible;
+    cursor: auto;
+  }
+
+  .display-kids {
+    grid-template-columns: minmax(0, 1fr);
+    grid-auto-rows: auto;
+  }
+}
