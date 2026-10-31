@@ -72,17 +72,22 @@ export default function DisplayPage() {
     };
   }, [night]);
 
-  // Largest text that fits every chore in full. Hiding rows is the last resort, for a day too long to fit at all.
+  // Largest text, the same for everyone, that fits every chore in full without splitting a word.
+  // Hiding rows is the last resort, for a day too long to fit at all.
   const fit = useCallback(() => {
     const el = columns.current;
     if (!el) return;
     const overflows = () => Array.from(el.children).some((column) => column.scrollHeight > column.clientHeight + 1);
+    const wordTooWide = () => Array.from(el.querySelectorAll('li')).some((row) => row.scrollWidth > row.clientWidth + 1);
     let size = MAX_TEXT;
+    el.classList.remove('can-split-words');
     el.style.setProperty('--text', `${size}px`);
-    while (size > MIN_TEXT && overflows()) {
+    while (size > MIN_TEXT && (overflows() || wordTooWide())) {
       size -= 1;
       el.style.setProperty('--text', `${size}px`);
     }
+    // A word too long for any readable size is split rather than cut off.
+    el.classList.toggle('can-split-words', wordTooWide());
     if (overflows()) {
       const longest = Math.max(...(board?.columns ?? []).map((c) => c.chores.length));
       setRowLimit((limit) => Math.max(1, Math.min(limit, longest) - 1));
