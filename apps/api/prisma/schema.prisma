@@ -35,6 +35,7 @@ enum PlaceKind {
   school
   work
   fun
+  store
   other
 }
 
@@ -60,6 +61,28 @@ enum ErrandStatus {
   done
 }
 
+enum ShoppingState {
+  needed
+  bought
+  removed
+}
+
+enum ShoppingCategory {
+  produce
+  dairy
+  meat
+  bakery
+  pantry
+  frozen
+  drinks
+  snacks
+  household
+  personal
+  baby
+  pets
+  other
+}
+
 enum FamilyRole {
   parent
   child
@@ -82,6 +105,7 @@ model Tenant {
   places      Place[]
   errands     Errand[]
   mapTags     MapTag[]
+  shopping    ShoppingItem[]
 }
 
 model User {
@@ -100,6 +124,8 @@ model User {
   notifyPrefs  Json       @default("{}")
   // When the current picture was set; null means none. The image itself is in UserAvatar.
   avatarAt     DateTime?
+  // Since when this member said they're out shopping. See SHOPPING_TRIP_MS; null means they aren't.
+  shoppingSince DateTime?
   createdAt    DateTime   @default(now())
 
   assignments       InstanceAssignment[]
@@ -117,6 +143,8 @@ model User {
   errandsCreated    Errand[]             @relation("ErrandCreator")
   errandsClaimed    Errand[]             @relation("ErrandClaimer")
   mapTagsUpdated    MapTag[]
+  shoppingAdded     ShoppingItem[]       @relation("ShoppingAdder")
+  shoppingBought    ShoppingItem[]       @relation("ShoppingBuyer")
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
@@ -243,6 +271,32 @@ model MapTag {
   updatedAt   DateTime @updatedAt
 
   @@index([tenantId])
+}
+
+// One row per thing the family ever wanted, by name. Adding it again brings the same row back,
+// so a list can't hold two of the same, and past rows are what autocomplete and Buy again read.
+model ShoppingItem {
+  id          String           @id @default(cuid())
+  tenantId    String
+  tenant      Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  name        String
+  // The name reduced for comparing: see shoppingKey.
+  nameKey     String
+  quantity    String?
+  note        String?
+  category    ShoppingCategory @default(other)
+  state       ShoppingState    @default(needed)
+  urgent      Boolean          @default(false)
+  addedById   String?
+  addedBy     User?            @relation("ShoppingAdder", fields: [addedById], references: [id], onDelete: SetNull)
+  addedAt     DateTime         @default(now())
+  boughtById  String?
+  boughtBy    User?            @relation("ShoppingBuyer", fields: [boughtById], references: [id], onDelete: SetNull)
+  boughtAt    DateTime?
+  timesBought Int              @default(0)
+
+  @@unique([tenantId, nameKey])
+  @@index([tenantId, state])
 }
 
 model Session {

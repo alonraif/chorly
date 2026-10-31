@@ -21,7 +21,7 @@ import { PushService } from '../push/push.service';
 import { ErrandsService } from './errands.service';
 
 const TZ = process.env.TIMEZONE || 'Asia/Jerusalem';
-// Someone coming home again within this long doesn't get the "welcome home" list twice.
+// Someone coming home or to a store again within this long doesn't get its list twice.
 const WELCOME_COOLDOWN_MS = 3 * 60 * 60_000;
 // The same person can't be poked by the same member more often than this.
 const POKE_COOLDOWN_MS = 20_000;
@@ -181,15 +181,16 @@ export class LocationService {
     const to = toId ? byId.get(toId) : undefined;
     if (!to) return;
 
-    const earlier = to.kind === 'home'
+    const earlier = to.kind === 'home' || to.kind === 'store'
       ? await this.prisma.placeVisit.findFirst({
-          where: { userId: user.id, place: { kind: 'home' }, arrivedAt: { gte: new Date(now.getTime() - WELCOME_COOLDOWN_MS) } },
+          where: { userId: user.id, place: { kind: to.kind }, arrivedAt: { gte: new Date(now.getTime() - WELCOME_COOLDOWN_MS) } },
         })
       : null;
     const visit = await this.prisma.placeVisit.create({ data: { userId: user.id, placeId: to.id } });
     if (announce) await this.announce(user, 'arrived', to);
     await this.reward(user, to, visit.id);
     if (announce && to.kind === 'home' && !earlier) await this.welcomeHome(user);
+    if (announce && to.kind === 'store' && !earlier) await this.remindShopping(user, to);
   }
 
   private async announce(user: RequestUser, kind: 'arrived' | 'left', place: Place) {
@@ -230,6 +231,12 @@ export class LocationService {
       ...notificationText.welcomeHome(locale, user.displayName, open.map((i) => choreName(i.chore, locale))),
       url: '/child',
     }));
+  }
+
+  private async remindShopping(user: RequestUser, place: Place) {
+    const count = await this.prisma.shoppingItem.count({ where: { tenantId: user.tenantId, state: 'needed' } });
+    if (count === 0) return;
+    await this.push.sendToUsers([user.id], 'shopping', (locale) => ({ ...notificationText.shoppingAtStore(locale, place.name, count), url: '/shopping' }));
   }
 
   async stop(userId: string) {

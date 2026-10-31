@@ -99,6 +99,14 @@ const PATHS: Record<string, ReactNode> = {
       <circle cx="12" cy="10" r="3" />
     </>
   ),
+  cart: (
+    <>
+      <circle cx="9" cy="20" r="1.5" />
+      <circle cx="18" cy="20" r="1.5" />
+      <path d="M2 3h3l2.6 12.2a2 2 0 0 0 2 1.6h7.8a2 2 0 0 0 2-1.6L21 7H6" />
+    </>
+  ),
+  flag: <path d="M4 22v-7M4 15V4s1.5-1 4-1 4.5 2 8 2 4-1 4-1v11s-1.5 1-4 1-4.5-2-8-2-4 1-4 1" />,
   arrowRight: <path d="M5 12h14M13 6l6 6-6 6" />,
   camera: (
     <>

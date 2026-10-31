@@ -21,7 +21,8 @@ type Pref =
   | 'errands'
   | 'pokes'
   | 'deviceAlerts'
-  | 'placeRecap';
+  | 'placeRecap'
+  | 'shopping';
 type Prefs = Partial<Record<Pref, boolean>>;
 
 const PARENT_ONLY: Pref[] = ['readyForApproval', 'parentDigest', 'deviceAlerts'];
@@ -37,6 +38,7 @@ const ORDER: Pref[] = [
   'placeAlerts',
   'arrivalNudge',
   'errands',
+  'shopping',
   'pokes',
   'deviceAlerts',
   'placeRecap',

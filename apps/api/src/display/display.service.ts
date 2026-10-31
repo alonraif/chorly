@@ -13,6 +13,8 @@ const TZ = process.env.TIMEZONE || 'Asia/Jerusalem';
 const BOARD_VIEWER = { id: 'display', isAdmin: true } as RequestUser;
 // Jerusalem, for families who haven't marked a Home place.
 const DEFAULT_COORDS = { lat: 31.77, lng: 35.21 };
+// More than fit on the board's one line anyway.
+const MAX_URGENT = 6;
 
 type ChoreState = 'todo' | 'overdue' | 'waiting' | 'approved';
 
@@ -50,11 +52,12 @@ export class DisplayService {
   }
 
   // Only what the board draws: no money, notes, proofs or places, since it sits in the open.
+  // Of the shopping list, that's how long it is and what can't wait.
   async board(token: string) {
     const tenant = await this.tenantFor(token);
     const now = DateTime.now().setZone(TZ);
     const today = now.startOf('day');
-    const [people, instances, home] = await Promise.all([
+    const [people, instances, home, shoppingCount, urgent] = await Promise.all([
       this.prisma.user.findMany({
         where: { tenantId: tenant.id, isActive: true },
         orderBy: { createdAt: 'asc' },
@@ -62,6 +65,13 @@ export class DisplayService {
       }),
       this.instances.list(tenant.id, BOARD_VIEWER, today.minus({ days: 7 }).toJSDate(), today.endOf('day').toJSDate()),
       this.prisma.place.findFirst({ where: { tenantId: tenant.id, kind: 'home' }, orderBy: { createdAt: 'asc' }, select: { lat: true, lng: true } }),
+      this.prisma.shoppingItem.count({ where: { tenantId: tenant.id, state: 'needed' } }),
+      this.prisma.shoppingItem.findMany({
+        where: { tenantId: tenant.id, state: 'needed', urgent: true },
+        orderBy: { addedAt: 'desc' },
+        take: MAX_URGENT,
+        select: { name: true },
+      }),
     ]);
     const { lat, lng } = home ?? DEFAULT_COORDS;
     const sun = SunCalc.getTimes(today.plus({ hours: 12 }).toJSDate(), lat, lng);
@@ -88,6 +98,7 @@ export class DisplayService {
     return {
       family: { name: tenant.name, locale: tenant.defaultLocale },
       sun: { rise: sun.sunrise.toISOString(), set: sun.sunset.toISOString() },
+      shopping: { count: shoppingCount, urgent: urgent.map((item) => item.name) },
       columns: [...groups.values()]
         // A shared column sits right after its first person's own.
         .sort((a, b) => a.seats[0] - b.seats[0] || a.seats.length - b.seats.length || a.seats[1] - b.seats[1])

@@ -19,14 +19,21 @@ import { NotificationPrefsRow } from './notification-prefs';
 import { Sheet, Spinner, UiProvider } from './ui';
 
 const PUBLIC_PATHS = ['/', '/register'];
-const KID_PATHS = ['/child', '/locator'];
+const KID_PATHS = ['/child', '/shopping', '/locator'];
+const KID_LINKS: Array<{ href: string; label: MessageKey; icon: IconName }> = [
+  { href: '/child', label: 'nav.myChores', icon: 'check' },
+  { href: '/shopping', label: 'nav.shopping', icon: 'cart' },
+  { href: '/locator', label: 'nav.locator', icon: 'pin' },
+];
 
-const PARENT_NAV: Array<{ href: string; label: MessageKey; icon: IconName; badge?: boolean }> = [
+// Family has no room in the phone tab bar: it's under Account there.
+const PARENT_NAV: Array<{ href: string; label: MessageKey; icon: IconName; badge?: boolean; desktopOnly?: boolean }> = [
   { href: '/parent', label: 'nav.home', icon: 'home' },
   { href: '/child', label: 'nav.myChores', icon: 'check' },
   { href: '/parent/review', label: 'nav.approvals', icon: 'approve', badge: true },
   { href: '/admin/chores', label: 'nav.chores', icon: 'list' },
-  { href: '/admin/users', label: 'nav.family', icon: 'users' },
+  { href: '/admin/users', label: 'nav.family', icon: 'users', desktopOnly: true },
+  { href: '/shopping', label: 'nav.shopping', icon: 'cart' },
   { href: '/locator', label: 'nav.locator', icon: 'pin' },
 ];
 
@@ -143,6 +150,20 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
         </div>
       </div>
       <div className="settings-list">
+        {me.role !== 'child' && (
+          <Link href="/admin/users" className="setting-row setting-button phone-only" onClick={onClose}>
+            <span className="setting-icon">
+              <Icon name="users" size={18} />
+            </span>
+            <span className="setting-text">
+              <span className="setting-label">{t('nav.family')}</span>
+              {family?.name && <span className="field-hint">{family.name}</span>}
+            </span>
+            <span className="row-chevron">
+              <Icon name="chevronRight" size={18} />
+            </span>
+          </Link>
+        )}
         <button type="button" className="setting-row setting-button" onClick={() => setPictureOpen(true)}>
           <span className="setting-icon">
             <Icon name="camera" size={18} />
@@ -229,7 +250,7 @@ function ParentShell({ children }: { children: ReactNode }) {
       <main className="parent-main">{children}</main>
 
       <nav className="tabbar" aria-label={t('nav.main')}>
-        {PARENT_NAV.map((item) => (
+        {PARENT_NAV.filter((item) => !item.desktopOnly).map((item) => (
           <Link
             key={item.href}
             href={item.href}
@@ -254,7 +275,6 @@ function KidShell({ children }: { children: ReactNode }) {
   const { me } = useSession();
   const pathname = usePathname();
   const [accountOpen, setAccountOpen] = useState(false);
-  const onMap = pathname === '/locator';
   return (
     <div className="kid-shell">
       <header className="kid-topbar">
@@ -263,9 +283,11 @@ function KidShell({ children }: { children: ReactNode }) {
           <span className="brand-name">Chorly</span>
         </span>
         <span className="kid-topbar-actions">
-          <Link href={onMap ? '/child' : '/locator'} className="icon-btn" aria-label={t(onMap ? 'nav.myChores' : 'nav.locator')}>
-            <Icon name={onMap ? 'check' : 'pin'} />
-          </Link>
+          {KID_LINKS.filter((link) => link.href !== pathname).map((link) => (
+            <Link key={link.href} href={link.href} className="icon-btn" aria-label={t(link.label)}>
+              <Icon name={link.icon} />
+            </Link>
+          ))}
           <button type="button" className="topbar-account" onClick={() => setAccountOpen(true)} aria-label={t('account.title')}>
             <Avatar user={me} size={36} />
           </button>

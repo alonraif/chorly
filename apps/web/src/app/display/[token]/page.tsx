@@ -6,14 +6,19 @@ import { hueFor, initials } from '../../../components/avatar';
 import { Icon } from '../../../components/icon';
 import { api } from '../../../lib/api';
 import { choreTitle, firstName, now, timeOf, zoned, type ChoreTitle } from '../../../lib/format';
-import { applyLocale, getLocale, t, type Locale } from '../../../lib/i18n';
+import { applyLocale, getLocale, joinNames, t, tn, type Locale } from '../../../lib/i18n';
 import './display.css';
 
 type ChoreState = 'todo' | 'overdue' | 'waiting' | 'approved';
 type BoardChore = ChoreTitle & { id: string; dueAt: string; state: ChoreState };
 type BoardMember = { id: string; displayName: string; avatarAt: string | null };
 type BoardColumn = { id: string; members: BoardMember[]; chores: BoardChore[]; missed: number };
-type Board = { family: { name: string; locale: Locale }; sun: { rise: string; set: string }; columns: BoardColumn[] };
+type Board = {
+  family: { name: string; locale: Locale };
+  sun: { rise: string; set: string };
+  shopping: { count: number; urgent: string[] };
+  columns: BoardColumn[];
+};
 
 const REFRESH_MS = 30_000;
 const CLOCK_MS = 15_000;
@@ -127,6 +132,13 @@ export default function DisplayPage() {
             <ChoreColumn key={column.id} column={column} token={token} rowLimit={rowLimit} />
           ))}
         </div>
+      )}
+      {board.shopping.count > 0 && (
+        <footer className="display-shopping">
+          <Icon name="cart" />
+          <span>{tn('display.shopping', board.shopping.count)}</span>
+          {board.shopping.urgent.length > 0 && <strong>{joinNames(board.shopping.urgent)}</strong>}
+        </footer>
       )}
     </main>
   );

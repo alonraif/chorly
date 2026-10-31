@@ -120,6 +120,19 @@ export const notificationText = {
   errandDone: (locale: Locale, name: string, errand: string) =>
     locale === 'he' ? { title: `✅ ${name} סיים/ה`, body: errand } : { title: `✅ ${name} got it done`, body: errand },
 
+  shoppingUrgent: (locale: Locale, name: string, item: string) =>
+    locale === 'he' ? { title: `🛒 דחוף: ${item}`, body: `${name} צריך/ה את זה בהקדם` } : { title: `🛒 Urgent: ${item}`, body: `${name} needs this soon` },
+
+  shoppingTrip: (locale: Locale, name: string) =>
+    locale === 'he'
+      ? { title: `🛒 ${name} יוצא/ת לקניות`, body: 'יש משהו להוסיף לרשימה? זה הזמן' }
+      : { title: `🛒 ${name} is going shopping`, body: 'Need anything? Add it to the list now' },
+
+  shoppingAtStore: (locale: Locale, place: string, count: number) =>
+    locale === 'he'
+      ? { title: `🛒 הגעת ל${place}`, body: count === 1 ? 'פריט אחד ברשימה' : `${count} פריטים ברשימה` }
+      : { title: `🛒 You’re at ${place}`, body: count === 1 ? '1 item on the list' : `${count} items on the list` },
+
   poke: (locale: Locale, name: string, kind: 'wave' | 'comeHome' | 'dinner' | 'onMyWay' | 'thinking') => {
     const he = {
       wave: `${name} מנופף/ת לך 👋`,

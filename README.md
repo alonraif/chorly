@@ -1,6 +1,6 @@
 # Chorly
 
-A family chores hub: parents create chores, kids mark them done on their phones, parents approve, kids earn. A family map shows who's where, in Hebrew or English.
+A family chores hub: parents create chores, kids mark them done on their phones, parents approve, kids earn. A shared shopping list and a family map keep everyone in step, in Hebrew or English.
 
 <table>
   <tr>
@@ -23,9 +23,9 @@ A family chores hub: parents create chores, kids mark them done on their phones,
 - `packages/shared`: shared Zod schemas + types.
 - `mobile`: Android app, a Capacitor wrapper around the live site.
 
-Single family per install. The first visitor sets up the family (`/register`); after that, setup is locked and parents add members on **Family** (`/admin/users`). Anyone who signs in needs an email + password (any address works, it's only a username).
+Single family per install. The first visitor sets up the family (`/register`); after that, setup is locked and parents add members on **Family** (`/admin/users`, under **Account** on a phone). Anyone who signs in needs an email + password (any address works, it's only a username).
 
-Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their own chores, and use the map. Chores can also be assigned to parents, themselves or each other: they check them off under **My chores** and it counts as approved straight away. Only kids earn rewards.
+Login uses an httpOnly session cookie (90 days). Parents (`role=parent`) can manage everything; kids can only see and complete their own chores, and use the shopping list and the map. Chores can also be assigned to parents, themselves or each other: they check them off under **My chores** and it counts as approved straight away. Only kids earn rewards.
 
 ## User guide
 
@@ -34,7 +34,7 @@ The screenshots show a made-up family, the Levys.
 ### Getting started
 
 1. Open Chorly and choose **Set up your family**. Enter the family name, your name, an email and a password. This only happens once: everyone else is added from inside the app.
-2. Go to **Family → Add member** and add each kid, and any other parent. Pick a name, an email or username, a password of at least 8 characters, and a language.
+2. Go to **Family → Add member** (on a phone, tap your picture for **Family**) and add each kid, and any other parent. Pick a name, an email or username, a password of at least 8 characters, and a language.
 3. Add a few chores (below).
 4. Each person signs in on their own phone, [installs Chorly](#phones-install--notifications) and turns on notifications under **Account**.
 
@@ -100,6 +100,22 @@ Tap your balance to see what you've earned and been paid.
     <td width="33%"><img src="docs/screenshots/kid-wallet.png" alt="Money sheet with balance, earnings and payouts"></td>
   </tr>
 </table>
+
+### The shopping list
+
+One list for the whole family, under **Shopping** (kids: the cart at the top). Everyone can add, change, check off and remove items.
+
+- **Add:** type a name and press Enter. Separate several with commas, or paste a list from another app. Things you've bought before come up as you type.
+- **Aisles:** items sort themselves into aisles, in Hebrew or English. If one lands in the wrong aisle, tap it and change it: it stays there from then on.
+- **No doubles:** adding something that's already on the list changes nothing and tells you so. Spelling counts, so "milk" and "חלב" are two items.
+- **Details:** tap an item for how much, a note such as "the green one", or to remove it. Each row shows who asked for it.
+- **Check off:** tap the circle. The item moves to **Bought** with who got it and when, and a tap takes it back. Bought items leave the list after a day.
+- **Urgent:** switch it on in an item's details. It moves to the top and the family gets one notification.
+- **Going shopping:** **I'm going shopping** tells the family to add anything they need and shows you as out shopping until you tap **I'm done shopping**, or for two hours.
+- **Stores:** add your supermarket as a place of type **Store**, and arriving there tells you how many items are on the list.
+- **Buy again:** what the family buys most, a tap away. **Forget this item** on a bought item takes it out of suggestions.
+
+Changes reach everyone within about 5 seconds while the list is open. If the signal drops in the store, carry on: changes are kept on the phone and sent when it's back. Chorly itself still needs a connection to open.
 
 ### The family map
 
@@ -219,7 +235,7 @@ Profile pictures are stored in Postgres, so the nightly backup includes them.
 
 ### Kitchen display
 
-A read-only board of today's chores for a Nest Hub or a tablet, with a large clock and date. It shows everyone who has chores today, parents included, gives people sharing a chore a joint column, and turns dark at sunset, worked out from your Home place. It shows names, chores and pictures, but no money, proofs or locations.
+A read-only board of today's chores for a Nest Hub or a tablet, with a large clock and date. It shows everyone who has chores today, parents included, gives people sharing a chore a joint column, and turns dark at sunset, worked out from your Home place. It shows names, chores and pictures, and how long the shopping list is with anything urgent on it, but no money, proofs or locations.
 
 1. In the app, go to **Family → Kitchen display → Create link** and copy the link. It's shown once. **New link** replaces it and **Turn off** ends it.
 2. Find the Hub's IP in the Google Home app (*Device → Settings → Device information*), and reserve it on the router so it doesn't change.
@@ -266,6 +282,7 @@ Only the last known position is kept (`UserLocation`), never a history. Turning 
 - **Chores meet the map.** Arriving at a *home* place sends the person today's open chores. Reminders for overdue and due-soon chores wait while someone is at a *school* or *work* place. A chore can be tied to a place (chore editor, more options): the child can mark it done only while at the place, or only after visiting it that day. Parents are exempt. A place can also pay a child a reward the first time they arrive each day.
 - **Errands.** Pin a task on the map ("pick up milk"). The nearest sharing member gets a nudge and can claim it; passing within 300 m reminds whoever took it, or anyone if nobody has. Whoever pinned it isn't nudged, and hears when someone takes it and when it's done. Once taken, only that person or a parent can finish or give it back.
 - **Things.** The dog, a bike, the car: put them on the map and move them by hand.
+- **Stores.** Arriving at a *store* place tells the person how many items are on the shopping list, at most once every 3 hours.
 - **Heading to…** Share an estimated arrival at a place, as a bubble on your avatar. The estimate is straight-line distance with a route factor, not a routing service.
 - **Status.** Each person gets a battery chip and a status bubble worked out from where they are and how fast they move (home, school, walking, driving, asleep). People standing within 80 m of each other show as together. When zoomed out, anything that would collide on the map merges into one bubble; a tap zooms in, and at street level people at the same spot stand side by side. Markers glide into a bubble and back out of it. A tap on someone shows their details and directions, and sends a sticker (wave, come home, dinner's ready). A status that's out of date doesn't pretend otherwise: an old position shows no speed, battery or arrival estimate.
 - **Phone alerts for parents.** Battery at or under 15% and not charging, or, for Android app users, no update for 45 minutes during the day.
@@ -310,6 +327,8 @@ Notifications sent:
 - Saturday 19:00 weekly summary: kids get their own week, parents get the family's.
 - Every 5 minutes, `location-watch`: ends timed shares, alerts parents to low batteries and quiet phones, and tidies old visits, errands and trips.
 - Saturday 19:30 map recap for members who opted in.
+- Shopping item marked urgent, or someone going shopping → the rest of the family. Adding an ordinary item sends nothing.
+- Arriving at a store place → that person, if anything is on the list.
 
 Nobody is notified about their own action (a parent approving their own chore, say). Each member can turn any type off under **Account → Choose notifications**; this applies to email too.
 

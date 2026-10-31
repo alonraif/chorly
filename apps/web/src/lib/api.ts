@@ -5,6 +5,16 @@ import { clearCurrentUserId } from './user';
 // Same origin in every environment: Caddy (prod) or the Next.js rewrite (dev) forwards /api to the API.
 const API_BASE = '/api';
 
+// A refusal from the server, as opposed to a request that never got an answer.
+export class ApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function request(path: string, init?: RequestInit) {
   const headers = new Headers(init?.headers || {});
   if (!headers.has('Content-Type')) headers.set('Content-Type', 'application/json');
@@ -30,7 +40,7 @@ async function request(path: string, init?: RequestInit) {
     } catch {
       // ignore json parse errors
     }
-    throw new Error(msg);
+    throw new ApiError(msg, res.status);
   }
 
   if (res.status === 204) return null;

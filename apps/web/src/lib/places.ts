@@ -2,7 +2,7 @@ import { DRIVING_MPS, MOVING_MPS, TOGETHER_M, distanceM } from '@chorly/shared';
 import { now } from './format';
 import { t, type MessageKey } from './i18n';
 
-export type PlaceKind = 'home' | 'school' | 'work' | 'fun' | 'other';
+export type PlaceKind = 'home' | 'school' | 'work' | 'fun' | 'store' | 'other';
 export type SharingMode = 'exact' | 'blurred' | 'paused';
 
 export type Place = {
@@ -55,9 +55,9 @@ export type Overview = {
   mine: { mode: SharingMode; shareUntil: string | null; recap: boolean };
 };
 
-export const KIND_EMOJI: Record<PlaceKind, string> = { home: '🏠', school: '🎒', work: '💼', fun: '🎈', other: '📍' };
-export const KIND_COLOR: Record<PlaceKind, string> = { home: '#2b8a3e', school: '#1c7ed6', work: '#7048e8', fun: '#e8590c', other: '#868e96' };
-export const PLACE_KINDS: PlaceKind[] = ['home', 'school', 'work', 'fun', 'other'];
+export const KIND_EMOJI: Record<PlaceKind, string> = { home: '🏠', school: '🎒', work: '💼', fun: '🎈', store: '🛒', other: '📍' };
+export const KIND_COLOR: Record<PlaceKind, string> = { home: '#2b8a3e', school: '#1c7ed6', work: '#7048e8', fun: '#e8590c', store: '#c2255c', other: '#868e96' };
+export const PLACE_KINDS: PlaceKind[] = ['home', 'school', 'work', 'fun', 'store', 'other'];
 export const TAG_EMOJIS = ['🐕', '🐈', '🚲', '🚗', '🔑', '🎒', '🧸', '📦'];
 
 // Past this, the person is shown faded: it's where they were, not where they are.
@@ -105,6 +105,7 @@ export function pulseOf(location: PersonLocation, place: Place | undefined): { e
       school: 'pulse.school',
       work: 'pulse.work',
       fun: 'pulse.fun',
+      store: 'pulse.store',
       other: 'pulse.atPlace',
     };
     if (place.kind === 'home' && !stale && (hour >= 22 || hour < 6)) return { emoji: '😴', label: t('pulse.sleeping') };

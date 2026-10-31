@@ -14,9 +14,10 @@ import { AuthModule } from './auth/auth.module';
 import { PushModule } from './push/push.module';
 import { LocationModule } from './location/location.module';
 import { DisplayModule } from './display/display.module';
+import { ShoppingModule } from './shopping/shopping.module';
 
 @Module({
-  imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule, LocationModule, DisplayModule],
+  imports: [PrismaModule, PushModule, UsersModule, ChoresModule, InstancesModule, FamilyModule, AuthModule, LocationModule, DisplayModule, ShoppingModule],
   controllers: [HealthController, AppDownloadController],
   providers: [SessionMiddleware, AdminGuard, RequireUserGuard, RequireTenantGuard],
 })

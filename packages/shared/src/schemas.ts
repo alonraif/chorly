@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { SHOPPING_CATEGORIES } from './shopping';
 
 export const LocaleSchema = z.union([z.literal('en'), z.literal('he')]);
 export const FamilyRoleSchema = z.union([z.literal('parent'), z.literal('child')]);
@@ -30,6 +31,7 @@ export const NOTIFICATION_PREFS = [
   'pokes',
   'deviceAlerts',
   'placeRecap',
+  'shopping',
 ] as const;
 export type NotificationPref = (typeof NOTIFICATION_PREFS)[number];
 export const NotificationPrefsSchema = z
@@ -147,6 +149,7 @@ export const PlaceKindSchema = z.union([
   z.literal('school'),
   z.literal('work'),
   z.literal('fun'),
+  z.literal('store'),
   z.literal('other'),
 ]);
 
@@ -197,3 +200,18 @@ export const PokeSchema = z.object({
   userId: z.string().min(1),
   kind: z.enum(POKE_KINDS),
 });
+
+export const ShoppingAddSchema = z.object({
+  name: z.string().trim().min(1).max(80),
+});
+
+export const ShoppingUpdateSchema = z
+  .object({
+    name: z.string().trim().min(1).max(80),
+    quantity: z.string().trim().max(30).nullable(),
+    note: z.string().trim().max(200).nullable(),
+    category: z.enum(SHOPPING_CATEGORIES),
+    urgent: z.boolean(),
+  })
+  .partial()
+  .strict();

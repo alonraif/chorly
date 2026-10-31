@@ -258,6 +258,38 @@ Expected:
 - Parents get one low-battery push, and one "went quiet" push, each only once per episode; both can be turned off under Phone alerts.
 - Only members who joined the recap get it, and it lists only members who joined.
 
+### REG-17 Shopping list
+Steps:
+1. As a parent on a phone, open **Shopping**. Add `milk, tomatoes, toilet paper` in one go, then paste a list of three lines from another app.
+2. Add `MILK`.
+3. As a kid on a second device, open the list from the cart. Add an item, check one off, then tap it again.
+4. On the parent's phone, tap an item that landed under Other, move it to another aisle and remove it from the list. Add it again.
+5. Set an item as urgent, then check it off and tap it again.
+6. Tap **I'm going shopping** twice, then **I'm done shopping**.
+7. Turn off the connection on one phone with the list open. Check off an item and add a new one, then check the new one off. Reconnect.
+8. Rename an item to the name of another item on the list.
+Expected:
+- Each comma-separated or pasted line is its own item, sorted into an aisle.
+- `MILK` adds nothing and a message says it's already on the list.
+- The other device shows every change within about 5 seconds, and the kid has the same powers as the parent.
+- The aisle change survives removing and re-adding the item.
+- Urgent moves the item to the top and notifies the family once; it's still urgent after being unchecked.
+- The family is told once about the trip, and sees who's out shopping until they're done.
+- Offline changes show at once with a banner counting what's waiting, and all reach the server in order after reconnecting.
+- Renaming onto an item on the list is refused with a message and leaves both items.
+
+### REG-18 Store places, kitchen display and phone navigation
+Steps:
+1. Add a place of type **Store** and have a member with Android background sharing arrive there with items on the list, then leave and come back within 3 hours.
+2. Open the kitchen display with items on the list, some urgent.
+3. Turn off **Shopping list** under **Choose notifications** and mark an item urgent from another account.
+4. On a phone signed in as a parent, open Account. On a computer, open Account too.
+Expected:
+- The arrival notification comes once and gives the item count. An empty list sends nothing.
+- The display shows the count and urgent item names on one line along the bottom, and nothing when the list is empty.
+- The member who turned it off gets no notification.
+- **Family** is under Account on a phone and in the sidebar on a computer, and the phone tab bar has six tabs.
+
 ## Diagnostics Checklist (when tests fail)
 - API health: `GET http://localhost:4000/health`
 - Confirm chores exist:
