@@ -11,8 +11,9 @@ import './display.css';
 
 type ChoreState = 'todo' | 'overdue' | 'waiting' | 'approved';
 type BoardChore = ChoreTitle & { id: string; dueAt: string; state: ChoreState };
-type BoardPerson = { id: string; displayName: string; avatarAt: string | null; chores: BoardChore[]; missed: number };
-type Board = { family: { name: string; locale: Locale }; sun: { rise: string; set: string }; people: BoardPerson[] };
+type BoardMember = { id: string; displayName: string; avatarAt: string | null };
+type BoardColumn = { id: string; members: BoardMember[]; chores: BoardChore[]; missed: number };
+type Board = { family: { name: string; locale: Locale }; sun: { rise: string; set: string }; columns: BoardColumn[] };
 
 const REFRESH_MS = 30_000;
 const CLOCK_MS = 15_000;
@@ -20,6 +21,8 @@ const MAX_TEXT = 44;
 const MIN_TEXT = 22;
 const ANY_LENGTH = Number.POSITIVE_INFINITY;
 const ROOM_FOR_NAME = 32;
+// Past this, a shared column shows faces only: the names wouldn't fit.
+const MAX_NAMES = 2;
 
 const isFinished = (chore: BoardChore) => chore.state === 'waiting' || chore.state === 'approved';
 const rowOrder = (chore: BoardChore) => (chore.state === 'overdue' ? 0 : isFinished(chore) ? 2 : 1);
@@ -81,7 +84,7 @@ export default function DisplayPage() {
       el.style.setProperty('--text', `${size}px`);
     }
     if (overflows()) {
-      const longest = Math.max(...(board?.people ?? []).map((p) => p.chores.length));
+      const longest = Math.max(...(board?.columns ?? []).map((c) => c.chores.length));
       setRowLimit((limit) => Math.max(1, Math.min(limit, longest) - 1));
     }
   }, [board]);
@@ -111,12 +114,12 @@ export default function DisplayPage() {
         </div>
         <time className="display-clock">{clock.toFormat('HH:mm')}</time>
       </header>
-      {board.people.length === 0 ? (
+      {board.columns.length === 0 ? (
         <p className="display-free">{t('display.nothingToday')}</p>
       ) : (
         <div className="display-people" ref={columns}>
-          {board.people.map((person) => (
-            <PersonColumn key={person.id} person={person} token={token} rowLimit={rowLimit} />
+          {board.columns.map((column) => (
+            <ChoreColumn key={column.id} column={column} token={token} rowLimit={rowLimit} />
           ))}
         </div>
       )}
@@ -124,27 +127,34 @@ export default function DisplayPage() {
   );
 }
 
-function PersonColumn({ person, token, rowLimit }: { person: BoardPerson; token: string; rowLimit: number }) {
+function ChoreColumn({ column, token, rowLimit }: { column: BoardColumn; token: string; rowLimit: number }) {
+  const { members } = column;
+  const showNames = members.length <= MAX_NAMES;
   // What's left comes first, so a day too long to fit only ever hides finished chores.
-  const chores = [...person.chores].sort(
+  const chores = [...column.chores].sort(
     (a, b) => rowOrder(a) - rowOrder(b) || a.dueAt.localeCompare(b.dueAt),
   );
   const shown = chores.slice(0, rowLimit);
   const hidden = chores.length - shown.length;
   const textLength = chores.reduce((total, chore) => total + choreTitle(chore).length, 0);
+  const nameRoom = ROOM_FOR_NAME * (showNames ? members.length : 1);
 
   return (
     // Width follows the amount of text, so everyone's chores can stay the same large size.
-    <section className="display-person" style={{ flexGrow: textLength + ROOM_FOR_NAME }}>
+    <section className={`display-person ${members.length > 1 ? 'is-shared' : ''}`} style={{ flexGrow: textLength + nameRoom }}>
       <header>
-        <span className="avatar" style={{ ['--hue' as any]: hueFor(person.id) }} aria-hidden="true">
-          {person.avatarAt ? (
-            <img src={`/api/display/${token}/avatars/${person.id}?v=${encodeURIComponent(person.avatarAt)}`} alt="" />
-          ) : (
-            initials(person.displayName)
-          )}
+        <span className="display-faces" aria-hidden="true">
+          {members.map((member) => (
+            <span key={member.id} className="avatar" style={{ ['--hue' as any]: hueFor(member.id) }}>
+              {member.avatarAt ? (
+                <img src={`/api/display/${token}/avatars/${member.id}?v=${encodeURIComponent(member.avatarAt)}`} alt="" />
+              ) : (
+                initials(member.displayName)
+              )}
+            </span>
+          ))}
         </span>
-        <h2><bdi>{firstName(person.displayName)}</bdi></h2>
+        {showNames && <h2><bdi>{members.map((m) => firstName(m.displayName)).join(' + ')}</bdi></h2>}
       </header>
       <ul>
         {shown.map((chore) => (
@@ -156,10 +166,10 @@ function PersonColumn({ person, token, rowLimit }: { person: BoardPerson; token:
           </li>
         ))}
       </ul>
-      {(hidden > 0 || person.missed > 0) && (
+      {(hidden > 0 || column.missed > 0) && (
         <footer>
           {hidden > 0 && <span>{t('display.more', { count: hidden })}</span>}
-          {person.missed > 0 && <span className="display-missed">{t('display.missed', { count: person.missed })}</span>}
+          {column.missed > 0 && <span className="display-missed">{t('display.missed', { count: column.missed })}</span>}
         </footer>
       )}
     </section>

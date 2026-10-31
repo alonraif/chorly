@@ -23,9 +23,9 @@ function visibleProofs(photoKeys: unknown, actor: RequestUser) {
     .flatMap(([userId, keys]) => keys.map((key) => ({ userId, key, isVideo: !key.endsWith('.jpg') })));
 }
 
-// A parent's own chore skips Approvals: they'd only be approving themselves.
+// A parent's own chore skips Approvals, even one shared with a kid: they did it, or were there for it.
 function approvesOwnChore(instance: { assignments: Array<{ userId: string }> }, actor: RequestUser) {
-  return actor.isAdmin && instance.assignments.length === 1 && instance.assignments[0].userId === actor.id;
+  return actor.isAdmin && instance.assignments.some((a) => a.userId === actor.id);
 }
 
 function instanceStatusFromCompletion(
@@ -34,7 +34,7 @@ function instanceStatusFromCompletion(
   completedUserIds: Set<string>,
 ): InstanceStatus {
   const assignment = AssignmentConfigSchema.parse(assignmentConfig);
-  if (assignment.shared) {
+  if (assignment.shared || assignment.mode === 'together') {
     return assignedIds.some((id) => completedUserIds.has(id)) ? 'done' : 'assigned';
   }
   const primary = assignedIds[0];
@@ -59,8 +59,15 @@ export class InstancesService {
         dueAt: { gte: from, lte: to },
         AND: [
           ...(userId ? [{ assignments: { some: { userId } } }] : []),
-          // Parents' chores are private from kids, whatever the query asks for.
-          ...(actor.isAdmin ? [] : [{ assignments: { none: { user: { role: 'parent' as const } } } }]),
+          // Parents' chores are private from kids, whatever the query asks for, unless the kid shares the chore.
+          ...(actor.isAdmin
+            ? []
+            : [{
+                OR: [
+                  { assignments: { none: { user: { role: 'parent' as const } } } },
+                  { assignments: { some: { userId: actor.id } } },
+                ],
+              }]),
         ],
       },
       include: {
@@ -101,6 +108,7 @@ export class InstancesService {
           userId: a.userId,
           displayName: a.user.displayName,
           locale: a.user.locale,
+          role: a.user.role,
         })),
         doneByUserId,
       };
@@ -224,16 +232,13 @@ export class InstancesService {
       throw new BadRequestException('Approved chores cannot be undone');
     }
 
-    const completion = await this.prisma.choreCompletion.findUnique({
-      where: { instanceId_userId: { instanceId, userId: actor.id } },
-    });
+    // One check-off finished a shared chore for everyone, so anyone on it can take that back.
+    const together = AssignmentConfigSchema.parse(instance.chore.assignmentJson).mode === 'together';
 
-    if (completion && !completion.undoneAt) {
-      await this.prisma.choreCompletion.update({
-        where: { id: completion.id },
-        data: { undoneAt: new Date() },
-      });
-    }
+    await this.prisma.choreCompletion.updateMany({
+      where: { instanceId, undoneAt: null, ...(together ? {} : { userId: actor.id }) },
+      data: { undoneAt: new Date() },
+    });
 
     const refreshed = await this.getInstanceOrThrow(tenantId, instanceId);
     const status = instanceStatusFromCompletion(
@@ -243,12 +248,17 @@ export class InstancesService {
     );
 
     const photoObj = { ...((instance.photoKeys as Record<string, string[]> | null) ?? {}) };
-    delete photoObj[actor.id];
-    await this.proofs.removeForUser(instanceId, actor.id);
+    if (together) {
+      for (const userId of Object.keys(photoObj)) delete photoObj[userId];
+      await this.proofs.removeForInstances([instanceId]);
+    } else {
+      delete photoObj[actor.id];
+      await this.proofs.removeForUser(instanceId, actor.id);
+    }
 
     if (wasApproved) {
       const [, updated] = await this.prisma.$transaction([
-        this.prisma.moneyLedger.deleteMany({ where: { instanceId, userId: actor.id, type: 'earn' } }),
+        this.prisma.moneyLedger.deleteMany({ where: { instanceId, type: 'earn' } }),
         this.prisma.choreInstance.update({
           where: { id: instanceId },
           data: { status, photoKeys: photoObj, approvedAt: null, approvedByUserId: null, rewardAmount: null },
@@ -270,8 +280,11 @@ export class InstancesService {
     const assignedIds = instance.assignments.map((a) => a.userId);
     const doneSet = activeDoneUserIds(instance);
 
+    const together = assignment.mode === 'together';
     let creditedUsers: string[] = [];
-    if (assignment.shared) {
+    if (together) {
+      creditedUsers = assignedIds;
+    } else if (assignment.shared) {
       creditedUsers = assignedIds.filter((id) => doneSet.has(id));
     } else {
       const primary = assignedIds[0];
@@ -292,6 +305,10 @@ export class InstancesService {
     }
 
     const rewardAmountDecimal = hasReward && rewardAmountRaw ? new Prisma.Decimal(rewardAmountRaw) : null;
+    // The reward prices the chore, so kids doing it together split it rather than each earning all of it.
+    const earnedEach = rewardAmountDecimal && together
+      ? rewardAmountDecimal.div(earners.length).toDecimalPlaces(2, Prisma.Decimal.ROUND_DOWN)
+      : rewardAmountDecimal;
 
     const result = await this.prisma.$transaction(async (tx) => {
       const updated = await tx.choreInstance.update({
@@ -305,13 +322,13 @@ export class InstancesService {
         },
       });
 
-      if (hasReward && rewardAmountDecimal) {
+      if (hasReward && earnedEach) {
         await tx.moneyLedger.createMany({
           data: earners.map(({ id: userId }) => ({
             tenantId,
             userId,
             type: 'earn',
-            amount: rewardAmountDecimal,
+            amount: earnedEach,
             instanceId,
           })),
         });
@@ -322,9 +339,11 @@ export class InstancesService {
 
     await this.proofs.removeForInstances([instanceId]);
 
-    const reward = hasReward && rewardAmountDecimal ? rewardAmountDecimal.toString() : null;
+    const reward = hasReward && earnedEach ? earnedEach.toString() : null;
+    // Parents earn nothing, so a message with an amount is only for the kids.
+    const told = reward ? earners.map((e) => e.id) : creditedUsers;
     // A parent approving their own chore doesn't need to be told.
-    void this.push.sendToUsers(creditedUsers.filter((id) => id !== actor.id), 'approved', (locale) => ({
+    void this.push.sendToUsers(told.filter((id) => id !== actor.id), 'approved', (locale) => ({
       ...notificationText.approved(locale, choreName(instance.chore, locale), reward),
       url: '/child',
     }));

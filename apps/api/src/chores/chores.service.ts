@@ -88,6 +88,10 @@ export class ChoresService {
       return { assigneeIds: [], nextLastAssignedUserId: lastAssignedUserId };
     }
 
+    if (assignment.mode === 'together') {
+      return { assigneeIds: eligibleUsers.map((u) => u.id), nextLastAssignedUserId: lastAssignedUserId };
+    }
+
     if (assignment.shared || assignment.mode === 'round_robin') {
       const currentIndex = eligibleUsers.findIndex((u) => u.id === lastAssignedUserId);
       const nextIndex = currentIndex >= 0 ? (currentIndex + 1) % eligibleUsers.length : 0;

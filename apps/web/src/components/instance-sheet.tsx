@@ -56,6 +56,8 @@ export function InstanceSheet({
   const reward = forKid ? instance.rewardAmount || rewardFor?.(instance.choreId) || null : null;
   const editable = instance.status !== 'approved';
   const canMarkDone = instance.status === 'assigned' && instance.assignments.some((a) => a.userId === me.id);
+  // Who's on a shared chore is changed on the series: picking one person here would drop the others.
+  const shared = instance.assignments.length > 1;
 
   async function run(action: () => Promise<unknown>, success: string) {
     setBusy(true);
@@ -83,7 +85,7 @@ export function InstanceSheet({
       () =>
         api.patch(`/instances/${instance.id}`, {
           dueAt: DateTime.fromISO(dueLocal, { zone: TZ }).toUTC().toISO(),
-          assigneeUserId: assignee,
+          assigneeUserId: shared ? undefined : assignee,
         }),
       t('instance.updated'),
     );
@@ -178,22 +180,24 @@ export function InstanceSheet({
             <span className="field-label-sm">{t('instance.due')}</span>
             <input className="input" type="datetime-local" value={dueLocal} onChange={(e) => setDueLocal(e.target.value)} />
           </label>
-          <div className="field">
-            <span className="field-label-sm">{t('instance.who')}</span>
-            <div className="chip-row">
-              {people.map((person) => (
-                <button
-                  key={person.id}
-                  type="button"
-                  className={`chip chip-person ${assignee === person.id ? 'is-on' : ''}`}
-                  aria-pressed={assignee === person.id}
-                  onClick={() => setAssignee(person.id)}
-                >
-                  <Avatar user={person} size={26} /> {firstName(person.displayName)}
-                </button>
-              ))}
+          {!shared && (
+            <div className="field">
+              <span className="field-label-sm">{t('instance.who')}</span>
+              <div className="chip-row">
+                {people.map((person) => (
+                  <button
+                    key={person.id}
+                    type="button"
+                    className={`chip chip-person ${assignee === person.id ? 'is-on' : ''}`}
+                    aria-pressed={assignee === person.id}
+                    onClick={() => setAssignee(person.id)}
+                  >
+                    <Avatar user={person} size={26} /> {firstName(person.displayName)}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+          )}
           {error && <p className="callout callout-error">{error}</p>}
         </div>
       )}

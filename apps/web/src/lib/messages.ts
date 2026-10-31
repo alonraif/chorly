@@ -276,6 +276,7 @@ export const en = {
   'kid.approved': 'Approved!',
   'kid.waitingParent': 'Waiting for a parent to approve',
   'kid.by': 'by {time}',
+  'kid.with': 'with {names}',
 
   'instance.approvedChore': 'Approved “{chore}”',
   'instance.updated': 'Updated',
@@ -393,6 +394,7 @@ export const en = {
 
   'editor.nobody': 'Nobody yet',
   'editor.takingTurns': 'taking turns',
+  'editor.doingTogether': 'together',
   'editor.eachOwn': 'each their own',
   'editor.turnsArrow': ' → ',
   'editor.reward': '{amount} reward',
@@ -428,6 +430,8 @@ export const en = {
   'editor.eachHintEdit': 'Everyone gets their own. Saving adds a separate copy of this chore for each extra person.',
   'editor.eachHintNew': 'Everyone gets their own — e.g. “clean your room”. Each person checks off and earns separately.',
   'editor.turnsHint': 'One person at a time, rotating — e.g. dishes or trash.',
+  'editor.together': 'Together',
+  'editor.togetherHint': 'One shared chore — e.g. folding laundry. Anyone can check it off for everyone, and kids split any reward.',
   'editor.howOften': 'How often?',
   'editor.howOftenLabel': 'How often',
   'editor.once': 'Once',
@@ -902,6 +906,7 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'kid.approved': 'אושר!',
   'kid.waitingParent': 'מחכה לאישור של הורה',
   'kid.by': 'עד {time}',
+  'kid.with': 'עם {names}',
 
   'instance.approvedChore': 'אושר: ״{chore}״',
   'instance.updated': 'עודכן',
@@ -1019,6 +1024,7 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
 
   'editor.nobody': 'עדיין לא נבחר אף אחד',
   'editor.takingTurns': 'בתורות',
+  'editor.doingTogether': 'ביחד',
   'editor.eachOwn': 'כל אחד בנפרד',
   'editor.turnsArrow': ' ← ',
   'editor.reward': 'תגמול {amount}',
@@ -1054,6 +1060,8 @@ export const he: { [K in MessageKey]: string } & Record<string, string> = {
   'editor.eachHintEdit': 'לכל אחד משלו. בשמירה יתווסף עותק נפרד של המטלה לכל אדם נוסף.',
   'editor.eachHintNew': 'לכל אחד משלו — למשל ״לסדר את החדר״. כל אחד מסמן ומרוויח בנפרד.',
   'editor.turnsHint': 'אדם אחד בכל פעם, לפי תור — למשל כלים או זבל.',
+  'editor.together': 'ביחד',
+  'editor.togetherHint': 'מטלה אחת משותפת — למשל לקפל כביסה. כל אחד יכול לסמן אותה בשביל כולם, והילדים מתחלקים בתגמול.',
   'editor.howOften': 'באיזו תדירות?',
   'editor.howOftenLabel': 'תדירות',
   'editor.once': 'פעם אחת',

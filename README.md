@@ -56,7 +56,7 @@ Tap **New chore** (the **+** button on a phone), or a suggestion under **Chores 
 
 ![The New chore form](docs/screenshots/new-chore.png)
 
-- **Who does it?** Pick one person or several. With several, **Each does it** gives everyone their own copy ("clean your room"), and **Take turns** rotates it between them ("dishes").
+- **Who does it?** Pick one person or several. With several, **Each does it** gives everyone their own copy ("clean your room"), **Take turns** rotates it between them ("dishes"), and **Together** makes one shared chore ("fold laundry"): anyone can check it off for everyone, and kids on it split any reward. A parent's check-off counts as approved straight away.
 - **How often?** **Once**, **Daily**, **Weekly** on the days you choose, **Monthly** on the first or last of a weekday, or **After done**, where the next one is due a number of days after the last was finished.
 - **Pays a reward** adds the amount to a kid's balance when the chore is approved.
 - **More options:**
@@ -219,7 +219,7 @@ Profile pictures are stored in Postgres, so the nightly backup includes them.
 
 ### Kitchen display
 
-A read-only board of today's chores for a Nest Hub or a tablet, with a large clock and date. It shows everyone who has chores today, parents included, and turns dark at sunset, worked out from your Home place. It shows names, chores and pictures, but no money, proofs or locations.
+A read-only board of today's chores for a Nest Hub or a tablet, with a large clock and date. It shows everyone who has chores today, parents included, gives people sharing a chore a joint column, and turns dark at sunset, worked out from your Home place. It shows names, chores and pictures, but no money, proofs or locations.
 
 1. In the app, go to **Family → Kitchen display → Create link** and copy the link. It's shown once. **New link** replaces it and **Turn off** ends it.
 2. Find the Hub's IP in the Google Home app (*Device → Settings → Device information*), and reserve it on the router so it doesn't change.

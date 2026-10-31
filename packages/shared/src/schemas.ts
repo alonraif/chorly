@@ -70,7 +70,8 @@ export const ChoreScheduleSchema = z.discriminatedUnion('type', [
   RepeatingAfterCompletionScheduleSchema,
 ]);
 
-export const AssignmentModeSchema = z.union([z.literal('fixed'), z.literal('round_robin')]);
+// 'together': everyone is on the same occurrence, and one check-off finishes it for all of them.
+export const AssignmentModeSchema = z.union([z.literal('fixed'), z.literal('round_robin'), z.literal('together')]);
 
 export const AssignmentConfigSchema = z.object({
   mode: AssignmentModeSchema,

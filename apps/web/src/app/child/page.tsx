@@ -4,11 +4,11 @@ import { DateTime } from 'luxon';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../../lib/api';
 import { choreTitle, dayKey, firstName, friendlyDay, money, now, shortDate, timeOf, zoned } from '../../lib/format';
-import { getLocale, t, tn } from '../../lib/i18n';
+import { getLocale, joinNames, t, tn } from '../../lib/i18n';
 import { useAutoRefresh } from '../../lib/refresh';
 import { useSession } from '../../lib/session';
 import { placeBlockedText } from '../../lib/places';
-import { approvesOwnChore, rangeQuery, type Chore, type Earnings, type Instance } from '../../lib/types';
+import { approvesOwnChore, rangeQuery, rewardShare, type Chore, type Earnings, type Instance } from '../../lib/types';
 import { Avatar, ProgressRing } from '../../components/avatar';
 import { Icon } from '../../components/icon';
 import { ProofSheet } from '../../components/proof-sheet';
@@ -68,10 +68,8 @@ export default function KidPage() {
   useAutoRefresh(load);
 
   const todayKey = now().toISODate() || '';
-  const isMineDone = (i: Instance) => {
-    const d = i.doneByUserId[targetId];
-    return (!!d && !d.undoneAt) || i.status === 'approved';
-  };
+  // Anyone's check-off finishes a shared chore, so this goes by the chore, not by who ticked it.
+  const isMineDone = (i: Instance) => i.status !== 'assigned';
   const today = items.filter((i) => dayKey(i.dueAt) === todayKey);
   const missed = items.filter((i) => dayKey(i.dueAt) < todayKey && i.status === 'assigned');
   const upcoming = useMemo(() => {
@@ -82,7 +80,8 @@ export default function KidPage() {
   const doneToday = today.filter(isMineDone).length;
   const rewardFor = (i: Instance) => {
     if (!isKid || !i.chore.hasReward) return null;
-    return i.rewardAmount || chores.find((c) => c.id === i.choreId)?.rewardAmount || null;
+    const amount = i.rewardAmount || chores.find((c) => c.id === i.choreId)?.rewardAmount;
+    return amount ? rewardShare(amount, i) : null;
   };
   const waitingAmount = items
     .filter((i) => i.status === 'done')
@@ -219,7 +218,7 @@ export default function KidPage() {
           </h2>
           <ul className="kid-list">
             {missed.map((item) => (
-              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={locked(item)} onTap={tap} showDay />
+              <KidChore key={item.id} item={item} viewerId={targetId} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={locked(item)} onTap={tap} showDay />
             ))}
           </ul>
         </section>
@@ -236,7 +235,7 @@ export default function KidPage() {
         ) : (
           <ul className="kid-list">
             {today.map((item) => (
-              <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={locked(item)} onTap={tap} />
+              <KidChore key={item.id} item={item} viewerId={targetId} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={locked(item)} onTap={tap} />
             ))}
           </ul>
         )}
@@ -250,7 +249,7 @@ export default function KidPage() {
               <h3>{friendlyDay(DateTime.fromISO(day, { zone: zoned(list[0].dueAt).zone }))}</h3>
               <ul className="kid-list kid-list-compact">
                 {list.map((item) => (
-                  <KidChore key={item.id} item={item} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={locked(item)} onTap={tap} compact />
+                  <KidChore key={item.id} item={item} viewerId={targetId} done={isMineDone(item)} reward={rewardFor(item)} currency={currency} disabled={locked(item)} onTap={tap} compact />
                 ))}
               </ul>
             </div>
@@ -346,6 +345,7 @@ export default function KidPage() {
 
 function KidChore({
   item,
+  viewerId,
   done,
   reward,
   currency,
@@ -355,6 +355,7 @@ function KidChore({
   showDay,
 }: {
   item: Instance;
+  viewerId: string;
   done: boolean;
   reward: string | null;
   currency: string;
@@ -365,11 +366,13 @@ function KidChore({
 }) {
   const state = statusOf(item);
   const approved = item.status === 'approved';
-  const sub = approved
+  const partners = item.assignments.filter((a) => a.userId !== viewerId).map((a) => firstName(a.displayName));
+  const status = approved
     ? t('kid.approved')
     : done
       ? t('kid.waitingParent')
       : `${showDay ? `${friendlyDay(zoned(item.dueAt))} · ` : ''}${t('kid.by', { time: timeOf(item.dueAt) })}`;
+  const sub = partners.length ? `${status} · ${t('kid.with', { names: joinNames(partners) })}` : status;
   return (
     <li>
       <button

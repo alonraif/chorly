@@ -93,10 +93,20 @@ Expected:
 1. As a kid, call `GET /api/instances` without `userId`, and with a parent's `userId`.
 2. Call `GET /api/chores` and `GET /api/chores/:id` for a parent's chore.
 Expected:
-- No instance assigned to a parent is returned; kids' own instances are unaffected.
+- No instance assigned to a parent is returned, unless the kid shares it with them (Together); kids' own instances are unaffected.
 - `/api/chores` lists only the kid's own chores, without assignment data; `/api/chores/:id` returns 403.
 - On a chore rotating between a kid and a parent, the kid sees only their own turns.
 - Assignment mode is implicit round-robin for shared tasks.
+
+### REG-02A Together chores
+1. Create a chore for a parent and a kid with **Together**. Check it shows once for both, and as one joint column on the kitchen display.
+2. The kid checks it off, then the parent approves it in Approvals.
+3. Repeat with the parent checking it off, then undoing it.
+4. Repeat with two kids on a reward chore.
+Expected:
+- The kid sees the chore, named with whoever shares it, and either person's check-off finishes it for both.
+- A kid's check-off waits for approval; a parent's counts as approved straight away, and they can undo it.
+- Two kids each earn half the reward, rounded down; a parent earns nothing, so a kid sharing with a parent earns all of it.
 
 ### REG-02B Shared round-robin alternation (daily)
 1. Create a `Daily` chore with exactly two children selected and `Take turns` chosen.

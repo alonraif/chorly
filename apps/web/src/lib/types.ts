@@ -10,12 +10,12 @@ export type Instance = {
   rewardAmount: string | null;
   chore: { title_en: string; title_he: string; hasReward: boolean; place: { id: string; name: string; rule: 'at_place' | 'visited' } | null };
   proofs: Array<{ userId: string; key: string; isVideo: boolean }>;
-  assignments: Array<{ userId: string; displayName: string }>;
+  assignments: Array<{ userId: string; displayName: string; role: 'parent' | 'child' }>;
   doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }>;
 };
 
 export type AssignmentJson = {
-  mode: 'fixed' | 'round_robin';
+  mode: 'fixed' | 'round_robin' | 'together';
   shared: boolean;
   skipAwayUsers: boolean;
   assigneeIds: string[];
@@ -52,9 +52,15 @@ export type Earnings = {
   payoutEntries: Array<{ id: string; amount: string; createdAt: string }>;
 };
 
-// A parent's own chore skips Approvals, so there's nobody to show proof to.
+// A parent's own chore skips Approvals, even one shared with a kid, so there's nobody to show proof to.
 export function approvesOwnChore(instance: Instance, me: { id: string; isAdmin: boolean }) {
-  return me.isAdmin && instance.assignments.length === 1 && instance.assignments[0].userId === me.id;
+  return me.isAdmin && instance.assignments.some((a) => a.userId === me.id);
+}
+
+// Kids on the same occurrence split its reward, rounded down to match the API.
+export function rewardShare(amount: string, instance: Instance) {
+  const kids = instance.assignments.filter((a) => a.role === 'child').length;
+  return kids > 1 ? String(Math.floor((Number(amount) * 100) / kids) / 100) : amount;
 }
 
 export function activeDoneAt(instance: Instance) {

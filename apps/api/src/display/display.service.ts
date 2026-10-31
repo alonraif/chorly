@@ -66,38 +66,53 @@ export class DisplayService {
     const { lat, lng } = home ?? DEFAULT_COORDS;
     const sun = SunCalc.getTimes(today.plus({ hours: 12 }).toJSDate(), lat, lng);
 
-    const stateOf = (instance: (typeof instances)[number], userId: string): ChoreState => {
-      const mine = instance.doneByUserId[userId];
+    const stateOf = (instance: (typeof instances)[number]): ChoreState => {
       if (instance.status === 'approved') return 'approved';
-      if (instance.status === 'done' || (mine && !mine.undoneAt)) return 'waiting';
+      if (instance.status === 'done' || Object.values(instance.doneByUserId).some((d) => !d.undoneAt)) return 'waiting';
       return DateTime.fromISO(instance.dueAt) < now ? 'overdue' : 'todo';
     };
+    const isToday = (dueAt: string) => DateTime.fromISO(dueAt) >= today;
+
+    // One column per set of people, so a chore they share shows once, under all of them.
+    const everyone = [...people.filter((p) => p.role === 'child'), ...people.filter((p) => p.role !== 'child')];
+    const groups = new Map<string, { seats: number[]; instances: typeof instances }>();
+    for (const instance of instances) {
+      const seats = everyone.flatMap((p, seat) => (instance.assignments.some((a) => a.userId === p.id) ? [seat] : []));
+      if (seats.length === 0) continue;
+      const key = seats.join('+');
+      const group = groups.get(key) ?? { seats, instances: [] };
+      group.instances.push(instance);
+      groups.set(key, group);
+    }
 
     return {
       family: { name: tenant.name, locale: tenant.defaultLocale },
       sun: { rise: sun.sunrise.toISOString(), set: sun.sunset.toISOString() },
-      people: [...people.filter((p) => p.role === 'child'), ...people.filter((p) => p.role !== 'child')]
-        .map((person) => {
-          const chores = instances
-            .filter((i) => i.assignments.some((a) => a.userId === person.id))
-            .map((i) => ({
-              id: i.id,
-              title_en: i.chore.title_en,
-              title_he: i.chore.title_he,
-              dueAt: i.dueAt,
-              state: stateOf(i, person.id),
-            }));
-          const isToday = (chore: { dueAt: string }) => DateTime.fromISO(chore.dueAt) >= today;
+      columns: [...groups.values()]
+        // A shared column sits right after its first person's own.
+        .sort((a, b) => a.seats[0] - b.seats[0] || a.seats.length - b.seats.length || a.seats[1] - b.seats[1])
+        .map(({ seats, instances: group }) => {
+          const chores = group.map((i) => ({
+            id: i.id,
+            title_en: i.chore.title_en,
+            title_he: i.chore.title_he,
+            dueAt: i.dueAt,
+            state: stateOf(i),
+          }));
+          const members = seats.map((seat) => everyone[seat]);
           return {
-            id: person.id,
-            displayName: person.displayName,
-            avatarAt: person.avatarAt ? person.avatarAt.toISOString() : null,
-            chores: chores.filter(isToday),
+            id: members.map((m) => m.id).join('+'),
+            members: members.map((m) => ({
+              id: m.id,
+              displayName: m.displayName,
+              avatarAt: m.avatarAt ? m.avatarAt.toISOString() : null,
+            })),
+            chores: chores.filter((c) => isToday(c.dueAt)),
             // Only a count: a bad week shouldn't push today off the board.
-            missed: chores.filter((c) => !isToday(c) && c.state === 'overdue').length,
+            missed: chores.filter((c) => !isToday(c.dueAt) && c.state === 'overdue').length,
           };
         })
-        .filter((person) => person.chores.length > 0),
+        .filter((column) => column.chores.length > 0),
     };
   }
 

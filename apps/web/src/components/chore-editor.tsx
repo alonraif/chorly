@@ -29,8 +29,9 @@ import { errorMessage, Segmented, Sheet, Switch, useUi } from './ui';
 
 type Freq = 'once' | 'daily' | 'weekly' | 'monthly' | 'interval';
 
-// With several people: 'each' = everyone does their own (one chore per person), 'turns' = rotate between them.
-type Split = 'each' | 'turns';
+// With several people: 'each' = everyone does their own (one chore per person), 'turns' = rotate between them,
+// 'together' = one chore they share, finished by a single check-off.
+type Split = 'each' | 'turns' | 'together';
 
 type Draft = {
   title: string;
@@ -192,7 +193,7 @@ export function ChoreEditor({
             ...withSchedule,
             title: choreTitle(chore),
             assigneeIds: chore.assignmentJson?.assigneeIds || [],
-            split: (chore.assignmentJson?.assigneeIds?.length ?? 0) > 1 ? 'turns' : 'each',
+            split: chore.assignmentJson?.mode === 'together' ? 'together' : (chore.assignmentJson?.assigneeIds?.length ?? 0) > 1 ? 'turns' : 'each',
             hasReward: chore.hasReward,
             rewardAmount: chore.rewardAmount ? String(Number(chore.rewardAmount)) : '',
             skipAway: chore.assignmentJson?.skipAwayUsers ?? true,
@@ -226,7 +227,13 @@ export function ChoreEditor({
         ? joinNames(chosen.map((p) => firstName(p.displayName)), t('editor.turnsArrow'))
         : listJoin(chosen.map((p) => firstName(p.displayName)))
       : t('editor.nobody'),
-    chosen.length > 1 ? (draft.split === 'turns' ? t('editor.takingTurns') : t('editor.eachOwn')) : null,
+    chosen.length > 1
+      ? draft.split === 'turns'
+        ? t('editor.takingTurns')
+        : draft.split === 'together'
+          ? t('editor.doingTogether')
+          : t('editor.eachOwn')
+      : null,
     scheduleSummary(schedule),
     paysReward && Number(draft.rewardAmount) > 0 ? t('editor.reward', { amount: money(draft.rewardAmount, currency) }) : null,
   ]
@@ -278,7 +285,7 @@ export function ChoreEditor({
         schedule,
         assignment: {
           shared,
-          mode: shared ? 'round_robin' : 'fixed',
+          mode: !shared ? 'fixed' : draft.split === 'together' ? 'together' : 'round_robin',
           skipAwayUsers: draft.skipAway,
           assigneeIds,
         },
@@ -286,7 +293,7 @@ export function ChoreEditor({
         placeRule: draft.placeId ? draft.placeRule : null,
       };
     };
-    // Each occurrence has a single assignee, so "each does it" becomes one chore per person.
+    // "Each does it" needs its own check-off per person, so it becomes one chore per person.
     const groups =
       draft.split === 'each' && draft.assigneeIds.length > 1 ? draft.assigneeIds.map((id) => [id]) : [draft.assigneeIds];
     const [first, ...rest] = groups;
@@ -409,6 +416,7 @@ export function ChoreEditor({
                 options={[
                   { value: 'each', label: t('editor.each') },
                   { value: 'turns', label: t('editor.turns') },
+                  { value: 'together', label: t('editor.together') },
                 ]}
               />
               <p className="field-hint">
@@ -416,6 +424,10 @@ export function ChoreEditor({
                   <>
                     <Icon name="users" size={14} />
                     {isEdit ? t('editor.eachHintEdit') : t('editor.eachHintNew')}
+                  </>
+                ) : draft.split === 'together' ? (
+                  <>
+                    <Icon name="users" size={14} /> {t('editor.togetherHint')}
                   </>
                 ) : (
                   <>

@@ -103,11 +103,26 @@
   gap: 10px;
 }
 
+.display-person.is-shared {
+  min-width: 220px;
+  box-shadow: inset 0 0 0 3px var(--brand);
+}
+
+.display-faces {
+  flex: none;
+  display: flex;
+}
+
 .display-person .avatar {
   flex: none;
   width: 40px;
   height: 40px;
   font-size: 17px;
+}
+
+.display-faces .avatar + .avatar {
+  margin-inline-start: -12px;
+  box-shadow: 0 0 0 2px var(--surface);
 }
 
 .display-person h2 {

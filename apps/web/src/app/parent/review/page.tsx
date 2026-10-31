@@ -6,7 +6,7 @@ import { choreTitle, currencySymbol, firstName, friendlyDue, money, relativeTime
 import { joinNames, t, tn } from '../../../lib/i18n';
 import { approvalsRange, useSession } from '../../../lib/session';
 import { activeDoneAt, rangeQuery, type Chore, type Instance } from '../../../lib/types';
-import { Avatar } from '../../../components/avatar';
+import { AvatarStack } from '../../../components/avatar';
 import { ChoreEditor } from '../../../components/chore-editor';
 import { Icon } from '../../../components/icon';
 import { InstanceSheet } from '../../../components/instance-sheet';
@@ -67,7 +67,8 @@ export default function ApprovalsPage() {
       await api.post(`/instances/${item.id}/approve`, item.chore.hasReward ? { rewardAmount: reward } : {});
       setItems((prev) => prev.map((i) => (i.id === item.id ? { ...i, status: 'approved' } : i)));
       if (!quiet) {
-        const who = firstName(item.assignments[0]?.displayName || '');
+        const paid = item.chore.hasReward ? item.assignments.filter((a) => a.role === 'child') : item.assignments;
+        const who = joinNames(paid.map((a) => firstName(a.displayName)));
         toast(
           item.chore.hasReward
             ? t('approvals.approvedEarned', { who, amount: money(reward, currency) })
@@ -128,12 +129,11 @@ export default function ApprovalsPage() {
         ) : (
           <ul className="approval-list">
             {waiting.map((item) => {
-              const kid = item.assignments[0];
               const doneAt = activeDoneAt(item);
               return (
                 <li key={item.id} className="approval-card">
                   <div className="approval-main">
-                    {kid && <Avatar user={{ id: kid.userId, displayName: kid.displayName }} size={40} />}
+                    <AvatarStack users={item.assignments.map((a) => ({ id: a.userId, displayName: a.displayName }))} size={40} />
                     <div className="approval-text">
                       <p className="row-title">{choreTitle(item.chore)}</p>
                       <p className="small muted">
@@ -191,9 +191,7 @@ export default function ApprovalsPage() {
               {overdue.map((item) => (
                 <li key={item.id}>
                   <button type="button" className="row row-overdue" onClick={() => setOpenInstance(item)}>
-                    {item.assignments[0] && (
-                      <Avatar user={{ id: item.assignments[0].userId, displayName: item.assignments[0].displayName }} size={32} />
-                    )}
+                    <AvatarStack users={item.assignments.map((a) => ({ id: a.userId, displayName: a.displayName }))} size={32} />
                     <span className="row-main">
                       <span className="row-title">{choreTitle(item.chore)}</span>
                       <span className="row-sub">

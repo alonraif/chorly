@@ -18,6 +18,10 @@ export function selectAssigneeIds(
   const assignment = AssignmentConfigSchema.parse(assignmentConfig);
   if (users.length === 0) return { assigneeIds: [], nextLastAssignedUserId: lastAssignedUserId };
 
+  if (assignment.mode === 'together') {
+    return { assigneeIds: users.map((u) => u.id), nextLastAssignedUserId: lastAssignedUserId };
+  }
+
   if (assignment.shared) {
     // Shared chores rotate across the selected kids; one assignee per occurrence.
     const currentIndex = users.findIndex((u) => u.id === lastAssignedUserId);
