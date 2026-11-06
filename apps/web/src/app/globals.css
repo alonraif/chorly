@@ -3745,3 +3745,22 @@ textarea.input {
   flex-wrap: wrap;
   gap: 8px;
 }
+
+/* People come first: a bubble of places and pins sits under them */
+.maplibregl-marker.map-group.is-things {
+  z-index: 1;
+}
+
+/* People together at one spot: their faces and names in one bubble */
+.map-group.is-together {
+  padding-inline-end: 12px;
+}
+
+.map-group-names {
+  max-width: 170px;
+  overflow: hidden;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

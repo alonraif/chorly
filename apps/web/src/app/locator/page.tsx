@@ -29,7 +29,7 @@ import { Avatar, hueFor } from '../../components/avatar';
 import { FamilyMap, PERSON_ZOOM, type MapFocus, type MapPerson } from '../../components/family-map';
 import { Icon } from '../../components/icon';
 import { ErrandsSheet, PersonSheet, PlacesSheet, SharingSheet, TagsSheet, TripSheet, type RequestPick } from '../../components/locator-sheets';
-import { Spinner, Switch, useUi } from '../../components/ui';
+import { Sheet, Spinner, Switch, useUi } from '../../components/ui';
 
 const REFRESH_MS = 5_000;
 // Reports come every 30 seconds or so; anything newer than this is simply live.
@@ -57,6 +57,8 @@ export default function LocatorPage() {
   const flights = useRef(0);
   const { toast } = useUi();
   const [trail, setTrail] = useState<{ userId: string; points: TrailPoint[] } | null>(null);
+  // People together at one spot, tapped on the map: which of them to look at.
+  const [togetherIds, setTogetherIds] = useState<string[] | null>(null);
   // Waiting for a phone to answer "check in now": who, and how old their position was when asked.
   const [checking, setChecking] = useState<{ userId: string; since: string | null } | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
@@ -312,6 +314,7 @@ export default function LocatorPage() {
           pick={picking && { point: picking.point, radiusM: picking.radiusM }}
           onPick={(point) => setPicking((current) => current && { ...current, point })}
           onPerson={(id) => (id === me.id ? setSheet('sharing') : openPerson(id))}
+          onTogether={setTogetherIds}
           onPlace={() => setSheet('places')}
           onErrand={() => setSheet('errands')}
           onThing={() => setSheet('things')}
@@ -386,6 +389,32 @@ export default function LocatorPage() {
         heading={myTrip && myTripMinutes ? { place: myTrip.name, minutes: myTripMinutes } : null}
         onChanged={load}
       />
+      <Sheet open={!!togetherIds} onClose={() => setTogetherIds(null)} title={t('locator.togetherHere')} size="sm" backdrop="clear">
+        <ul className="sheet-list">
+          {listed
+            .filter((person) => togetherIds?.includes(person.id))
+            .map((person) => (
+              <li key={person.id} className="sheet-list-item">
+                <button
+                  type="button"
+                  className="locator-person"
+                  onClick={() => {
+                    setTogetherIds(null);
+                    if (person.id === me.id) setSheet('sharing');
+                    else openPerson(person.id);
+                  }}
+                >
+                  <Avatar user={person} size={36} />
+                  <span className="locator-person-text">
+                    <span className="locator-person-name">{person.id === me.id ? t('locator.you', { name: firstName(person.displayName) }) : person.displayName}</span>
+                    <span className="field-hint">{statusOf(byId.get(person.id))}</span>
+                  </span>
+                </button>
+              </li>
+            ))}
+        </ul>
+      </Sheet>
+
       <PersonSheet
         person={selected}
         status={statusOf(selectedLocation)}
