@@ -96,11 +96,6 @@ export const notificationText = {
       ? { title: `🪫 ${name}`, body: `הסוללה ב-${percent}%` }
       : { title: `🪫 ${name}`, body: `Battery at ${percent}%` },
 
-  wentQuiet: (locale: Locale, name: string, minutes: number) =>
-    locale === 'he'
-      ? { title: `📵 ${name}`, body: `המיקום לא התעדכן ${minutes} דק׳` }
-      : { title: `📵 ${name}`, body: `No location update for ${minutes} min` },
-
   tripStarted: (locale: Locale, name: string, place: string, minutes: number) =>
     locale === 'he'
       ? { title: `🧭 ${name}`, body: `בדרך ל${place}, בערך ${minutes} דק׳` }

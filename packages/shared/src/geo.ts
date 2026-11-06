@@ -45,3 +45,9 @@ export const TOGETHER_M = 80;
 // Speeds in metres per second.
 export const MOVING_MPS = 1;
 export const DRIVING_MPS = 6;
+// A speed older than this is how fast they were going, not how fast they're going.
+export const SPEED_FRESH_MS = 3 * 60_000;
+
+export function kmh(speedMps: number) {
+  return Math.round(speedMps * 3.6);
+}

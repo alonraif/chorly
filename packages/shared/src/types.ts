@@ -23,6 +23,7 @@ import type {
   MapTagInputSchema,
   UpdateMapTagSchema,
   PokeSchema,
+  LocateSchema,
   ShoppingAddSchema,
   ShoppingUpdateSchema,
 } from './schemas';
@@ -54,5 +55,6 @@ export type ErrandInput = z.infer<typeof ErrandInputSchema>;
 export type MapTagInput = z.infer<typeof MapTagInputSchema>;
 export type UpdateMapTag = z.infer<typeof UpdateMapTagSchema>;
 export type PokeInput = z.infer<typeof PokeSchema>;
+export type LocateInput = z.infer<typeof LocateSchema>;
 export type ShoppingAdd = z.infer<typeof ShoppingAddSchema>;
 export type ShoppingUpdate = z.infer<typeof ShoppingUpdateSchema>;

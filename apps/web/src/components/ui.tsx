@@ -26,6 +26,7 @@ export function Sheet({
   children,
   footer,
   size = 'md',
+  backdrop = 'dim',
 }: {
   open: boolean;
   onClose: () => void;
@@ -34,6 +35,8 @@ export function Sheet({
   children: ReactNode;
   footer?: ReactNode;
   size?: 'sm' | 'md' | 'lg';
+  /** 'clear' leaves what's behind visible and usable: for a card about something on the page, like a person on the map. */
+  backdrop?: 'dim' | 'clear';
 }) {
   const titleId = useId();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -55,7 +58,8 @@ export function Sheet({
     document.addEventListener('keydown', onKey);
     openSheets += 1;
     document.body.classList.add('no-scroll');
-    const first = panelRef.current?.querySelector<HTMLElement>('[data-autofocus], input, select, textarea, button:not(.sheet-close)');
+    // A card over the page starts on itself: its first button is an action, like sending a sticker.
+    const first = backdrop === 'clear' ? null : panelRef.current?.querySelector<HTMLElement>('[data-autofocus], input, select, textarea, button:not(.sheet-close)');
     (first || panelRef.current)?.focus({ preventScroll: true });
     return () => {
       document.removeEventListener('keydown', onKey);
@@ -63,17 +67,17 @@ export function Sheet({
       if (openSheets === 0) document.body.classList.remove('no-scroll');
       previous?.focus?.({ preventScroll: true });
     };
-  }, [open, mounted]);
+  }, [open, mounted, backdrop]);
 
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="sheet-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div className={`sheet-backdrop${backdrop === 'clear' ? ' is-clear' : ''}`} onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div
         ref={panelRef}
         className={`sheet sheet-${size}`}
         role="dialog"
-        aria-modal="true"
+        aria-modal={backdrop === 'dim'}
         aria-labelledby={titleId}
         tabIndex={-1}
       >

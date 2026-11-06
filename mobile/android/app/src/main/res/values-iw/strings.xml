@@ -1,0 +1,6 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="location_channel_name">שיתוף מיקום</string>
+    <string name="location_default_title">המיקום שלך משותף</string>
+    <string name="location_default_message">המשפחה רואה איפה את/ה</string>
+</resources>

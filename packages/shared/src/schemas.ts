@@ -130,6 +130,12 @@ export const LocationReportSchema = z.object({
   charging: z.boolean().nullish(),
   // Metres per second; some devices report a negative number when they don't know.
   speed: z.number().nullish(),
+  // Degrees clockwise from north, the way the phone is travelling.
+  heading: z.number().min(0).max(360).nullish(),
+  // How old the fix was when it was sent, measured on the phone's own clock so a wrong clock can't skew it.
+  ageMs: z.number().int().min(0).max(24 * 60 * 60_000).nullish(),
+  // The Android app reports in the background; a browser only while it's open.
+  source: z.union([z.literal('native'), z.literal('web')]).nullish(),
 });
 
 export const SharingModeSchema = z.union([z.literal('exact'), z.literal('blurred'), z.literal('paused')]);
@@ -140,9 +146,14 @@ export const LocationSettingsSchema = z
     // Minutes of sharing from now; null means until the member stops it.
     durationMinutes: z.number().int().min(1).max(60 * 24 * 7).nullable(),
     recap: z.boolean(),
+    // Whether the family can see where they went over the last day.
+    trail: z.boolean(),
   })
   .partial()
   .strict();
+
+// "Check in now": asks a family member's phone for a fresh position.
+export const LocateSchema = z.object({ userId: z.string().min(1) });
 
 export const PlaceKindSchema = z.union([
   z.literal('home'),

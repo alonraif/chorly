@@ -5,7 +5,8 @@ import { POKE_KINDS } from '@chorly/shared';
 import { api } from '../lib/api';
 import { currencySymbol, firstName, relativeTime, timeOf } from '../lib/format';
 import { getLocale, t, type MessageKey } from '../lib/i18n';
-import { useLocationSharing } from '../lib/location';
+import { nativeReady, useLocationSharing, type NativeFix } from '../lib/location';
+import type { NativeLocationStatus } from '../lib/native';
 import {
   distanceText,
   KIND_EMOJI,
@@ -31,6 +32,9 @@ export type RequestPick = (apply: (point: Point) => void, options?: { start?: Po
 // The API answers with codes where the reason is meant for the member, in their language.
 const ERROR_TEXT: Record<string, MessageKey> = {
   poke_cooldown: 'locator.pokeCooldown',
+  locate_cooldown: 'locator.locateCooldown',
+  no_app: 'locator.noApp',
+  not_sharing: 'locator.notSharingNow',
   errand_taken: 'locator.errandTaken',
   not_your_errand: 'locator.notYourErrand',
   share_first: 'locator.shareFirst',
@@ -154,6 +158,59 @@ function PointField({ value, radiusM, onChange, onPick }: { value: Point | null;
 
 // ---- Sharing: who sees what, and for how long ----
 
+const SETUP_STEPS: { key: NativeFix; ok: (status: NativeLocationStatus) => boolean; label: MessageKey; hint: MessageKey }[] = [
+  { key: 'locationOn', ok: (s) => s.locationOn, label: 'locator.setupLocationOn', hint: 'locator.setupLocationOnHint' },
+  { key: 'background', ok: (s) => s.background, label: 'locator.setupBackground', hint: 'locator.setupBackgroundHint' },
+  { key: 'precise', ok: (s) => s.precise, label: 'locator.setupPrecise', hint: 'locator.setupPreciseHint' },
+  { key: 'battery', ok: (s) => s.batteryUnrestricted, label: 'locator.setupBattery', hint: 'locator.setupBatteryHint' },
+  { key: 'motion', ok: (s) => s.motion !== false, label: 'locator.setupMotion', hint: 'locator.setupMotionHint' },
+];
+
+// What the Android app needs from the phone to share reliably, each with the one tap that fixes it.
+function PhoneSetup() {
+  const { native, fixNative } = useLocationSharing();
+  const [fixing, setFixing] = useState<NativeFix | null>(null);
+  if (!native) return null;
+  // Location switched on for the phone is the normal case: a row only when it isn't. Motion needs app 1.3.
+  const steps = SETUP_STEPS.filter((step) => (step.key !== 'locationOn' || !step.ok(native)) && (step.key !== 'motion' || native.motion !== undefined));
+  return (
+    <div className="field">
+      <span className="field-label-sm">{t('locator.setupTitle')}</span>
+      <ul className="setup-list">
+        {steps.map((step) => {
+          const ok = step.ok(native);
+          return (
+            <li key={step.key} className={`setup-step${ok ? ' is-ok' : ''}`}>
+              <span className="setup-mark" aria-hidden="true">{ok ? '✓' : '!'}</span>
+              <span className="setup-text">
+                <span className="setup-label">{t(step.label)}</span>
+                {!ok && <span className="field-hint">{t(step.hint)}</span>}
+              </span>
+              {!ok && (
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  disabled={fixing !== null}
+                  onClick={async () => {
+                    setFixing(step.key);
+                    try {
+                      await fixNative(step.key);
+                    } finally {
+                      setFixing(null);
+                    }
+                  }}
+                >
+                  {t('locator.setupFix')}
+                </button>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 type Duration = 'hour' | 'tonight' | 'always';
 const DURATION_MINUTES = (duration: Duration) => (duration === 'hour' ? 60 : duration === 'tonight' ? minutesUntilTonight() : null);
 
@@ -171,16 +228,19 @@ export function SharingSheet({
   elsewhere: boolean;
   onChanged: () => void;
 }) {
-  const { status, start, stop, reportNow } = useLocationSharing();
+  const { status, start, stop, reportNow, native } = useLocationSharing();
   const { busy, run } = useAction();
   const [mode, setMode] = useState<'exact' | 'blurred'>('exact');
   const [duration, setDuration] = useState<Duration>('always');
   const [recap, setRecap] = useState(false);
+  const [trail, setTrail] = useState(true);
   const on = status === 'on';
 
   useEffect(() => {
-    if (open) setRecap(mine.recap);
-  }, [open, mine.recap]);
+    if (!open) return;
+    setRecap(mine.recap);
+    setTrail(mine.trail);
+  }, [open, mine.recap, mine.trail]);
 
   const durations = [
     { value: 'hour' as const, label: t('locator.forAnHour') },
@@ -189,11 +249,14 @@ export function SharingSheet({
   ];
 
   async function begin() {
-    const ok = await run(() => start({ mode, durationMinutes: DURATION_MINUTES(duration), recap }));
-    if (ok) {
-      onChanged();
-      onClose();
-    }
+    let allowed: Awaited<ReturnType<typeof start>> = null;
+    const ok = await run(async () => {
+      allowed = await start({ mode, durationMinutes: DURATION_MINUTES(duration), recap, trail });
+    });
+    if (!ok) return;
+    onChanged();
+    // On a phone that still needs a step or two, the sheet stays open on them.
+    if (nativeReady(allowed)) onClose();
   }
 
   async function change(body: Record<string, unknown>) {
@@ -269,6 +332,19 @@ export function SharingSheet({
           label={t('locator.recap')}
           hint={t('locator.recapHint')}
         />
+        {/* Nearby and Paused keep no trail, so there's nothing to choose. */}
+        {live === 'exact' && (
+          <Switch
+            checked={trail}
+            onChange={(value) => {
+              setTrail(value);
+              if (on) change({ trail: value });
+            }}
+            label={t('locator.trail')}
+            hint={t('locator.trailHint')}
+          />
+        )}
+        {on && native && <PhoneSetup />}
         <p className="field-hint">{t('locator.alertsStillWork')}</p>
       </div>
     </Sheet>
@@ -719,7 +795,10 @@ export function PersonSheet({
   chips,
   distance,
   directions,
-  onShow,
+  onLocate,
+  trailShown,
+  trailNote,
+  onTrail,
   onClose,
 }: {
   person: Member | null;
@@ -727,7 +806,13 @@ export function PersonSheet({
   chips: ReactNode;
   distance: string | null;
   directions: string | null;
-  onShow: (() => void) | null;
+  /** "Check in now": null when they aren't sharing. */
+  onLocate: (() => Promise<void>) | null;
+  trailShown: boolean;
+  /** "Since 08:15" under the buttons while the trail shows. */
+  trailNote: string | null;
+  /** Null when they share no trail (Nearby, paused, not sharing). */
+  onTrail: (() => void) | null;
   onClose: () => void;
 }) {
   const { busy, run } = useAction();
@@ -737,7 +822,8 @@ export function PersonSheet({
     if (await run(() => api.post('/location/poke', { userId: person.id, kind }), t('locator.poked', { name }))) onClose();
   };
   return (
-    <Sheet open onClose={onClose} title={person.displayName} subtitle={status} size="sm">
+    // See-through, so the map stays in view and in reach while the card is up.
+    <Sheet open onClose={onClose} title={person.displayName} subtitle={status} size="sm" backdrop="clear">
       <div className="stack">
         {(chips || distance) && (
           <div className="person-facts">
@@ -745,11 +831,16 @@ export function PersonSheet({
             {distance && <span className="field-hint">{t('locator.fromYou', { distance })}</span>}
           </div>
         )}
-        {(onShow || directions) && (
-          <div className="row-gap">
-            {onShow && (
-              <button type="button" className="btn btn-secondary btn-sm" onClick={onShow}>
-                <Icon name="pin" size={16} /> {t('locator.showOnMap')}
+        {(onLocate || onTrail || directions) && (
+          <div className="person-actions">
+            {onLocate && (
+              <button type="button" className="btn btn-secondary btn-sm" disabled={busy} onClick={() => run(onLocate, t('locator.checkInSent', { name }))}>
+                🔄 {t('locator.checkIn')}
+              </button>
+            )}
+            {onTrail && (
+              <button type="button" className={`btn btn-sm ${trailShown ? 'btn-primary' : 'btn-secondary'}`} aria-pressed={trailShown} onClick={onTrail}>
+                〰️ {t('locator.trailButton')}
               </button>
             )}
             {directions && (
@@ -759,6 +850,7 @@ export function PersonSheet({
             )}
           </div>
         )}
+        {trailNote && <p className="field-hint">{trailNote}</p>}
         <div className="field">
           <span className="field-label-sm">{t('locator.pokeTitle', { name })}</span>
           <div className="poke-grid">

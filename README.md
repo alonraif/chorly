@@ -145,7 +145,7 @@ Open **Map** (kids: the pin at the top). The first time, turn on **Share my loca
   </tr>
 </table>
 
-In a browser or home-screen app, you only share while Chorly is open and on screen. The Android app keeps sharing in the background. See [Family locator](#family-locator) for the details and what's stored.
+In a browser or home-screen app, you only share while Chorly is open and on screen. The Android app keeps sharing with the app closed and after the phone restarts. See [Family locator](#family-locator) for the details and what's stored.
 
 ### Your account
 
@@ -269,11 +269,13 @@ gunzip -c backups/chorly-YYYY-MM-DD.sql.gz | docker compose exec -T postgres psq
 
 Everyone, kids included, can open the map (**Map** tab, or the pin at the top for kids) and turn on **Share my location from this device**. That card only asks once: after that, a chip in the map toolbar shows the sharing state and opens its settings. The switch is per device, so a laptop doesn't pull someone away from the phone in their pocket, and sharing is opt-in: the location only leaves the device once its owner turns this on.
 
-Only the last known position is kept (`UserLocation`), never a history. Turning sharing off deletes it. The map is drawn with MapLibre using free OpenFreeMap styles (Positron in light mode, Fiord in dark), which need no key.
+The last known position is kept (`UserLocation`), plus a short trail (`LocationPoint`): a point every 40 m or 10 minutes from good fixes, kept two days, shown for the last 24 hours. The trail is only kept in Exact sharing, and each member can turn it off in the share sheet (**Show my trail**). Turning it off, pausing, switching to Nearby or stopping sharing deletes it. Turning sharing off deletes the position too. The map is drawn with MapLibre using free OpenFreeMap styles (Positron in light mode, Fiord in dark), which need no key.
 
 **In a browser or installed web app, sharing only runs while Chorly is open and on screen.** They get no location once they're in the background or closed, on both iPhone and Android. Someone who leaves the app stays on the map at their last position, labelled with how long ago that was and faded after 10 minutes.
 
-**The Android app keeps sharing in the background**, with a permanent "Sharing your location" notification while it does. Swiping the app away stops it, and some phones' battery savers can too.
+**The Android app keeps sharing on its own**, with a permanent "Sharing your location" notification while it does. From app 1.2 a native service in the app does the sharing, not the web page: closing or swiping the app away doesn't stop it, and with location set to **Allow all the time** it comes back by itself after the phone restarts or the app updates. It uses GPS and reports about every 10 seconds while the phone moves, and once it has stayed within about 50 m for 3 minutes it switches to wifi and cell positioning and reports every 2 minutes, which costs little battery. While still, it reports the spot it settled on, so a phone on a table doesn't wander around the house on the map. From app 1.3, with **Physical activity** allowed, the phone itself says when it starts walking, cycling or driving, which wakes GPS at once; a still phone then checks only every 2 minutes. The family's places are geofences on the phone too: crossing one's edge sends an accurate fix right away, so arrivals and departures are announced on time, and a geofence or a start of movement brings sharing back if the system had stopped it. The share sheet lists what the phone still needs, each with one tap to fix it: **Allow all the time**, **Precise location** (approximate location is off by a kilometre or two), **No battery limits** (some phones' battery savers stop background apps), and location switched on. A warning on the map page stays until they're done. App 1.1 still works, through the old background plugin, until it's updated.
+
+**The server keeps only good positions.** Each report says how old its fix is, measured on the phone, and the map shows that age rather than when the report arrived, so a phone that was offline doesn't present an old position as live. A report is ignored when it's older than the position already stored, older than 10 minutes, much vaguer than a good fix from the last 3 minutes (a wifi or cell guess after GPS), or implies faster than about 300 km/h travel. While the Android app has reported in the last 15 minutes, a browser on the same account (a laptop left open) doesn't move the person. When a device sends no speed, it's worked out from two good fixes a few seconds apart.
 
 ### Places, alerts and the rest of the map
 
@@ -284,8 +286,8 @@ Only the last known position is kept (`UserLocation`), never a history. Turning 
 - **Things.** The dog, a bike, the car: put them on the map and move them by hand.
 - **Stores.** Arriving at a *store* place tells the person how many items are on the shopping list, at most once every 3 hours.
 - **Heading to…** Share an estimated arrival at a place, as a bubble on your avatar. The estimate is straight-line distance with a route factor, not a routing service.
-- **Status.** Each person gets a battery chip and a status bubble worked out from where they are and how fast they move (home, school, walking, driving, asleep). People standing within 80 m of each other show as together. When zoomed out, anything that would collide on the map merges into one bubble; a tap zooms in, and at street level people at the same spot stand side by side. Markers glide into a bubble and back out of it. A tap on someone shows their details and directions, and sends a sticker (wave, come home, dinner's ready). A status that's out of date doesn't pretend otherwise: an old position shows no speed, battery or arrival estimate.
-- **Phone alerts for parents.** Battery at or under 15% and not charging, or, for Android app users, no update for 45 minutes during the day.
+- **Status.** Each person gets a battery chip and a status bubble worked out from where they are and how fast they move (home, school, walking, driving, asleep). People standing within 80 m of each other show as together. Someone on the move shows their speed (km/h) next to their name, on the map and in the list, with an arrow on their picture pointing the way they're going; a speed older than 3 minutes isn't shown. People that would collide on the map merge into one bubble with a count; places, errands and things merge among themselves, never with people. A bubble only splits once its members are a little further apart than what merged them, so a pinch near the edge doesn't make it flicker, and a bubble that gains or loses someone slides to its new spot instead of being replaced. A tap on a bubble zooms in just far enough to split it; people at the same spot stand side by side from street level. A place's tag steps aside while someone stands on it. A tap on someone, in the list or on the map, flies the map to them and opens their card over the bottom of the map: status, battery, distance, directions, stickers (wave, come home, dinner's ready), their trail, and **Update location**. That sends a silent push to their Android app (1.3+), which answers with a fresh fix within seconds; the card says when it arrived, or that the phone didn't answer within a minute (switched off, no signal). It's for someone sharing from the Android app and not paused, at most every 30 seconds per person asked. A status that's out of date doesn't pretend otherwise: an old position shows no speed, battery or arrival estimate.
+- **Phone alerts for parents.** Battery at or under 15% and not charging. A phone that stops reporting isn't announced: the map shows how old each position is.
 - **Weekly recap** (Saturday 19:30, opt-in per member): time at the family's places over the past week, sent only to members who joined it, about members who joined it.
 
 The only trail kept is `PlaceVisit`, the stays at the family's own places, and the worker deletes visits 14 days after they end (`location-watch`). Everything else is still the last known position only. Alert types can each be turned off under **Choose notifications**. Alerts for places work in Exact and Nearby, and Nearby still shows which of the family's places someone is at. Paused shares nothing.
@@ -298,7 +300,7 @@ The only trail kept is `PlaceVisit`, the stays at the family's own places, and t
 
 ### Android app
 
-`mobile/` is a Capacitor wrapper that loads the live site, so web and API deploys reach it without a new APK. Rebuild only when something in `mobile/` changes (plugins, permissions, icon); bump `versionCode` in `mobile/android/app/build.gradle` first.
+`mobile/` is a Capacitor wrapper that loads the live site, so web and API deploys reach it without a new APK. Rebuild only when something in `mobile/` changes (plugins, permissions, icon, the location service in `android/app/src/main/java/me/theraifs/chorly/location/`); bump `versionCode` in `mobile/android/app/build.gradle` first. Deploy the web and API before publishing an APK that needs them: the site has to know the app's plugins before the app arrives.
 
 Building needs JDK 21 and the Android SDK (platform 35, build-tools 35):
 
@@ -325,7 +327,7 @@ Notifications sent:
 - 17:00 + 20:00 overdue chores → the kid. Each chore at most once a day, and only for 3 days after it was due.
 - 20:00 overdue chores across the family → parents.
 - Saturday 19:00 weekly summary: kids get their own week, parents get the family's.
-- Every 5 minutes, `location-watch`: ends timed shares, alerts parents to low batteries and quiet phones, and tidies old visits, errands and trips.
+- Every 5 minutes, `location-watch`: ends timed shares, alerts parents to low batteries, and tidies old visits, trail points, errands and trips.
 - Saturday 19:30 map recap for members who opted in.
 - Shopping item marked urgent, or someone going shopping → the rest of the family. Adding an ordinary item sends nothing.
 - Arriving at a store place → that person, if anything is on the list.

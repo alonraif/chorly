@@ -1,4 +1,4 @@
-import { DRIVING_MPS, MOVING_MPS, TOGETHER_M, distanceM } from '@chorly/shared';
+import { DRIVING_MPS, MOVING_MPS, SPEED_FRESH_MS, TOGETHER_M, distanceM, kmh } from '@chorly/shared';
 import { now } from './format';
 import { t, type MessageKey } from './i18n';
 
@@ -27,6 +27,7 @@ export type PersonLocation = {
   battery: number | null;
   charging: boolean | null;
   speed: number | null;
+  heading: number | null;
   placeId: string | null;
   placeSince: string | null;
   trip: { placeId: string; mode: 'walk' | 'drive'; etaAt: string | null } | null;
@@ -52,8 +53,10 @@ export type Overview = {
   places: Place[];
   errands: Errand[];
   tags: MapTag[];
-  mine: { mode: SharingMode; shareUntil: string | null; recap: boolean };
+  mine: { mode: SharingMode; shareUntil: string | null; recap: boolean; trail: boolean };
 };
+
+export type TrailPoint = { lat: number; lng: number; speed: number | null; at: string };
 
 export const KIND_EMOJI: Record<PlaceKind, string> = { home: '🏠', school: '🎒', work: '💼', fun: '🎈', store: '🛒', other: '📍' };
 export const KIND_COLOR: Record<PlaceKind, string> = { home: '#2b8a3e', school: '#1c7ed6', work: '#7048e8', fun: '#e8590c', store: '#c2255c', other: '#868e96' };
@@ -90,12 +93,24 @@ export function tripMinutes(location: PersonLocation) {
   return Math.max(1, Math.ceil((new Date(location.trip.etaAt).getTime() - Date.now()) / 60_000));
 }
 
+// How fast they're going now (metres per second), or null when they're not moving or it isn't known.
+// How fast someone was going a few minutes ago says nothing about now: a phone on the move reports every few seconds.
+export function movingSpeed(location: PersonLocation) {
+  if (location.speed === null || location.mode !== 'exact') return null;
+  if (Date.now() - new Date(location.updatedAt).getTime() > SPEED_FRESH_MS) return null;
+  return location.speed >= MOVING_MPS ? location.speed : null;
+}
+
+export function speedText(location: PersonLocation) {
+  const speed = movingSpeed(location);
+  return speed === null ? null : t('locator.kmh', { count: kmh(speed) });
+}
+
 // One cartoon-style bubble for what the person is up to, worked out from where they are and how fast they move.
 export function pulseOf(location: PersonLocation, place: Place | undefined): { emoji: string; label: string } {
   if (location.mode === 'paused') return { emoji: '🔒', label: t('pulse.paused') };
-  // How fast someone was going an hour ago says nothing about now.
   const stale = isStale(location);
-  const speed = stale ? 0 : (location.speed ?? 0);
+  const speed = movingSpeed(location) ?? 0;
   if (speed >= DRIVING_MPS) return { emoji: '🚗', label: t('pulse.driving') };
   if (speed >= MOVING_MPS) return { emoji: '🚶', label: t('pulse.walking') };
   if (place) {

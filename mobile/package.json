@@ -7,7 +7,6 @@
     "apk": "cap sync android && (cd android && ./gradlew assembleRelease) && mkdir -p ../deploy/apk && cp android/app/build/outputs/apk/release/app-release.apk ../deploy/apk/chorly.apk"
   },
   "dependencies": {
-    "@capacitor-community/background-geolocation": "1.3.1",
     "@capacitor/android": "^7.6.10",
     "@capacitor/core": "^7.6.10",
     "@capacitor/push-notifications": "^7.0.7"

@@ -4,6 +4,7 @@ import {
   ErrandInputSchema,
   GeocodeSchema,
   LocationReportSchema,
+  LocateSchema,
   LocationSettingsSchema,
   MapTagInputSchema,
   PlaceInputSchema,
@@ -85,6 +86,19 @@ export class LocationController {
   async endTrip(@CurrentUser() user: RequestUser) {
     await this.location.endTrip(user.id);
     return { ok: true };
+  }
+
+  @Post('/locate')
+  @ApiOperation({ summary: "Ask a family member's phone for a fresh position (check in now)" })
+  locate(@CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(LocateSchema)) body: any) {
+    return this.location.locate(user, body);
+  }
+
+  @Get('/trail/:userId')
+  @ApiParam({ name: 'userId' })
+  @ApiOperation({ summary: 'Where a family member went over the last day' })
+  trail(@CurrentTenant() tenantId: string, @Param('userId') userId: string) {
+    return this.location.trail(tenantId, userId);
   }
 
   @Post('/poke')
