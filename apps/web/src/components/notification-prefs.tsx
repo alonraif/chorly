@@ -11,6 +11,7 @@ type Pref =
   | 'readyForApproval'
   | 'approved'
   | 'rejected'
+  | 'choreChanges'
   | 'morning'
   | 'dueSoon'
   | 'overdue'
@@ -31,6 +32,7 @@ const ORDER: Pref[] = [
   'parentDigest',
   'approved',
   'rejected',
+  'choreChanges',
   'morning',
   'dueSoon',
   'overdue',

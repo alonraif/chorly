@@ -24,6 +24,22 @@ export const notificationText = {
       ? { title: '↩️ המטלה עוד לא הושלמה', body: reason ? `${chore}: ${reason}` : chore }
       : { title: '↩️ Chore not complete yet', body: reason ? `${chore}: ${reason}` : chore },
 
+  // `when` is already in the recipient's language, e.g. "today" or "Thu 12/11".
+  choreCancelled: (locale: Locale, chore: string, when: string) =>
+    locale === 'he'
+      ? { title: '🚫 בוטל', body: `${chore} — ${when} בוטל` }
+      : { title: '🚫 Cancelled', body: `${chore} for ${when} is cancelled` },
+
+  choreMoved: (locale: Locale, chore: string, when: string) =>
+    locale === 'he'
+      ? { title: '📅 הוזז', body: `${chore} — עכשיו ${when}` }
+      : { title: '📅 Moved', body: `${chore} is now ${when}` },
+
+  choreAssigned: (locale: Locale, chore: string, when: string) =>
+    locale === 'he'
+      ? { title: '📋 מטלה חדשה בשבילך', body: `${chore} — ${when}` }
+      : { title: '📋 A chore for you', body: `${chore} — ${when}` },
+
   test: (locale: Locale, name: string) =>
     locale === 'he'
       ? { title: 'Chorly', body: `ההתראות עובדות, ${name}!` }

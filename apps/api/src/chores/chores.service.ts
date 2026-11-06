@@ -150,7 +150,12 @@ export class ChoresService {
       where: { tenantId, choreId: chore.id, dueAt: { gte: dueDates[0], lte: dueDates[dueDates.length - 1] } },
       select: { dueAt: true },
     });
-    const existingMs = new Set(existing.map((e) => e.dueAt.getTime()));
+    const skipped = await this.prisma.skippedOccurrence.findMany({
+      where: { choreId: chore.id, occurrenceAt: { gte: dueDates[0], lte: dueDates[dueDates.length - 1] } },
+      select: { occurrenceAt: true },
+    });
+    // A slot cancelled or moved for one time isn't regenerated, and doesn't take a turn in the rotation.
+    const existingMs = new Set([...existing.map((e) => e.dueAt.getTime()), ...skipped.map((s) => s.occurrenceAt.getTime())]);
 
     let lastAssignedUserId = chore.lastAssignedUserId;
     for (const dueAt of dueDates) {
@@ -309,6 +314,8 @@ export class ChoresService {
         status: { not: 'approved' },
       },
     });
+    // Moved occurrences were just deleted, so their slots come back; cancelled days stay cancelled.
+    await this.prisma.skippedOccurrence.deleteMany({ where: { choreId: id, kind: 'moved', occurrenceAt: { gte: now } } });
     await this.materializeUpcomingInstances(tenantId, id);
     return updated;
   }

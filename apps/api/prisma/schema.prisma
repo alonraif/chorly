@@ -396,6 +396,7 @@ model ChoreDefinition {
   updatedAt          DateTime   @updatedAt
 
   instances ChoreInstance[]
+  skippedOccurrences SkippedOccurrence[]
 
   @@index([tenantId, isTemplate])
   @@index([tenantId, deletedAt])
@@ -426,6 +427,20 @@ model ChoreInstance {
   @@unique([tenantId, choreId, dueAt])
   @@index([tenantId, dueAt])
   @@index([tenantId, status, dueAt])
+}
+
+// A scheduled slot of a repeating chore that was cancelled or moved for just that one time,
+// so generating instances doesn't bring it back (or hand it to the next person in the rotation).
+model SkippedOccurrence {
+  id           String          @id @default(cuid())
+  choreId      String
+  chore        ChoreDefinition @relation(fields: [choreId], references: [id], onDelete: Cascade)
+  occurrenceAt DateTime
+  // 'cancelled' stays through edits to the series; 'moved' is dropped when the series is regenerated.
+  kind         String
+  createdAt    DateTime        @default(now())
+
+  @@unique([choreId, occurrenceAt])
 }
 
 model InstanceAssignment {

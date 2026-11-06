@@ -33,8 +33,16 @@ async function generateForChore(tenantId: string, chore: any, usersById: Map<str
     }
   }
 
+  // Slots cancelled or moved for one time aren't regenerated, and don't take a turn in the rotation.
+  const skipped = await prisma.skippedOccurrence.findMany({
+    where: { choreId: chore.id, occurrenceAt: { gte: from, lte: to } },
+    select: { occurrenceAt: true },
+  });
+  const skippedMs = new Set(skipped.map((s) => s.occurrenceAt.getTime()));
+
   let createdCount = 0;
   for (const dueAtMs of [...dueDates].sort((a, b) => a - b)) {
+    if (skippedMs.has(dueAtMs)) continue;
     const dueAt = new Date(dueAtMs);
     const existing = await prisma.choreInstance.findUnique({
       where: { tenantId_choreId_dueAt: { tenantId, choreId: chore.id, dueAt } },

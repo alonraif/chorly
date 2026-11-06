@@ -20,6 +20,7 @@ export const NOTIFICATION_PREFS = [
   'readyForApproval',
   'approved',
   'rejected',
+  'choreChanges',
   'morning',
   'dueSoon',
   'overdue',

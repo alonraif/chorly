@@ -42,6 +42,22 @@ function instanceStatusFromCompletion(
   return completedUserIds.has(primary) ? 'done' : 'assigned';
 }
 
+// "today", "tomorrow at 17:00", "Thu 12/11 at 17:00", in the recipient's language.
+function whenText(dueAt: Date, locale: 'en' | 'he') {
+  const due = DateTime.fromJSDate(dueAt).setZone(TZ).setLocale(locale === 'he' ? 'he' : 'en');
+  const today = DateTime.now().setZone(TZ).startOf('day');
+  const days = Math.round(due.startOf('day').diff(today, 'days').days);
+  const time = due.toFormat('HH:mm');
+  const hasTime = time !== '00:00';
+  const day = days === 0
+    ? (locale === 'he' ? 'היום' : 'today')
+    : days === 1
+      ? (locale === 'he' ? 'מחר' : 'tomorrow')
+      : due.toFormat('ccc d/M');
+  if (!hasTime) return day;
+  return locale === 'he' ? `${day} ב-${time}` : `${day} at ${time}`;
+}
+
 @Injectable()
 export class InstancesService {
   constructor(
@@ -377,14 +393,33 @@ export class InstancesService {
     return result;
   }
 
-  async remove(tenantId: string, instanceId: string) {
-    await this.getInstanceOrThrow(tenantId, instanceId);
-    await this.prisma.choreInstance.delete({ where: { id: instanceId } });
+  // Cancels one occurrence. The slot is remembered so the series doesn't regenerate it,
+  // and later occurrences (and who they're assigned to) stay as they are.
+  async remove(tenantId: string, instanceId: string, actor: RequestUser) {
+    const instance = await this.getInstanceOrThrow(tenantId, instanceId);
+    if (instance.status === 'approved') throw new BadRequestException('Approved instances cannot be removed');
+    await this.prisma.$transaction([
+      this.prisma.skippedOccurrence.upsert({
+        where: { choreId_occurrenceAt: { choreId: instance.choreId, occurrenceAt: instance.dueAt } },
+        create: { choreId: instance.choreId, occurrenceAt: instance.dueAt, kind: 'cancelled' },
+        update: { kind: 'cancelled' },
+      }),
+      this.prisma.choreInstance.delete({ where: { id: instanceId } }),
+    ]);
     await this.proofs.removeForInstances([instanceId]);
+
+    // Only worth telling about something that hasn't already passed.
+    if (instance.dueAt.getTime() >= DateTime.now().setZone(TZ).startOf('day').toMillis()) {
+      void this.push.sendToUsers(
+        instance.assignments.map((a) => a.userId).filter((id) => id !== actor.id),
+        'choreChanges',
+        (locale) => ({ ...notificationText.choreCancelled(locale, choreName(instance.chore, locale), whenText(instance.dueAt, locale)), url: '/child' }),
+      );
+    }
     return { ok: true };
   }
 
-  async update(tenantId: string, instanceId: string, patch: { dueAt?: string; assigneeUserId?: string }) {
+  async update(tenantId: string, instanceId: string, patch: { dueAt?: string; assigneeUserId?: string }, actor: RequestUser) {
     const instance = await this.getInstanceOrThrow(tenantId, instanceId);
     if (instance.status === 'approved') {
       throw new BadRequestException('Approved instances cannot be edited');
@@ -419,6 +454,16 @@ export class InstancesService {
           });
         }
 
+        // Moving it frees its scheduled slot; remember that so the series doesn't fill it again.
+        if (dueAt && dueAt.getTime() !== instance.dueAt.getTime()) {
+          await tx.skippedOccurrence.upsert({
+            where: { choreId_occurrenceAt: { choreId: instance.choreId, occurrenceAt: instance.dueAt } },
+            create: { choreId: instance.choreId, occurrenceAt: instance.dueAt, kind: 'moved' },
+            update: {},
+          });
+          await tx.skippedOccurrence.deleteMany({ where: { choreId: instance.choreId, occurrenceAt: dueAt, kind: 'moved' } });
+        }
+
         return tx.choreInstance.update({
           where: { id: instanceId },
           data: {
@@ -437,6 +482,7 @@ export class InstancesService {
       });
 
       if (patch.assigneeUserId) await this.proofs.removeForInstances([instanceId]);
+      this.notifyChanged(instance, updated, actor);
 
       const doneByUserId: Record<string, { doneAt: string; undoneAt: string | null }> = {};
       for (const completion of updated.completions) {
@@ -471,5 +517,30 @@ export class InstancesService {
       }
       throw error;
     }
+  }
+  // Tell the people on it what changed: whoever lost it hears it's cancelled for them, whoever got it hears it's theirs,
+  // and whoever kept it hears the new time.
+  private notifyChanged(
+    before: { dueAt: Date; assignments: Array<{ userId: string }>; chore: { title_en: string; title_he: string } },
+    after: { dueAt: Date; assignments: Array<{ userId: string }> },
+    actor: RequestUser,
+  ) {
+    const was = new Set(before.assignments.map((a) => a.userId));
+    const now = new Set(after.assignments.map((a) => a.userId));
+    const notMe = (id: string) => id !== actor.id;
+    const moved = before.dueAt.getTime() !== after.dueAt.getTime();
+    const chore = before.chore;
+    const removed = [...was].filter((id) => !now.has(id)).filter(notMe);
+    const added = [...now].filter((id) => !was.has(id)).filter(notMe);
+    const kept = moved ? [...now].filter((id) => was.has(id)).filter(notMe) : [];
+    void this.push.sendToUsers(removed, 'choreChanges', (locale) => ({
+      ...notificationText.choreCancelled(locale, choreName(chore, locale), whenText(before.dueAt, locale)), url: '/child',
+    }));
+    void this.push.sendToUsers(added, 'choreChanges', (locale) => ({
+      ...notificationText.choreAssigned(locale, choreName(chore, locale), whenText(after.dueAt, locale)), url: '/child',
+    }));
+    void this.push.sendToUsers(kept, 'choreChanges', (locale) => ({
+      ...notificationText.choreMoved(locale, choreName(chore, locale), whenText(after.dueAt, locale)), url: '/child',
+    }));
   }
 }

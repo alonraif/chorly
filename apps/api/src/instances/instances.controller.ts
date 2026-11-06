@@ -138,8 +138,9 @@ export class InstancesController {
   remove(
     @CurrentTenant() tenantId: string,
     @Param('id') id: string,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.instances.remove(tenantId, id);
+    return this.instances.remove(tenantId, id, user);
   }
 
   @Patch(':id')
@@ -151,7 +152,8 @@ export class InstancesController {
     @CurrentTenant() tenantId: string,
     @Param('id') id: string,
     @Body(new ZodValidationPipe(UpdateInstanceSchema)) body: z.infer<typeof UpdateInstanceSchema>,
+    @CurrentUser() user: RequestUser,
   ) {
-    return this.instances.update(tenantId, id, body);
+    return this.instances.update(tenantId, id, body, user);
   }
 }
