@@ -17,6 +17,27 @@ export function nativePush() {
   return plugins?.FirebaseReady ? plugins.PushNotifications : null;
 }
 
+// What the Android app's own location service reports about the phone (app 1.2 and later).
+export type NativeLocationStatus = {
+  foreground: boolean;
+  precise: boolean;
+  background: boolean;
+  foregroundState: 'granted' | 'denied' | 'prompt' | 'prompt-with-rationale';
+  locationOn: boolean;
+  batteryUnrestricted: boolean;
+  /** Physical activity allowed: GPS wakes the moment the phone starts moving (app 1.3+). */
+  motion?: boolean;
+  enabled: boolean;
+  running: boolean;
+  stopReason: 'ended' | 'signedOut' | 'permission' | null;
+};
+
+// The service that shares the position by itself, page or no page. Null in a browser and in
+// app 1.1, which shares through a background plugin driven by the page instead.
+export function nativeLocation(): Record<string, (options?: any) => Promise<any>> | null {
+  return nativePlugins()?.ChorlyLocation ?? null;
+}
+
 // Android throttles requests made by the page after a few minutes in the background, so anything
 // sent from there goes through native HTTP. It shares the page's login cookie.
 export async function nativePost(path: string, body: unknown) {

@@ -5,7 +5,7 @@ import { distanceM } from '@chorly/shared';
 import { api } from '../../lib/api';
 import { firstName, relativeTime, timeOf } from '../../lib/format';
 import { listJoin, t, tn } from '../../lib/i18n';
-import { useLocationSharing } from '../../lib/location';
+import { nativeReady, useLocationSharing } from '../../lib/location';
 import { nativePlugins } from '../../lib/native';
 import {
   batteryChip,
@@ -13,20 +13,23 @@ import {
   distanceText,
   isStale,
   minutesText,
+  movingSpeed,
   pulseOf,
+  speedText,
   stayText,
   togetherGroups,
   tripMinutes,
   type Overview,
   type PersonLocation,
+  type TrailPoint,
 } from '../../lib/places';
 import { useAutoRefresh } from '../../lib/refresh';
 import { useSession, type Member } from '../../lib/session';
-import { Avatar } from '../../components/avatar';
-import { FamilyMap, type MapFocus, type MapPerson } from '../../components/family-map';
+import { Avatar, hueFor } from '../../components/avatar';
+import { FamilyMap, PERSON_ZOOM, type MapFocus, type MapPerson } from '../../components/family-map';
 import { Icon } from '../../components/icon';
 import { ErrandsSheet, PersonSheet, PlacesSheet, SharingSheet, TagsSheet, TripSheet, type RequestPick } from '../../components/locator-sheets';
-import { Spinner, Switch } from '../../components/ui';
+import { Spinner, Switch, useUi } from '../../components/ui';
 
 const REFRESH_MS = 5_000;
 // Reports come every 30 seconds or so; anything newer than this is simply live.
@@ -36,13 +39,15 @@ type SheetName = 'sharing' | 'places' | 'errands' | 'things' | 'trip';
 type Point = { lat: number; lng: number };
 type Picking = { apply: (point: Point) => void; point: Point | null; radiusM?: number };
 
-const EMPTY: Overview = { locations: [], places: [], errands: [], tags: [], mine: { mode: 'exact', shareUntil: null, recap: false } };
+const EMPTY: Overview = { locations: [], places: [], errands: [], tags: [], mine: { mode: 'exact', shareUntil: null, recap: false, trail: true } };
+// "Check in now" waits this long for the phone's answer before saying there was none.
+const CHECK_IN_WAIT_MS = 60_000;
 
 const hasPosition = (location: PersonLocation | undefined): location is PersonLocation & Point => !!location && location.lat !== null && location.lng !== null;
 
 export default function LocatorPage() {
   const { me, people, currency } = useSession();
-  const { status: sharing } = useLocationSharing();
+  const { status: sharing, native } = useLocationSharing();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [focus, setFocus] = useState<MapFocus | null>(null);
   const [sheet, setSheet] = useState<SheetName | null>(null);
@@ -50,6 +55,10 @@ export default function LocatorPage() {
   // While set, the sheets step aside and the viewer places a pin, then confirms it.
   const [picking, setPicking] = useState<Picking | null>(null);
   const flights = useRef(0);
+  const { toast } = useUi();
+  const [trail, setTrail] = useState<{ userId: string; points: TrailPoint[] } | null>(null);
+  // Waiting for a phone to answer "check in now": who, and how old their position was when asked.
+  const [checking, setChecking] = useState<{ userId: string; since: string | null } | null>(null);
   const mapRef = useRef<HTMLDivElement>(null);
 
   const load = useCallback(() => {
@@ -86,6 +95,8 @@ export default function LocatorPage() {
             stale: isStale(location),
             emoji: pulseOf(location, location.placeId ? placeById.get(location.placeId) : undefined).emoji,
             eta: trip && minutes ? t('locator.etaBubble', { place: trip.name, time: minutesText(minutes) }) : null,
+            speedText: speedText(location),
+            heading: movingSpeed(location) !== null ? location.heading : null,
             blurRadiusM: location.blurRadiusM,
           },
         ];
@@ -101,12 +112,23 @@ export default function LocatorPage() {
 
   const together = useMemo(() => togetherGroups(locations), [locations]);
 
-  const flyTo = useCallback((point: Point) => {
+  const flyTo = useCallback((point: Point, options?: { zoom?: number; lift?: boolean }) => {
     flights.current += 1;
-    setFocus({ key: flights.current, lat: point.lat, lng: point.lng });
-    // From further down the list the map would move out of sight.
-    mapRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    setFocus({ key: flights.current, lat: point.lat, lng: point.lng, ...options });
+    // From further down the list the map would move out of sight. With a card coming up over the
+    // bottom of the screen, the map goes to the top.
+    mapRef.current?.scrollIntoView({ behavior: 'smooth', block: options?.lift ? 'start' : 'center' });
   }, []);
+
+  // A tap on someone, in the list or on the map: straight to them, with their card open.
+  const openPerson = useCallback(
+    (id: string) => {
+      const location = byId.get(id);
+      if (hasPosition(location)) flyTo(location, { zoom: PERSON_ZOOM, lift: id !== me.id });
+      if (id !== me.id) setSelectedId(id);
+    },
+    [byId, flyTo, me.id],
+  );
 
   const requestPick: RequestPick = useCallback(
     (apply, options) => {
@@ -140,8 +162,9 @@ export default function LocatorPage() {
     const when = age < LIVE_MS ? null : relativeTime(location.updatedAt);
     if (location.mode === 'paused') return when ? t('locator.pausedSince', { when }) : t('pulse.paused');
     const place = location.placeId ? placeById.get(location.placeId) : undefined;
-    const staying = place && location.placeSince && !isStale(location) && (location.speed ?? 0) < 1;
-    return [pulseOf(location, place).label, staying ? t('locator.forStay', { time: stayText(location.placeSince!) }) : null, when].filter(Boolean).join(' · ');
+    const speed = speedText(location);
+    const staying = place && location.placeSince && !isStale(location) && !speed;
+    return [pulseOf(location, place).label, speed, staying ? t('locator.forStay', { time: stayText(location.placeSince!) }) : null, when].filter(Boolean).join(' · ');
   }
 
   function chipsOf(person: Member) {
@@ -162,6 +185,48 @@ export default function LocatorPage() {
 
   const selected = selectedId ? personById.get(selectedId) ?? null : null;
   const selectedLocation = selected ? byId.get(selected.id) : undefined;
+  const selectedUpdatedAt = selectedLocation?.updatedAt;
+
+  // A trail belongs to the open card: it goes when the card does, and grows while it's open.
+  const trailFor = trail?.userId;
+  useEffect(() => {
+    if (trailFor && trailFor !== selectedId) setTrail(null);
+  }, [trailFor, selectedId]);
+  useEffect(() => {
+    if (!trailFor || trailFor !== selectedId) return;
+    api.get(`/location/trail/${trailFor}`).then((points: TrailPoint[]) => setTrail((current) => (current?.userId === trailFor ? { userId: trailFor, points } : current))).catch(() => undefined);
+  }, [trailFor, selectedId, selectedUpdatedAt]);
+
+  const toggleTrail = (id: string) => {
+    if (trail?.userId === id) {
+      setTrail(null);
+      return;
+    }
+    api
+      .get(`/location/trail/${id}`)
+      .then((points: TrailPoint[]) => {
+        if (points.length < 2) toast(t('locator.trailEmpty'), 'info');
+        setTrail({ userId: id, points });
+      })
+      .catch(() => undefined);
+  };
+
+  // The answer to "check in now" is simply a newer position; no answer within a minute is said too.
+  const checkingFor = checking?.userId;
+  const checkedUpdatedAt = checkingFor ? byId.get(checkingFor)?.updatedAt : undefined;
+  useEffect(() => {
+    if (!checking || !checkedUpdatedAt || checkedUpdatedAt === checking.since) return;
+    toast(t('locator.checkInDone', { name: firstName(personById.get(checking.userId)?.displayName ?? '') }));
+    setChecking(null);
+  }, [checking, checkedUpdatedAt, personById, toast]);
+  useEffect(() => {
+    if (!checking) return;
+    const timer = window.setTimeout(() => {
+      toast(t('locator.checkInNoAnswer', { name: firstName(personById.get(checking.userId)?.displayName ?? '') }), 'info');
+      setChecking(null);
+    }, CHECK_IN_WAIT_MS);
+    return () => window.clearTimeout(timer);
+  }, [checking, personById, toast]);
   const selectedDistance =
     hasPosition(selectedLocation) && hasPosition(myLocation) && !isStale(myLocation) ? distanceText(distanceM(myLocation, selectedLocation)) : null;
 
@@ -179,6 +244,13 @@ export default function LocatorPage() {
             <Switch checked={false} onChange={() => setSheet('sharing')} label={t('locator.share')} hint={t(sharing === 'denied' ? 'locator.denied' : nativePlugins() ? 'locator.shareHintNative' : 'locator.shareHint')} />
           )}
         </div>
+      )}
+
+      {sharingNow && mine.mode !== 'paused' && !nativeReady(native) && (
+        <button type="button" className="locator-warning" onClick={() => setSheet('sharing')}>
+          <span>⚠️ {t('locator.setupWarning')}</span>
+          <span className="locator-warning-fix">{t('locator.setupFix')}</span>
+        </button>
       )}
 
       <div className="locator-toolbar" role="toolbar" aria-label={t('locator.title')}>
@@ -235,10 +307,11 @@ export default function LocatorPage() {
           places={places}
           errands={errands.map((e) => ({ id: e.id, title: e.title, lat: e.lat, lng: e.lng, claimed: !!e.claimedById }))}
           things={tags}
+          trail={trail && trail.points.length >= 2 ? { key: trail.userId, hue: hueFor(trail.userId), points: trail.points } : null}
           focus={focus}
           pick={picking && { point: picking.point, radiusM: picking.radiusM }}
           onPick={(point) => setPicking((current) => current && { ...current, point })}
-          onPerson={(id) => (id === me.id ? setSheet('sharing') : setSelectedId(id))}
+          onPerson={(id) => (id === me.id ? setSheet('sharing') : openPerson(id))}
           onPlace={() => setSheet('places')}
           onErrand={() => setSheet('errands')}
           onThing={() => setSheet('things')}
@@ -274,7 +347,7 @@ export default function LocatorPage() {
                   type="button"
                   className="locator-person"
                   disabled={mineRow && !hasPosition(location)}
-                  onClick={() => (mineRow ? hasPosition(location) && flyTo(location) : setSelectedId(person.id))}
+                  onClick={() => openPerson(person.id)}
                 >
                   <span className="locator-avatar">
                     <Avatar user={person} size={36} />
@@ -319,14 +392,19 @@ export default function LocatorPage() {
         chips={selected ? chipsOf(selected) : null}
         distance={selectedDistance}
         directions={hasPosition(selectedLocation) && selectedLocation.mode === 'exact' ? directionsUrl(selectedLocation) : null}
-        onShow={
-          hasPosition(selectedLocation)
-            ? () => {
-                setSelectedId(null);
-                flyTo(selectedLocation);
+        onLocate={
+          selected && selectedLocation && selectedLocation.mode !== 'paused'
+            ? async () => {
+                await api.post('/location/locate', { userId: selected.id });
+                setChecking({ userId: selected.id, since: selectedLocation.updatedAt });
+                // The answer should show without waiting for the next refresh.
+                window.setTimeout(load, 8_000);
               }
             : null
         }
+        trailShown={!!selected && trail?.userId === selected.id}
+        trailNote={selected && trail?.userId === selected.id && trail.points.length >= 2 ? t('locator.trailSince', { time: timeOf(trail.points[0].at) }) : null}
+        onTrail={selected && hasPosition(selectedLocation) && selectedLocation.mode === 'exact' ? () => toggleTrail(selected.id) : null}
         onClose={() => setSelectedId(null)}
       />
     </div>

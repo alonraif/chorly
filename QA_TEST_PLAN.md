@@ -195,12 +195,43 @@ Expected:
 5. Turn sharing off on one device.
 Expected:
 - Both people appear on the map with their picture or initials and first name.
-- Zoomed out, people and pins that would collide merge into one bubble. Tapping it zooms in; at street level people in the same spot stand side by side and every name is readable. Markers glide into and out of a bubble instead of jumping, and a reduced-motion setting turns that off.
+- Zoomed out, people that would collide merge into one bubble with a count; places, errands and things merge separately, never with people. Pinching slowly back and forth near the point where a bubble splits doesn't make it flicker. Tapping a bubble zooms in just far enough to split it; people in the same spot stand side by side and every name is readable. Markers glide into and out of a bubble instead of jumping, and a reduced-motion setting turns that off. A place's tag steps aside while someone stands on it.
+- Tapping someone in the list or on the map flies the map to them and opens their card at the bottom, with them still visible above it. There's no "Show on map" button. The map can still be moved while the card is open.
+- While a phone moves, its speed in km/h shows next to the name on the map and in the list, with an arrow on the picture pointing the way. It disappears within 3 minutes of the last moving report, and never shows for someone sharing Nearby.
 - The sharing card shows only until someone has shared (or when the browser blocks location). After that a toolbar chip shows the state and opens the sharing sheet, including when sharing from another device.
 - A moving phone updates the other's map within about 15 seconds.
 - A locked phone's person stays in place, shows the time since the last update, and fades after 10 minutes.
 - After turning off, the person leaves the map and shows Not sharing; their `UserLocation` row is gone.
 - Blocking location in the browser shows the blocked message and the switch turns off.
+
+### REG-11A Android app sharing (app 1.2)
+1. Install the 1.2 APK over 1.1 on a phone that was already sharing. Open Chorly once.
+2. Open Map → sharing chip. Fix each item in **On this phone**: Allow all the time, Precise location, No battery limits.
+3. Swipe Chorly away from recent apps, then walk or drive for 10 minutes while watching from another device.
+4. Leave the phone on a table for 15 minutes.
+5. Restart the phone and don't open Chorly.
+6. With a laptop signed in as the same member and sharing, keep the phone sharing too.
+7. Turn sharing off from the phone.
+Expected:
+- After step 1 sharing carries on without turning it on again, and the old "Background Tracking" notification channel is gone from the app's notification settings.
+- Each item in step 2 opens the right system screen and shows ✓ on return; the map page warning ("Sharing may stop when Chorly is closed") is gone once all are done.
+- With the app swiped away, the moving phone still updates about every 10 seconds, with speed and an arrow.
+- On the table, the phone switches to low power within about 3 minutes: it stays on one spot instead of drifting around the room, and its time since update stays at 2 minutes or less.
+- After the restart, the notification comes back and the position updates within a couple of minutes, without opening the app.
+- The laptop never moves the person away from where the phone is.
+- After turning off, the notification goes, and the person leaves the map and doesn't come back.
+
+### REG-11B Android app 1.3: motion, geofences, check in, trail
+1. Install 1.3 over 1.2. In the share sheet, allow **Physical activity**.
+2. Leave the phone still for 10 minutes, then pick it up and walk out of the house.
+3. With the phone still at home for a while, drive or walk to another family place.
+4. From another member's device, open the person's card and tap **Update location** while their phone is locked in a pocket. Then try it on someone sharing from a browser, and on someone paused.
+5. Open the card, tap **Trail**. Then, on the shared phone, switch to Nearby, back to Exact, and turn **Show my trail** off.
+Expected:
+- The family sees the walk start within about 15 seconds of leaving, not minutes later.
+- Arrival at the place is announced within about a minute of getting there, even though the phone was in its low-power mode.
+- Update location answers within about 10 seconds with a newer time and "location is up to date"; for a browser sharer it says it only works from the Android app; for a paused member it says they aren't sharing. A second tap within 30 seconds is refused politely. Nothing visible happens on the asked phone.
+- The trail shows the last day, faint at the start and strong at the end, framed above the card, with "Since" its first time. Switching to Nearby or turning the trail off deletes it, and the Trail button is gone for Nearby.
 
 ### REG-12 Places and arrival alerts
 1. As a parent, open Map → Places → Add a place. Create Home (kind Home) and School (kind School, reward 5): tap the map, drag the pin, then Use this spot.
@@ -252,10 +283,10 @@ Expected:
 
 ### REG-16 Phone alerts and recap
 1. With a child's Android app sharing, let the battery fall under 15% unplugged, or set `UserLocation.battery` to 10.
-2. Stop the Android app reporting for 45+ minutes during the day.
-3. Turn on the weekly map recap in the share sheet for two members, then run `pnpm --filter chorly-worker summary:places`.
+2. Turn on the weekly map recap in the share sheet for two members, then run `pnpm --filter chorly-worker summary:places`.
 Expected:
-- Parents get one low-battery push, and one "went quiet" push, each only once per episode; both can be turned off under Phone alerts.
+- Parents get one low-battery push, once per episode; it can be turned off under Phone alerts.
+- No push is sent when a phone stops reporting, however long for.
 - Only members who joined the recap get it, and it lists only members who joined.
 
 ### REG-17 Shopping list

@@ -2,7 +2,7 @@
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Map as MapLibreMap, Marker } from 'maplibre-gl';
+import type { Map as MapLibreMap, Marker, Point as ScreenPoint } from 'maplibre-gl';
 import { firstName } from '../lib/format';
 import { getLocale, listJoin, t } from '../lib/i18n';
 import { KIND_COLOR, KIND_EMOJI, type PlaceKind } from '../lib/places';
@@ -20,13 +20,20 @@ export type MapPerson = {
   emoji: string;
   /** "Home in 12 min", shown under the name. */
   eta: string | null;
+  /** "54 km/h" while they're on the move, shown next to the name. */
+  speedText: string | null;
+  /** Degrees clockwise from north while moving: an arrow on the avatar points the way. */
+  heading: number | null;
   /** Set when they share only their neighbourhood: the map draws a halo this big instead of a sharp position. */
   blurRadiusM: number | null;
 };
 export type MapPlace = { id: string; name: string; kind: PlaceKind; lat: number; lng: number; radiusM: number };
 export type MapErrand = { id: string; title: string; lat: number; lng: number; claimed: boolean };
 export type MapThing = { id: string; name: string; emoji: string; lat: number; lng: number };
-export type MapFocus = { key: number; lat: number; lng: number };
+/** Where someone went, oldest first, drawn in their colour. */
+export type MapTrail = { key: string; hue: number; points: { lat: number; lng: number }[] };
+/** Where to fly. `lift` keeps the spot in the top part of the map, clear of a card over the bottom. */
+export type MapFocus = { key: number; lat: number; lng: number; zoom?: number; lift?: boolean };
 
 type Point = { lat: number; lng: number };
 /** Choosing a spot: where the pin is so far, and the area a place would cover around it. */
@@ -35,17 +42,27 @@ export type MapPick = { point: Point | null; radiusM?: number };
 const DARK_QUERY = '(prefers-color-scheme: dark)';
 const CALM_QUERY = '(prefers-reduced-motion: reduce)';
 const SHAPES = 'family-shapes';
+const TRAIL = 'family-trail';
 const PICK_COLOR = '#1c7ed6';
 // Where a family with nothing on the map yet starts: zoomed in enough to find a street, unlike the whole globe.
 const START_VIEW = { center: [34.85, 31.7] as [number, number], zoom: 6.5 };
-// Further out than this, anything that would collide on screen merges into one bubble; a tap on it zooms in.
+// Things that would collide on screen merge into one bubble; a tap on it zooms in until it splits.
+// Two things in a bubble stay in it until they're a little further apart than what joined them,
+// so a pinch that hovers on the edge doesn't split and merge them over and over.
+const GROUP_PX = 64;
+const SPLIT_PX = 84;
+// Places, errands and things never share a bubble with people, and stop merging at street level.
 const BREAK_ZOOM = 15;
-const GROUP_PX = 72;
+// People who'd still collide at this zoom are at the same spot: zooming in won't part them, so from
+// FAN_ZOOM on they stand side by side instead of in a bubble.
+const TOGETHER_ZOOM = 17.5;
+const FAN_ZOOM = 14;
+const FAN_ZOOM_SLACK = 0.4;
 const GROUP_FACES = 3;
-const GROUP_EMOJIS = 2;
-// From the zoom above, people closer on screen than this would hide each other, so they fan out around their shared spot.
-const CROWDED_PX = 44;
+const GROUP_EMOJIS = 3;
 const PICK_ZOOM = 15;
+// Someone tapped in the list or on the map comes up at least this close.
+export const PERSON_ZOOM = 16;
 // They line up side by side, rows at most this long, so that every name tag stays readable.
 const FAN_COLUMNS = 3;
 const FAN_STEP = { x: 62, y: 76 };
@@ -104,6 +121,31 @@ function addShapes(map: MapLibreMap, data: ReturnType<typeof shapesOf>) {
   });
 }
 
+function trailData(trail: MapTrail | null) {
+  const coordinates = (trail?.points ?? []).map((p) => [p.lng, p.lat]);
+  return {
+    type: 'Feature' as const,
+    properties: {},
+    geometry: { type: 'LineString' as const, coordinates: coordinates.length >= 2 ? coordinates : [] },
+  };
+}
+
+// Faint where it began, strong where they are now: which way they went reads at a glance.
+const trailGradient = (hue: number) => ['interpolate', ['linear'], ['line-progress'], 0, `hsla(${hue}, 70%, 50%, 0.15)`, 1, `hsla(${hue}, 70%, 50%, 0.95)`];
+
+function addTrail(map: MapLibreMap, trail: MapTrail | null) {
+  if (map.getSource(TRAIL)) return;
+  // Line metrics: the gradient runs along the line.
+  map.addSource(TRAIL, { type: 'geojson', data: trailData(trail), lineMetrics: true });
+  map.addLayer({
+    id: `${TRAIL}-line`,
+    type: 'line',
+    source: TRAIL,
+    layout: { 'line-cap': 'round', 'line-join': 'round' },
+    paint: { 'line-width': 5, 'line-gradient': trailGradient(trail?.hue ?? 210) as any },
+  });
+}
+
 function span(className: string, text?: string) {
   const el = document.createElement('span');
   el.className = className;
@@ -143,10 +185,24 @@ function personElement(person: MapPerson, onClick: () => void) {
   const root = tappable(document.createElement('div'), person.displayName, onClick);
   root.className = `map-person ${person.stale ? 'is-stale' : ''}`;
 
-  const label = span('map-person-name', firstName(person.displayName));
-  root.append(faceElement(person), span('map-person-pulse', person.emoji), label);
+  const label = span('map-person-name');
+  // The map itself stays left-to-right; a name with "54 קמ״ש" after it reads in the app's direction.
+  label.dir = document.documentElement.dir || 'auto';
+  label.append(span('map-person-first', firstName(person.displayName)), span('map-person-speed'));
+  root.append(span('map-person-heading'), faceElement(person), span('map-person-pulse', person.emoji), label);
   if (person.eta) root.append(span('map-person-eta', person.eta));
+  movePerson(root, person);
   return root;
+}
+
+// Speed and heading change with every report while someone moves: they're updated in place, not rebuilt.
+function movePerson(root: HTMLElement, person: MapPerson) {
+  const speed = root.querySelector<HTMLElement>('.map-person-speed');
+  if (speed) speed.textContent = person.speedText ?? '';
+  root.classList.toggle('is-moving', !!person.speedText);
+  root.classList.toggle('has-heading', person.heading !== null);
+  if (person.heading !== null) root.style.setProperty('--heading', `${Math.round(person.heading)}deg`);
+  root.setAttribute('aria-label', person.speedText ? `${person.displayName}, ${person.speedText}` : person.displayName);
 }
 
 function placeElement(place: MapPlace, onClick: () => void) {
@@ -168,7 +224,16 @@ function thingElement(thing: MapThing, onClick: () => void) {
 }
 
 type MarkerStore = Map<string, { marker: Marker; look: string }>;
-type MarkerItem = { id: string; lat: number; lng: number; look: string; make: () => HTMLElement; anchor?: 'center' | 'bottom' };
+type MarkerItem = {
+  id: string;
+  lat: number;
+  lng: number;
+  look: string;
+  make: () => HTMLElement;
+  /** What changes too often to rebuild the marker for. */
+  update?: (element: HTMLElement) => void;
+  anchor?: 'center' | 'bottom';
+};
 
 // Keeps one marker per item: moved when the item moves, rebuilt only when how it looks changes.
 function syncMarkers(
@@ -186,6 +251,7 @@ function syncMarkers(
     const existing = store.get(item.id);
     if (existing && existing.look === item.look) {
       existing.marker.setLngLat([item.lng, item.lat]);
+      item.update?.(existing.marker.getElement());
       continue;
     }
     existing?.marker.remove();
@@ -207,9 +273,17 @@ function syncMarkers(
 
 type StoreName = 'people' | 'places' | 'errands' | 'things';
 // `shownAs` remembers what each thing was last drawn as: its own marker, or the bubble holding it.
-type Stores = Record<StoreName, MarkerStore> & { groups: MarkerStore; shownAs: Map<string, string> };
+// `cluster` remembers which bubble or side-by-side row it was part of, so that it can stay there.
+type Stores = Record<StoreName, MarkerStore> & {
+  groups: Map<string, Marker>;
+  groupItems: Map<string, Placed[]>;
+  shownAs: Map<string, string>;
+  cluster: Map<string, string>;
+  seq: number;
+};
 // One thing on the map, as the grouping sees it: a person has a face, anything else an emoji.
 type Placed = { store: StoreName; id: string; lat: number; lng: number; label: string; person?: MapPerson; emoji?: string };
+type Cluster = { id: string; items: Placed[]; fan: boolean };
 
 const keyOf = (item: Placed) => `${item.store}:${item.id}`;
 const pixels = (x: number, y: number) => `${x}px ${y}px`;
@@ -243,37 +317,121 @@ function glide(element: HTMLElement, from: Keyframe, to: Keyframe, done?: () => 
 // Where a marker is drawn. Pixels, so only good for right now: the next frame of a zoom moves it.
 const screenAt = (map: MapLibreMap, marker: Marker) => map.project(marker.getLngLat()).add(marker.getOffset());
 
-// Things close enough on screen to collide, including through a neighbour. Street level has none: there's room there.
-function crowdedGroups(map: MapLibreMap, items: Placed[]) {
-  if (map.getZoom() >= BREAK_ZOOM) return [];
-  const points = items.map((item) => ({ item, at: map.project([item.lng, item.lat]) }));
+type OnScreen = { item: Placed; at: ScreenPoint };
+
+// The longest link needed to hold a group together (its spanning tree's longest edge): the group
+// first splits when that link grows past SPLIT_PX, which says how far to zoom to see it split.
+function widestLink(points: OnScreen[]) {
+  if (points.length < 2) return 0;
+  const inTree = new Set([points[0]]);
+  let widest = 0;
+  while (inTree.size < points.length) {
+    let best: { point: OnScreen; d: number } | null = null;
+    for (const a of inTree) {
+      for (const b of points) {
+        if (inTree.has(b)) continue;
+        const d = a.at.dist(b.at);
+        if (!best || d < best.d) best = { point: b, d };
+      }
+    }
+    inTree.add(best!.point);
+    widest = Math.max(widest, best!.d);
+  }
+  return widest;
+}
+
+// The zoom at which a group at `zoom` first splits.
+const splitZoom = (zoom: number, points: OnScreen[]) => zoom + Math.log2(SPLIT_PX / Math.max(widestLink(points), 0.01));
+
+// Groups of things close enough on screen to collide, including through a neighbour.
+function linked(points: OnScreen[], wereTogether: (a: Placed, b: Placed) => boolean) {
   const left = new Set(points);
-  const groups: Placed[][] = [];
+  const groups: OnScreen[][] = [];
   for (const start of points) {
     if (!left.delete(start)) continue;
     const group = [start];
     for (const member of group) {
-      for (const other of left) {
-        if (member.at.dist(other.at) >= GROUP_PX) continue;
+      for (const other of [...left]) {
+        const reach = wereTogether(member.item, other.item) ? SPLIT_PX : GROUP_PX;
+        if (member.at.dist(other.at) >= reach) continue;
         left.delete(other);
         group.push(other);
       }
     }
-    if (group.length > 1) groups.push(group.map((point) => point.item));
+    if (group.length > 1) groups.push(group);
   }
   return groups;
 }
 
-function groupElement(group: Placed[], onClick: () => void) {
-  const root = tappable(span('map-group'), listJoin(group.map((item) => item.label)), onClick);
+// Gives each group the id of the earlier one it mostly is, so a bubble that gains or loses someone
+// is the same bubble changing, not one vanishing and another appearing.
+function keepIds(stores: Stores, groups: Placed[][], kind: 'b' | 'f', taken: Set<string>) {
+  return groups.map((items) => {
+    const votes = new Map<string, number>();
+    for (const item of items) {
+      const was = stores.cluster.get(keyOf(item));
+      if (was?.startsWith(kind) && !taken.has(was)) votes.set(was, (votes.get(was) ?? 0) + 1);
+    }
+    const best = [...votes.entries()].sort((a, b) => b[1] - a[1])[0]?.[0];
+    const id = best ?? `${kind}${++stores.seq}`;
+    taken.add(id);
+    return id;
+  });
+}
+
+function clustersOf(map: MapLibreMap, stores: Stores, items: Placed[]): Cluster[] {
+  const zoom = map.getZoom();
+  const wereTogether = (a: Placed, b: Placed) => {
+    const was = stores.cluster.get(keyOf(a));
+    return !!was && was === stores.cluster.get(keyOf(b));
+  };
+  const onScreen = (list: Placed[]) => list.map((item) => ({ item, at: map.project([item.lng, item.lat]) }));
+
+  // People merge only with people, so nobody disappears into a bubble of shop pins.
+  const people = linked(onScreen(items.filter((item) => item.person)), wereTogether);
+  const bubbles: Placed[][] = [];
+  const fans: Placed[][] = [];
+  for (const group of people) {
+    const together = splitZoom(zoom, group) > TOGETHER_ZOOM;
+    const wasFan = stores.cluster.get(keyOf(group[0].item))?.startsWith('f');
+    const fanFrom = wasFan ? FAN_ZOOM - FAN_ZOOM_SLACK : FAN_ZOOM;
+    (together && zoom >= fanFrom ? fans : bubbles).push(group.map((point) => point.item));
+  }
+  // The rest stops merging at street level, where there's room for every tag.
+  if (zoom < BREAK_ZOOM) {
+    for (const group of linked(onScreen(items.filter((item) => !item.person)), wereTogether)) bubbles.push(group.map((point) => point.item));
+  }
+
+  const taken = new Set<string>();
+  const bubbleIds = keepIds(stores, bubbles, 'b', taken);
+  const fanIds = keepIds(stores, fans, 'f', taken);
+  return [
+    ...bubbles.map((group, index) => ({ id: bubbleIds[index], items: group, fan: false })),
+    ...fans.map((group, index) => ({ id: fanIds[index], items: group, fan: true })),
+  ];
+}
+
+function fillGroup(root: HTMLElement, items: Placed[]) {
+  // The same order every time, so the faces don't shuffle as the bubble changes.
+  const group = [...items].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
+  // Called on every frame of a zoom: rebuilt only when who's in it changes, or faces would reload and pop.
+  const look = group.map((item) => `${keyOf(item)}|${item.label}|${item.person?.avatarAt}|${item.emoji}`).join();
+  if (root.dataset.look === look) return;
+  root.dataset.look = look;
   const faces = group.flatMap((item) => (item.person ? [item.person] : []));
   const emojis = group.flatMap((item) => (item.emoji ? [item.emoji] : []));
   const shownFaces = faces.slice(0, GROUP_FACES);
   const shownEmojis = emojis.slice(0, GROUP_EMOJIS);
-  root.append(...shownFaces.map(faceElement), ...shownEmojis.map((emoji) => span('map-group-emoji', emoji)));
+  root.classList.toggle('is-people', faces.length > 0);
+  root.replaceChildren(...shownFaces.map(faceElement), ...shownEmojis.map((emoji) => span('map-group-emoji', emoji)));
   const more = group.length - shownFaces.length - shownEmojis.length;
   if (more > 0) root.append(span('map-group-more', `+${more}`));
-  return root;
+  if (faces.length > 1) root.append(span('map-group-count', String(faces.length)));
+  root.setAttribute('aria-label', listJoin(group.map((item) => item.label)));
+}
+
+function groupElement(onClick: () => void) {
+  return tappable(span('map-group'), '', onClick);
 }
 
 // What the things drawn as `shown` turned into, or came from when the maps are swapped.
@@ -286,53 +444,99 @@ function counterparts(shown: string, from: Map<string, string>, to: Map<string, 
   return [...found];
 }
 
-// Hides what's crowded behind one bubble per group, then lets whoever is left share their spot.
+const centerOf = (items: Placed[]): [number, number] => [
+  items.reduce((sum, item) => sum + item.lng, 0) / items.length,
+  items.reduce((sum, item) => sum + item.lat, 0) / items.length,
+];
+
+// Hides what's crowded behind one bubble per group, and stands people at the same spot side by side.
 // Whatever changed glides: into the bubble that took it, out of the bubble it came from. A bubble
-// that splits in several directions has nowhere to go, so it fades where it is.
-function arrangeMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, stores: Stores, items: Placed[], onGroup: (group: Placed[]) => void) {
-  const groups = crowdedGroups(map, items);
+// that gains or loses someone stays and slides to its new middle. One that splits in several
+// directions has nowhere to go, so it fades where it is.
+function arrangeMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap, stores: Stores, items: Placed[], onGroup: (id: string) => void) {
+  const clusters = clustersOf(map, stores, items);
   const before = new Map(stores.shownAs);
   const after = stores.shownAs;
   after.clear();
+  stores.cluster.clear();
   for (const item of items) after.set(keyOf(item), keyOf(item));
+  for (const cluster of clusters) {
+    for (const item of cluster.items) {
+      stores.cluster.set(keyOf(item), cluster.id);
+      if (!cluster.fan) after.set(keyOf(item), cluster.id);
+    }
+  }
+
+  // Bubbles: kept, refilled and moved when they change; made when new; retired when gone.
   const retired = new Map<string, Marker>();
-  syncMarkers(
-    maplibre,
-    map,
-    stores.groups,
-    groups.map((group) => {
-      const id = group.map(keyOf).join();
-      for (const item of group) after.set(keyOf(item), id);
-      return {
-        id,
-        lat: group.reduce((sum, item) => sum + item.lat, 0) / group.length,
-        lng: group.reduce((sum, item) => sum + item.lng, 0) / group.length,
-        look: group.map((item) => `${item.label}|${item.person?.avatarAt}|${item.emoji}`).join(),
-        make: () => groupElement(group, () => onGroup(group)),
-      };
-    }),
-    (id, marker) => retired.set(id, marker),
-  );
-  const standsAlone = (key: string) => before.get(key) === key && after.get(key) === key;
-  spreadPeople(
-    map,
-    stores.people,
-    items.flatMap((item) => (item.person ? [item.person] : [])),
-    standsAlone,
-  );
+  const live = new Set<string>();
+  stores.groupItems.clear();
+  for (const cluster of clusters) {
+    if (cluster.fan) continue;
+    live.add(cluster.id);
+    stores.groupItems.set(cluster.id, cluster.items);
+    const center = centerOf(cluster.items);
+    const existing = stores.groups.get(cluster.id);
+    if (existing) {
+      const element = existing.getElement();
+      const was = screenAt(map, existing);
+      existing.setLngLat(center);
+      fillGroup(element, cluster.items);
+      const moved = was.sub(screenAt(map, existing));
+      if (element.style.display !== 'none' && !flights.has(element) && moved.mag() > 1) glide(element, { ...HOME, translate: pixels(moved.x, moved.y) }, HOME);
+      continue;
+    }
+    const element = groupElement(() => onGroup(cluster.id));
+    fillGroup(element, cluster.items);
+    const label = element.getAttribute('aria-label');
+    const marker = new maplibre.Marker({ element }).setLngLat(center).addTo(map);
+    if (label) element.setAttribute('aria-label', label);
+    stores.groups.set(cluster.id, marker);
+  }
+  stores.groups.forEach((marker, id) => {
+    if (live.has(id)) return;
+    retired.set(id, marker);
+    stores.groups.delete(id);
+  });
+
+  // People standing side by side get their place in the row; everyone else stands on their own spot.
+  const offsets = new Map<string, [number, number]>();
+  for (const cluster of clusters) {
+    if (!cluster.fan) continue;
+    const row = [...cluster.items].sort((a, b) => a.label.localeCompare(b.label) || a.id.localeCompare(b.id));
+    const columns = Math.min(row.length, FAN_COLUMNS);
+    const rows = Math.ceil(row.length / FAN_COLUMNS);
+    row.forEach((item, index) => {
+      offsets.set(item.id, [((index % FAN_COLUMNS) - (columns - 1) / 2) * FAN_STEP.x, (Math.floor(index / FAN_COLUMNS) - (rows - 1) / 2) * FAN_STEP.y]);
+    });
+  }
+  for (const item of items) {
+    if (!item.person) continue;
+    const marker = stores.people.get(item.id)?.marker;
+    if (!marker) continue;
+    const [x, y] = offsets.get(item.id) ?? [0, 0];
+    const was = marker.getOffset();
+    if (was.x === x && was.y === y) continue;
+    marker.setOffset([x, y]);
+    // Only someone already on screen has a spot to slide from.
+    const key = keyOf(item);
+    if (before.get(key) === key && after.get(key) === key) glide(marker.getElement(), { ...HOME, translate: pixels(was.x - x, was.y - y) }, HOME);
+  }
 
   const own = new Map(items.map((item) => [keyOf(item), stores[item.store].get(item.id)?.marker]));
-  const markerOf = (shown: string | undefined) => (shown ? (retired.get(shown) ?? stores.groups.get(shown)?.marker ?? own.get(shown)) : undefined);
+  const markerOf = (shown: string | undefined) => (shown ? (retired.get(shown) ?? stores.groups.get(shown) ?? own.get(shown)) : undefined);
   // From `marker` to wherever `other` is; staying put without one.
   const gap = (marker: Marker, other: Marker | undefined) => {
     if (!other) return pixels(0, 0);
     const distance = screenAt(map, other).sub(screenAt(map, marker));
     return pixels(distance.x, distance.y);
   };
+  const shownAfter = new Set(after.values());
+  const shownBefore = new Set(before.values());
 
-  for (const shown of new Set(before.values())) {
+  for (const shown of shownBefore) {
     const marker = markerOf(shown);
-    if (!marker || [...after.values()].includes(shown)) continue;
+    if (!marker || shownAfter.has(shown)) continue;
     const element = marker.getElement();
     const into = counterparts(shown, before, after);
     element.style.pointerEvents = 'none';
@@ -341,11 +545,15 @@ function arrangeMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap
       else element.style.display = 'none';
     });
   }
-  for (const shown of new Set(after.values())) {
+  // A bubble that only just went has nothing to fade out of: it's simply gone.
+  retired.forEach((marker, id) => {
+    if (!shownBefore.has(id)) marker.remove();
+  });
+  for (const shown of shownAfter) {
     const marker = markerOf(shown);
     const from = counterparts(shown, after, before);
     // Nothing to come out of: it's new on the map, not leaving a bubble.
-    if (!marker || from.length === 0 || [...before.values()].includes(shown)) continue;
+    if (!marker || from.length === 0 || shownBefore.has(shown)) continue;
     const element = marker.getElement();
     element.style.display = '';
     element.style.pointerEvents = '';
@@ -357,28 +565,23 @@ function arrangeMarkers(maplibre: typeof import('maplibre-gl'), map: MapLibreMap
     element.style.display = after.get(keyOf(item)) === keyOf(item) ? '' : 'none';
     element.style.pointerEvents = '';
   }
+  tuckTags(stores);
 }
 
-// Fans out people who would otherwise sit on top of each other. Everyone at home is the usual case.
-function spreadPeople(map: MapLibreMap, store: MarkerStore, people: MapPerson[], standsAlone: (key: string) => boolean) {
-  const points = people.map((p) => ({ id: p.id, at: map.project([p.lng, p.lat]) }));
-  const seen = new Set<string>();
-  for (const point of points) {
-    if (seen.has(point.id)) continue;
-    const group = points.filter((other) => !seen.has(other.id) && point.at.dist(other.at) < CROWDED_PX);
-    group.forEach((member, index) => {
-      seen.add(member.id);
-      const columns = Math.min(group.length, FAN_COLUMNS);
-      const rows = Math.ceil(group.length / FAN_COLUMNS);
-      const x = ((index % FAN_COLUMNS) - (columns - 1) / 2) * FAN_STEP.x;
-      const y = (Math.floor(index / FAN_COLUMNS) - (rows - 1) / 2) * FAN_STEP.y;
-      const marker = store.get(member.id)?.marker;
-      if (!marker) return;
-      const was = marker.getOffset();
-      if (was.x === x && was.y === y) return;
-      marker.setOffset([x, y]);
-      // Only someone already on screen has a spot to slide from.
-      if (standsAlone(`people:${member.id}`)) glide(marker.getElement(), { ...HOME, translate: pixels(was.x - x, was.y - y) }, HOME);
+const overlaps = (a: DOMRect, b: DOMRect) => a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+
+// A place's tag under someone standing at that place would poke out from behind them: it steps
+// aside while they're there. The circle on the map still shows the place.
+function tuckTags(stores: Stores) {
+  const shown = (marker: Marker) => marker.getElement().style.display !== 'none';
+  const people = [...stores.people.values()].map(({ marker }) => marker).filter(shown);
+  const blockers = [...people, ...stores.groups.values()].map((marker) => marker.getElement().getBoundingClientRect());
+  for (const store of [stores.places, stores.errands, stores.things]) {
+    store.forEach(({ marker }) => {
+      const element = marker.getElement();
+      if (!shown(marker)) return;
+      const rect = element.getBoundingClientRect();
+      element.classList.toggle('is-tucked', blockers.some((blocker) => overlaps(rect, blocker)));
     });
   }
 }
@@ -388,6 +591,7 @@ export function FamilyMap({
   places,
   errands,
   things,
+  trail = null,
   focus,
   pick,
   onPick,
@@ -400,6 +604,7 @@ export function FamilyMap({
   places: MapPlace[];
   errands: MapErrand[];
   things: MapThing[];
+  trail?: MapTrail | null;
   focus: MapFocus | null;
   /** While set, a tap on the map moves the pin instead of selecting anything. */
   pick: MapPick | null;
@@ -414,19 +619,35 @@ export function FamilyMap({
   // The map frames the family by itself until the viewer takes over.
   const framing = useRef({ framed: false, viewerMoved: false });
   const pickMarker = useRef<Marker | null>(null);
-  const stores = useRef<Stores>({ people: new Map(), places: new Map(), errands: new Map(), things: new Map(), groups: new Map(), shownAs: new Map() });
+  const stores = useRef<Stores>({
+    people: new Map(),
+    places: new Map(),
+    errands: new Map(),
+    things: new Map(),
+    groups: new Map(),
+    groupItems: new Map(),
+    shownAs: new Map(),
+    cluster: new Map(),
+    seq: 0,
+  });
   // Marker clicks and map taps were wired once; they read the latest handlers from here.
   const picking = !!pick;
   const unlessPicking = <A extends unknown[]>(handler: (...args: A) => void) => (...args: A) => {
     if (!latest.current.picking) handler(...args);
   };
-  const onGroup = (group: Placed[]) => {
-    if (!loaded) return;
-    const bounds = new loaded.maplibre.LngLatBounds();
-    for (const item of group) bounds.extend([item.lng, item.lat]);
+  // Zooms in just far enough for the bubble to split, centred on it. People at the same spot
+  // come apart at FAN_ZOOM, side by side; anything else is apart by BREAK_ZOOM.
+  const onGroup = (id: string) => {
+    const group = stores.current.groupItems.get(id);
+    if (!loaded || !group) return;
+    const { map } = loaded;
+    const zoom = map.getZoom();
+    const points = group.map((item) => ({ item, at: map.project([item.lng, item.lat]) }));
+    const people = group.some((item) => item.person);
+    const split = splitZoom(zoom, points) + 0.3;
+    const target = people ? (split > TOGETHER_ZOOM ? FAN_ZOOM + 0.5 : Math.min(split, TOGETHER_ZOOM)) : Math.min(split, BREAK_ZOOM + 0.1);
     framing.current.viewerMoved = true;
-    // Past the zoom where groups end, so this can't land on the same bubble again.
-    loaded.map.fitBounds(bounds, { padding: FRAME_PADDING, maxZoom: BREAK_ZOOM + 0.5 });
+    map.flyTo({ center: centerOf(group), zoom: Math.max(target, zoom + 0.5), duration: 600 });
   };
   const current = {
     picking,
@@ -443,6 +664,7 @@ export function FamilyMap({
       ...things.map((x): Placed => ({ store: 'things', id: x.id, lat: x.lat, lng: x.lng, label: x.name, emoji: x.emoji })),
     ],
     shapes: shapesOf(people, places, pick),
+    trail,
   };
   const latest = useRef(current);
   latest.current = current;
@@ -484,6 +706,7 @@ export function FamilyMap({
         if (!map) return;
         labelInAppLanguage(map);
         addShapes(map, latest.current.shapes);
+        addTrail(map, latest.current.trail);
       });
       map.on('click', (e) => {
         if (!latest.current.picking || !map) return;
@@ -505,7 +728,7 @@ export function FamilyMap({
       cancelled = true;
       dark.removeEventListener('change', followTheme);
       map?.remove();
-      Object.values(markers).forEach((store) => store.clear());
+      for (const store of [markers.people, markers.places, markers.errands, markers.things, markers.groups, markers.groupItems, markers.shownAs, markers.cluster]) store.clear();
       pickMarker.current = null;
       framing.current = { framed: false, viewerMoved: false };
       setLoaded(null);
@@ -530,6 +753,7 @@ export function FamilyMap({
         lng: p.lng,
         look: `${p.displayName}|${p.avatarAt}|${p.stale}|${p.emoji}|${p.eta}`,
         make: () => personElement(p, () => latest.current.onPerson(p.id)),
+        update: (element: HTMLElement) => movePerson(element, p),
       })),
     );
     syncMarkers(
@@ -571,6 +795,29 @@ export function FamilyMap({
     arrangeMarkers(maplibre, map, stores.current, latest.current.items, latest.current.onGroup);
   }, [loaded, people, places, errands, things, pick, picking, frameEveryone]);
 
+  // A trail comes into view whole, clear of the card over the bottom of the map.
+  useEffect(() => {
+    if (!loaded) return;
+    const { map } = loaded;
+    const source = map.getSource(TRAIL) as { setData: (data: unknown) => void } | undefined;
+    source?.setData(trailData(trail));
+    if (map.getLayer(`${TRAIL}-line`)) map.setPaintProperty(`${TRAIL}-line`, 'line-gradient', trailGradient(trail?.hue ?? 210) as any);
+  }, [loaded, trail]);
+
+  // Only when a trail is first shown, not each time it grows.
+  const trailKey = trail?.key;
+  useEffect(() => {
+    const shown = latest.current.trail;
+    if (!loaded || !shown || shown.points.length < 2) return;
+    const { maplibre, map } = loaded;
+    const bounds = new maplibre.LngLatBounds();
+    for (const point of shown.points) bounds.extend([point.lng, point.lat]);
+    framing.current.viewerMoved = true;
+    map.resize();
+    const height = map.getContainer().clientHeight;
+    map.fitBounds(bounds, { padding: { top: 60, bottom: Math.round(height * 0.4), left: 50, right: 50 }, maxZoom: 16, duration: 700 });
+  }, [loaded, trailKey]);
+
   // The pin being placed. Dragging fine-tunes it, which a fingertip on a small map can't do by tapping.
   useEffect(() => {
     if (!loaded) return;
@@ -596,8 +843,12 @@ export function FamilyMap({
   useEffect(() => {
     if (!loaded || !focus) return;
     framing.current.viewerMoved = true;
-    loaded.map.resize();
-    loaded.map.flyTo({ center: [focus.lng, focus.lat], zoom: Math.max(loaded.map.getZoom(), 15) });
+    const { map } = loaded;
+    map.resize();
+    const zoom = Math.max(map.getZoom(), focus.zoom ?? 15);
+    // Up by a fifth of the map: the card over its bottom would cover the middle.
+    const offset: [number, number] = focus.lift ? [0, -map.getContainer().clientHeight / 5] : [0, 0];
+    map.flyTo({ center: [focus.lng, focus.lat], zoom, offset, duration: 700 });
   }, [loaded, focus]);
 
   // Stays LTR in Hebrew too: the map's controls are positioned from the left.

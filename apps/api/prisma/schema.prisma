@@ -139,6 +139,7 @@ model User {
   avatar            UserAvatar?
   location          UserLocation?
   locationSettings  LocationSettings?
+  locationPoints    LocationPoint[]
   placeVisits       PlaceVisit[]
   errandsCreated    Errand[]             @relation("ErrandCreator")
   errandsClaimed    Errand[]             @relation("ErrandClaimer")
@@ -169,6 +170,10 @@ model UserLocation {
   charging    Boolean?
   // Metres per second.
   speed       Float?
+  // Degrees clockwise from north, while moving.
+  heading     Float?
+  // "native" for the Android app, "web" for a browser. A phone in a pocket outranks a laptop left open.
+  source      String?
   // The family place the member is inside, and since when.
   placeId     String?
   place       Place?    @relation("CurrentPlace", fields: [placeId], references: [id], onDelete: SetNull)
@@ -183,6 +188,22 @@ model UserLocation {
   @@index([placeId])
 }
 
+// Where a member went: a point every 40 m or 10 minutes, from good fixes in exact sharing only.
+// Kept two days (location-watch), and gone when they stop sharing, pause, go Nearby or turn the trail off.
+model LocationPoint {
+  id       String   @id @default(cuid())
+  userId   String
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lat      Float
+  lng      Float
+  accuracy Float?
+  // Metres per second.
+  speed    Float?
+  at       DateTime
+
+  @@index([userId, at])
+}
+
 // How a member shares, kept apart from UserLocation because it outlives a single sharing session
 // and because the worker records its alerts here without making the position look fresh.
 model LocationSettings {
@@ -194,6 +215,9 @@ model LocationSettings {
   // Opt in to the weekly "time at places" digest, for the member and for the family's copy of it.
   recap               Boolean     @default(false)
   lowBatteryAlertedAt DateTime?
+  // The family can see where the member went over the last day (exact sharing only).
+  trail               Boolean     @default(true)
+  // No longer used: phones that go quiet aren't announced any more. Kept so older builds keep running during a deploy.
   quietAlertedAt      DateTime?
 }
 

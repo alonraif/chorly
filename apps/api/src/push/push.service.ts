@@ -83,6 +83,31 @@ export class PushService {
     );
   }
 
+  // A silent, high-priority message to a member's Android app asking it to send its position now.
+  // Returns how many of their phones it went to; zero means they have no Android app to ask.
+  async sendLocate(userId: string) {
+    const fcm = this.fcm;
+    if (!fcm) return 0;
+    const devices = await this.prisma.fcmToken.findMany({ where: { userId } });
+    const sent = await Promise.all(
+      devices.map(async (device) => {
+        try {
+          // A minute to arrive: an answer much later than that isn't what was asked for.
+          await fcm.send({ token: device.token, data: { type: 'locate' }, android: { priority: 'high', ttl: 60_000 } });
+          return 1;
+        } catch (err: any) {
+          if (err?.code === 'messaging/registration-token-not-registered') {
+            await this.prisma.fcmToken.delete({ where: { id: device.id } }).catch(() => undefined);
+          } else {
+            this.logger.warn(`fcm locate failed: ${err?.code || err?.message}`);
+          }
+          return 0;
+        }
+      }),
+    );
+    return sent.reduce<number>((sum, n) => sum + n, 0);
+  }
+
   private async sendWebPush(userIds: string[], pref: NotificationPref | null, payload: PayloadFor) {
     if (!this.enabled) return;
     const subs = await this.prisma.pushSubscription.findMany({

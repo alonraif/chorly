@@ -3082,8 +3082,14 @@ textarea.input {
 }
 
 .person-facts {
-  display: grid;
-  gap: 6px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+
+.person-facts .btn {
+  margin-inline-start: auto;
 }
 
 .locator-loading {
@@ -3337,17 +3343,19 @@ textarea.input {
   box-shadow: 0 0 0 2px var(--brand);
 }
 
+/* One row, so the card stays short and the person stays in view on the map above it. */
 .poke-grid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
 }
 
 .poke {
   display: grid;
   justify-items: center;
+  align-content: start;
   gap: 4px;
-  padding: 14px 8px;
+  padding: 8px 2px;
   border: 1px solid var(--line-strong);
   border-radius: var(--radius);
   background: var(--surface);
@@ -3363,8 +3371,14 @@ textarea.input {
 }
 
 .poke-emoji {
-  font-size: 1.8rem;
+  font-size: 1.4rem;
   line-height: 1;
+}
+
+.poke-grid .poke {
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: center;
 }
 
 /* Family page: kitchen display link */
@@ -3518,4 +3532,216 @@ textarea.input {
 .shop-row.is-bought .row-title {
   color: var(--ink-3);
   text-decoration: line-through;
+}
+
+/* ---- Locator: a person's card leaves the map visible and usable ---- */
+.sheet-backdrop.is-clear {
+  background: transparent;
+  pointer-events: none;
+  animation: none;
+}
+
+.sheet-backdrop.is-clear .sheet {
+  pointer-events: auto;
+  box-shadow: 0 -4px 24px rgb(0 0 0 / 22%);
+}
+
+@media (min-width: 640px) {
+  .sheet-backdrop.is-clear {
+    align-items: flex-end;
+    justify-content: flex-end;
+  }
+}
+
+/* Speed and heading on someone who's moving */
+.map-person-first + .map-person-speed:not(:empty)::before {
+  content: ' · ';
+  font-weight: 400;
+}
+
+.map-person-speed {
+  color: #1c7ed6;
+  font-variant-numeric: tabular-nums;
+}
+
+.map-person-heading {
+  position: absolute;
+  z-index: 1;
+  inset: -15px;
+  display: none;
+  transform: rotate(var(--heading, 0deg));
+  transition: transform 0.6s ease;
+  pointer-events: none;
+}
+
+.map-person.has-heading .map-person-heading {
+  display: block;
+}
+
+.map-person-heading::before {
+  content: '';
+  position: absolute;
+  top: -3px;
+  left: 50%;
+  translate: -50% 0;
+  border-inline: 8px solid transparent;
+  border-bottom: 11px solid #1c7ed6;
+  filter: drop-shadow(0 0 1.5px #fff) drop-shadow(0 0 1.5px #fff) drop-shadow(0 1px 2px rgb(0 0 0 / 40%));
+}
+
+.map-person.is-moving .avatar {
+  box-shadow: 0 0 0 3px #1c7ed6, 0 2px 8px rgb(0 0 0 / 35%);
+}
+
+/* Bubbles: they pop in, and a people bubble says how many are in it */
+.map-group {
+  position: relative;
+  transition: box-shadow 0.15s ease;
+}
+
+.map-group:hover {
+  box-shadow: 0 2px 10px rgb(0 0 0 / 45%);
+}
+
+.map-group > * {
+  animation: map-pop 0.22s var(--ease, ease-out);
+}
+
+.map-group-count {
+  position: absolute;
+  top: -6px;
+  inset-inline-end: -6px;
+  display: grid;
+  place-items: center;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: #1c7ed6;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 700;
+  box-shadow: 0 0 0 2px #fff;
+}
+
+.map-group-more {
+  color: #495057;
+}
+
+@keyframes map-pop {
+  from {
+    scale: 0.6;
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .map-group > *,
+  .map-person-heading {
+    animation: none;
+    transition: none;
+  }
+}
+
+/* What the Android app needs from the phone */
+.setup-list {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.setup-step {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+}
+
+.setup-step.is-ok {
+  background: transparent;
+}
+
+.setup-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--warn);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.setup-step.is-ok .setup-mark {
+  background: var(--brand);
+}
+
+.setup-text {
+  display: grid;
+  flex: 1;
+  gap: 2px;
+  min-width: 0;
+}
+
+.setup-label {
+  font-weight: 600;
+}
+
+.locator-warning {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border: 1px solid var(--warn);
+  border-radius: var(--radius);
+  background: var(--warn-soft);
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.locator-warning-fix {
+  flex: none;
+  color: var(--warn);
+  font-weight: 700;
+}
+
+/* A tag someone is standing on steps aside (MapLibre owns the marker's own opacity) */
+.map-place,
+.map-errand,
+.map-thing {
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.map-place > *,
+.map-errand > *,
+.map-thing > * {
+  transition: opacity 0.2s ease;
+}
+
+.maplibregl-marker.is-tucked {
+  pointer-events: none;
+  box-shadow: none;
+  background: transparent;
+}
+
+.maplibregl-marker.is-tucked > * {
+  opacity: 0;
+}
+
+.person-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
