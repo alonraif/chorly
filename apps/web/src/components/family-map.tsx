@@ -2,7 +2,7 @@
 
 import 'maplibre-gl/dist/maplibre-gl.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Map as MapLibreMap, Marker, Point as ScreenPoint } from 'maplibre-gl';
+import type { ExpressionSpecification, Map as MapLibreMap, Marker, Point as ScreenPoint } from 'maplibre-gl';
 import { TOGETHER_M, distanceM } from '@chorly/shared';
 import { firstName } from '../lib/format';
 import { getLocale, listJoin, t } from '../lib/i18n';
@@ -81,7 +81,7 @@ function styleUrl(dark: boolean) {
 
 // The styles print each place in two languages. Show only the app's, or the local name if it has none.
 function labelInAppLanguage(map: MapLibreMap) {
-  const name = ['coalesce', ['get', `name:${getLocale()}`], ['get', 'name']];
+  const name: ExpressionSpecification = ['coalesce', ['get', `name:${getLocale()}`], ['get', 'name']];
   for (const layer of map.getStyle().layers) {
     if (layer.type === 'symbol' && map.getLayoutProperty(layer.id, 'text-field')) {
       map.setLayoutProperty(layer.id, 'text-field', name);
@@ -689,6 +689,8 @@ export function FamilyMap({
     // MapLibre needs a browser, so it can't load during server rendering.
     import('maplibre-gl').then((maplibre) => {
       if (cancelled || !containerRef.current) return;
+      // The bundle doesn't carry MapLibre's worker; scripts/copy-map-worker.mjs puts it here at build time.
+      maplibre.setWorkerUrl(`/vendor/maplibre-gl-worker.mjs?v=${maplibre.getVersion()}`);
       // Without this, Hebrew labels come out backwards. Loads only once there's Hebrew to show.
       if (maplibre.getRTLTextPluginStatus() === 'unavailable') {
         maplibre.setRTLTextPlugin('/vendor/mapbox-gl-rtl-text.js', true).catch(() => undefined);

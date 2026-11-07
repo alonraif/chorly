@@ -1,15 +1,17 @@
 import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { z } from 'zod';
-import { notificationText } from '@chorly/shared';
+import { isPushServiceEndpoint, notificationText } from '@chorly/shared';
 import { CurrentUser } from '../common/session/current-user.decorator';
 import { RequireUserGuard } from '../common/session/require-user.guard';
 import type { RequestUser } from '../common/session/session.types';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { PushService } from './push.service';
 
+const PushEndpointSchema = z.string().url().max(2048).refine(isPushServiceEndpoint, 'Not a browser push service');
+
 const SubscribeSchema = z.object({
-  endpoint: z.string().url(),
+  endpoint: PushEndpointSchema,
   keys: z.object({ p256dh: z.string().min(1), auth: z.string().min(1) }),
 });
 

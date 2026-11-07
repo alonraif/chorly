@@ -173,7 +173,7 @@ export class InstancesService {
     await this.assertPlaceRule(instance, actor);
 
     for (const key of body.photoKeys ?? []) {
-      if (!key.startsWith(`${actor.id}-`) || !(await this.proofs.exists(instanceId, key))) {
+      if (!this.proofs.isKeyFor(actor.id, key) || !(await this.proofs.exists(instanceId, key))) {
         throw new BadRequestException('Unknown proof');
       }
     }
@@ -233,7 +233,8 @@ export class InstancesService {
   async proofPath(tenantId: string, instanceId: string, key: string, actor: RequestUser) {
     const instance = await this.getInstanceOrThrow(tenantId, instanceId);
     const proof = visibleProofs(instance.photoKeys, actor).find((p) => p.key === key);
-    if (!proof) throw new NotFoundException('Proof not found');
+    // Keys stored before keys were checked on mark-done may not be ones save() made.
+    if (!proof || !this.proofs.isKeyFor(proof.userId, proof.key)) throw new NotFoundException('Proof not found');
     return this.proofs.path(instanceId, proof.key);
   }
 

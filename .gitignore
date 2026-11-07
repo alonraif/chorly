@@ -15,4 +15,6 @@ apps/api/data/
 deploy/ddns/*
 !deploy/ddns/*.example.json
 deploy/apk/
+# Copied from node_modules by apps/web/scripts/copy-map-worker.mjs
+apps/web/public/vendor/maplibre-gl-worker.mjs
 *.tsbuildinfo

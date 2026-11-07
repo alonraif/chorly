@@ -11,6 +11,13 @@ x-app-env: &app-env
   VAPID_SUBJECT: mailto:${ACME_EMAIL:-admin@example.com}
   FIREBASE_SERVICE_ACCOUNT: ${FIREBASE_SERVICE_ACCOUNT:-}
 
+# The app containers: not root, no extra kernel capabilities, nothing writable but /tmp and their volumes.
+x-hardened: &hardened
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  tmpfs: [/tmp]
+
 services:
   postgres:
     image: postgres:16
@@ -27,11 +34,23 @@ services:
       timeout: 5s
       retries: 20
 
+  # Proofs written by older images belong to root; the app now runs as the node user.
+  volume-perms:
+    build: .
+    image: chorly-app:latest
+    user: root
+    command: chown -R node:node /data/proofs
+    volumes:
+      - chorly_proofs:/data/proofs
+    restart: "no"
+
   api:
+    <<: *hardened
     build: .
     image: chorly-app:latest
     restart: unless-stopped
-    command: sh -c "pnpm --filter chorly-api exec prisma migrate deploy && node apps/api/dist/main.js"
+    working_dir: /app/apps/api
+    command: sh -c "node_modules/.bin/prisma migrate deploy && node dist/main.js"
     environment:
       <<: *app-env
       PORT: 4000
@@ -43,22 +62,29 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      volume-perms:
+        condition: service_completed_successfully
 
   web:
+    <<: *hardened
+    tmpfs: [/tmp, /app/apps/web/.next/cache]
     build: .
     image: chorly-app:latest
     restart: unless-stopped
-    command: pnpm --filter chorly-web exec next start -p 3000
+    working_dir: /app/apps/web
+    command: ["node_modules/.bin/next", "start", "-p", "3000"]
     environment:
       NODE_ENV: production
     depends_on:
       - api
 
   worker:
+    <<: *hardened
     build: .
     image: chorly-app:latest
     restart: unless-stopped
-    command: pnpm --filter chorly-worker start
+    working_dir: /app/apps/worker
+    command: ["node_modules/.bin/tsx", "src/scheduler.ts"]
     environment:
       <<: *app-env
       APP_BASE_URL: https://${DOMAIN}
@@ -68,6 +94,9 @@ services:
   caddy:
     image: caddy:2
     restart: unless-stopped
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
     ports:
       - "80:80"
       - "443:443"
@@ -106,7 +135,9 @@ services:
       CAST_UNTIL: ${CAST_UNTIL:-21:00}
     profiles: ["cast"]
 
-  # Nightly pg_dump into ./backups, keeping 14 days.
+  # Nightly pg_dump into ./backups, keeping 14 days. A dump is kept only once it's known good, and old
+  # ones are pruned only after a good one, so a failing pg_dump can't leave empty "backups" behind.
+  # Owner-only: the dumps hold password hashes and location history.
   backup:
     image: postgres:16
     restart: unless-stopped
@@ -114,11 +145,27 @@ services:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
       - ./backups:/backups
-    entrypoint: >
-      sh -c 'while true; do
-        pg_dump -h postgres -U chorly chorly | gzip > /backups/chorly-$$(date +%F).sql.gz &&
-        find /backups -name "chorly-*.sql.gz" -mtime +14 -delete;
-        sleep 86400; done'
+    entrypoint:
+      - bash
+      - -c
+      - |
+        set -o pipefail
+        umask 077
+        chmod 600 /backups/chorly-*.sql.gz 2>/dev/null
+        while true; do
+          file=/backups/chorly-$$(date +%F).sql.gz
+          if pg_dump -h postgres -U chorly chorly | gzip > "$$file.tmp" \
+            && gzip -t "$$file.tmp" \
+            && gzip -cd "$$file.tmp" | tail -n 20 | grep -q 'PostgreSQL database dump complete'; then
+            mv "$$file.tmp" "$$file"
+            find /backups -name 'chorly-*.sql.gz' -mtime +14 -delete
+            echo "backup ok: $$file"
+          else
+            rm -f "$$file.tmp"
+            echo "backup FAILED, keeping the previous ones" >&2
+          fi
+          sleep 86400
+        done
     depends_on:
       postgres:
         condition: service_healthy

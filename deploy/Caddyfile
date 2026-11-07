@@ -9,7 +9,29 @@
 		Strict-Transport-Security "max-age=31536000"
 		X-Content-Type-Options nosniff
 		Referrer-Policy strict-origin-when-cross-origin
+		# Camera and mic for chore proofs, location for the family map; nothing else, and only for this site.
+		Permissions-Policy "camera=(self), microphone=(self), geolocation=(self), payment=(), usb=(), interest-cohort=()"
+		Cross-Origin-Opener-Policy same-origin
 		-Server
+		-X-Powered-By
+	}
+
+	# No other site may frame the app (clickjacking on approvals, payouts, share links).
+	# The kitchen display is left out: the Nest Hub cast receiver may show it in a frame.
+	@framable not path /display/*
+	header @framable {
+		Content-Security-Policy "frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
+		X-Frame-Options DENY
+	}
+
+	# The app uses no WebSockets. Refusing upgrades (HTTP/1.1 Upgrade, HTTP/2 CONNECT) keeps them away from Next's proxying (CVE-2026-44578).
+	@upgrade header Upgrade *
+	handle @upgrade {
+		respond 403
+	}
+	@connect method CONNECT
+	handle @connect {
+		respond 403
 	}
 
 	handle /api/* {

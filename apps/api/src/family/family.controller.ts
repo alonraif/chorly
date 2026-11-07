@@ -6,7 +6,7 @@ import { CurrentTenant } from '../common/session/current-tenant.decorator';
 import { RequireTenantGuard } from '../common/session/require-tenant.guard';
 import { ZodValidationPipe } from '../common/zod-validation.pipe';
 import { AuthService } from '../auth/auth.service';
-import { FamilyService } from './family.service';
+import { FamilyService, SETUP_DONE } from './family.service';
 
 const CreateFamilySchema = z.object({
   familyName: z.string().min(1),
@@ -29,7 +29,7 @@ export class FamilyController {
   @ApiBody({ schema: { type: 'object', required: ['familyName', 'displayName', 'email', 'password'], properties: { familyName: { type: 'string' }, displayName: { type: 'string' }, email: { type: 'string' }, password: { type: 'string' }, locale: { type: 'string', enum: ['en', 'he'] } } } })
   async createFamily(@Body(new ZodValidationPipe(CreateFamilySchema)) body: any, @Res({ passthrough: true }) res: Response) {
     if (!(await this.auth.needsSetup())) {
-      throw new ForbiddenException('Family already set up. Ask a parent to add you.');
+      throw new ForbiddenException(SETUP_DONE);
     }
     const { tenant, admin } = await this.family.createFamily(body);
     await this.auth.startSession(res, admin.id);

@@ -3,7 +3,7 @@ import { cert, initializeApp } from 'firebase-admin/app';
 import { getMessaging, type Messaging } from 'firebase-admin/messaging';
 import webpush from 'web-push';
 import type { Locale } from '@prisma/client';
-import { wantsNotification, type NotificationPref } from '@chorly/shared';
+import { isPushServiceEndpoint, wantsNotification, type NotificationPref } from '@chorly/shared';
 import { PrismaService } from '../prisma.service';
 
 export type PushPayload = { title: string; body: string; url?: string };
@@ -116,7 +116,7 @@ export class PushService {
     });
     await Promise.all(
       subs
-        .filter((sub) => !pref || wantsNotification(sub.user.notifyPrefs, pref))
+        .filter((sub) => isPushServiceEndpoint(sub.endpoint) && (!pref || wantsNotification(sub.user.notifyPrefs, pref)))
         .map(async (sub) => {
           try {
             await webpush.sendNotification(

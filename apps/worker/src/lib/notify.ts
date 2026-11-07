@@ -1,5 +1,5 @@
 import type { PrismaClient } from '@prisma/client';
-import { wantsNotification, type NotificationPref } from '@chorly/shared';
+import { isPushServiceEndpoint, wantsNotification, type NotificationPref } from '@chorly/shared';
 import { cert, initializeApp } from 'firebase-admin/app';
 import { getMessaging } from 'firebase-admin/messaging';
 import webpush from 'web-push';
@@ -27,6 +27,7 @@ export async function notifyUser(prisma: PrismaClient, user: Recipient, pref: No
   if (pushEnabled) {
     const subs = await prisma.pushSubscription.findMany({ where: { userId: user.id } });
     for (const sub of subs) {
+      if (!isPushServiceEndpoint(sub.endpoint)) continue;
       try {
         await webpush.sendNotification(
           { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },

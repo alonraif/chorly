@@ -1,9 +1,11 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import { ConflictException, ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, type Locale } from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../prisma.service';
 import { TEMPLATE_CHORES } from '../common/templates/template-catalog';
 import { hashPassword } from '../common/auth/password';
+
+export const SETUP_DONE = 'Family already set up. Ask a parent to add you.';
 
 @Injectable()
 export class FamilyService {
@@ -16,6 +18,10 @@ export class FamilyService {
     const passwordHash = await hashPassword(input.password);
 
     return this.prisma.$transaction(async (tx) => {
+      // First-run setup happens once: two requests racing each other both wait here, and the second sees the first's family.
+      await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(724001)`;
+      if ((await tx.user.count()) > 0) throw new ForbiddenException(SETUP_DONE);
+
       const tenant = await tx.tenant.create({
         data: {
           id: `tenant-${randomBytes(6).toString('hex')}`,
