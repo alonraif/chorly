@@ -28,14 +28,14 @@ import { useSession, type Member } from '../../lib/session';
 import { Avatar, hueFor } from '../../components/avatar';
 import { FamilyMap, PERSON_ZOOM, type MapFocus, type MapPerson } from '../../components/family-map';
 import { Icon } from '../../components/icon';
-import { ErrandsSheet, PersonSheet, PlacesSheet, SharingSheet, TagsSheet, TripSheet, type RequestPick } from '../../components/locator-sheets';
+import { ErrandsSheet, PersonSheet, SharingSheet, TagsSheet, TripSheet, type RequestPick } from '../../components/locator-sheets';
 import { Sheet, Spinner, Switch, useUi } from '../../components/ui';
 
 const REFRESH_MS = 5_000;
 // Reports come every 30 seconds or so; anything newer than this is simply live.
 const LIVE_MS = 2 * 60_000;
 
-type SheetName = 'sharing' | 'places' | 'errands' | 'things' | 'trip';
+type SheetName = 'sharing' | 'errands' | 'things' | 'trip';
 type Point = { lat: number; lng: number };
 type Picking = { apply: (point: Point) => void; point: Point | null; radiusM?: number };
 
@@ -46,7 +46,7 @@ const CHECK_IN_WAIT_MS = 60_000;
 const hasPosition = (location: PersonLocation | undefined): location is PersonLocation & Point => !!location && location.lat !== null && location.lng !== null;
 
 export default function LocatorPage() {
-  const { me, people, currency } = useSession();
+  const { me, people } = useSession();
   const { status: sharing, native } = useLocationSharing();
   const [overview, setOverview] = useState<Overview | null>(null);
   const [focus, setFocus] = useState<MapFocus | null>(null);
@@ -146,11 +146,6 @@ export default function LocatorPage() {
   const elsewhere = !sharingNow && !!myLocation && !isStale(myLocation);
   // Asked once: after that the toolbar keeps the state in view without taking up the page. Waits for the overview, which says.
   const askToShare = !!overview && !sharingNow && (sharing === 'denied' || !myLocation);
-  const sharingChip = !sharingNow
-    ? t(elsewhere ? 'locator.chipElsewhere' : 'locator.chipShareHere')
-    : mine.mode === 'paused'
-      ? `🔒 ${t('locator.chipPaused')}`
-      : `${mine.mode === 'blurred' ? '🌫️' : '📡'} ${mine.shareUntil ? t('locator.chipUntil', { time: timeOf(mine.shareUntil) }) : t(mine.mode === 'blurred' ? 'locator.nearbyOnly' : 'locator.chipOn')}`;
   const myTrip = myLocation?.trip ? placeById.get(myLocation.trip.placeId) : undefined;
   const myTripMinutes = myLocation ? tripMinutes(myLocation) : null;
   const nearErrands = errands.filter((e) => e.closest?.userId === me.id).length;
@@ -256,21 +251,12 @@ export default function LocatorPage() {
       )}
 
       <div className="locator-toolbar" role="toolbar" aria-label={t('locator.title')}>
-        {!askToShare && sharing !== 'unsupported' && (
-          <button type="button" className={`chip-btn${sharingNow ? ' is-active' : ''}`} onClick={() => setSheet('sharing')}>
-            {sharingChip}
-          </button>
-        )}
         {sharingNow && mine.mode !== 'paused' && (
           <button type="button" className={`chip-btn${myTrip ? ' is-active' : ''}`} onClick={() => setSheet('trip')}>
             <span aria-hidden="true">🧭</span>{' '}
             {myTrip && myTripMinutes ? t('locator.etaBubble', { place: myTrip.name, time: minutesText(myTripMinutes) }) : t('locator.headingTo')}
           </button>
         )}
-        <button type="button" className="chip-btn" onClick={() => setSheet('places')}>
-          <span aria-hidden="true">📍</span> {t('locator.places')}
-          {places.length > 0 && <span className="chip-count">{places.length}</span>}
-        </button>
         <button type="button" className="chip-btn" onClick={() => setSheet('errands')}>
           <span aria-hidden="true">🛒</span> {t('locator.errands')}
           {errands.length > 0 && <span className="chip-count">{errands.length}</span>}
@@ -315,7 +301,10 @@ export default function LocatorPage() {
           onPick={(point) => setPicking((current) => current && { ...current, point })}
           onPerson={(id) => (id === me.id ? setSheet('sharing') : openPerson(id))}
           onTogether={setTogetherIds}
-          onPlace={() => setSheet('places')}
+          onPlace={(id) => {
+            const place = placeById.get(id);
+            if (place) flyTo(place);
+          }}
           onErrand={() => setSheet('errands')}
           onThing={() => setSheet('things')}
         />
@@ -369,16 +358,6 @@ export default function LocatorPage() {
       )}
 
       <SharingSheet open={sheetOpen('sharing')} onClose={() => setSheet(null)} mine={mine} elsewhere={elsewhere} onChanged={load} />
-      <PlacesSheet
-        open={sheetOpen('places')}
-        onClose={() => setSheet(null)}
-        places={places}
-        isAdmin={me.isAdmin}
-        currency={currency}
-        onPick={requestPick}
-        onChanged={load}
-        onShow={flyTo}
-      />
       <ErrandsSheet open={sheetOpen('errands')} onClose={() => setSheet(null)} errands={errands} people={people} me={me} onPick={requestPick} onChanged={load} onShow={flyTo} />
       <TagsSheet open={sheetOpen('things')} onClose={() => setSheet(null)} tags={tags} people={people} onPick={requestPick} onChanged={load} onShow={flyTo} />
       <TripSheet

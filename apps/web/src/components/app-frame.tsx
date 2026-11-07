@@ -14,6 +14,7 @@ import { Avatar } from './avatar';
 import { AvatarSheet } from './avatar-sheet';
 import { Icon, type IconName } from './icon';
 import { LanguageRow, PublicLanguageSwitch } from './language-picker';
+import { LocationRows } from './location-settings';
 import { NotificationsRow } from './notifications-button';
 import { NotificationPrefsRow } from './notification-prefs';
 import { Sheet, Spinner, UiProvider } from './ui';
@@ -173,6 +174,7 @@ function AccountSheet({ open, onClose }: { open: boolean; onClose: () => void })
             <span className="field-hint">{t('avatar.hint')}</span>
           </span>
         </button>
+        <LocationRows active={open} />
         <LanguageRow />
         <NotificationsRow />
         <NotificationPrefsRow />

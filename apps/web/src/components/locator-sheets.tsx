@@ -133,7 +133,7 @@ function AddressSearch({ near, onFound }: { near: Point | null; onFound: (point:
   );
 }
 
-function PointField({ value, radiusM, onChange, onPick }: { value: Point | null; radiusM?: number; onChange: (point: Point) => void; onPick: RequestPick }) {
+function PointField({ value, radiusM, onChange, onPick }: { value: Point | null; radiusM?: number; onChange: (point: Point) => void; onPick?: RequestPick }) {
   const { busy: locating, run } = useAction();
 
   const useMine = () => run(async () => onChange(await currentPosition()));
@@ -143,9 +143,11 @@ function PointField({ value, radiusM, onChange, onPick }: { value: Point | null;
       <span className="field-label-sm">{t('locator.spot')}</span>
       <p className={`field-hint${value ? ' point-set' : ''}`}>{value ? `📍 ${t('locator.spotSet')}` : t('locator.spotNotSet')}</p>
       <div className="row-gap">
-        <button type="button" className="btn btn-secondary btn-sm" onClick={() => onPick(onChange, { start: value, radiusM })}>
-          <Icon name="pin" size={16} /> {t('locator.pickOnMap')}
-        </button>
+        {onPick && (
+          <button type="button" className="btn btn-secondary btn-sm" onClick={() => onPick(onChange, { start: value, radiusM })}>
+            <Icon name="pin" size={16} /> {t('locator.pickOnMap')}
+          </button>
+        )}
         {'geolocation' in navigator && (
           <button type="button" className="btn btn-secondary btn-sm" onClick={useMine} disabled={locating}>
             {t('locator.useMyLocation')}
@@ -375,9 +377,10 @@ export function PlacesSheet({
   places: Place[];
   isAdmin: boolean;
   currency: string;
-  onPick: RequestPick;
+  /** Without a map at hand (in Account), the spot comes from an address or this phone. */
+  onPick?: RequestPick;
   onChanged: () => void;
-  onShow: (point: Point) => void;
+  onShow?: (point: Point) => void;
 }) {
   const { confirm } = useUi();
   const { busy, run } = useAction();
@@ -477,7 +480,7 @@ export function PlacesSheet({
         <ul className="sheet-list">
           {places.map((place) => (
             <li key={place.id} className="sheet-list-item">
-              <button type="button" className="sheet-list-main" onClick={() => { onShow(place); onClose(); }}>
+              <button type="button" className="sheet-list-main" disabled={!onShow} onClick={() => { onShow?.(place); onClose(); }}>
                 <span className="sheet-list-emoji">{KIND_EMOJI[place.kind]}</span>
                 <span className="sheet-list-text">
                   <span className="sheet-list-title">{place.name}</span>
