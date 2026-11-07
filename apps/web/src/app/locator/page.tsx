@@ -28,20 +28,22 @@ import { useSession, type Member } from '../../lib/session';
 import { Avatar, hueFor } from '../../components/avatar';
 import { FamilyMap, PERSON_ZOOM, type MapFocus, type MapPerson } from '../../components/family-map';
 import { Icon } from '../../components/icon';
-import { ErrandsSheet, PersonSheet, SharingSheet, TagsSheet, TripSheet, type RequestPick } from '../../components/locator-sheets';
+import { ErrandsSheet, PersonSheet, SharingSheet, TripSheet, type RequestPick } from '../../components/locator-sheets';
 import { Sheet, Spinner, Switch, useUi } from '../../components/ui';
 
 const REFRESH_MS = 5_000;
 // Reports come every 30 seconds or so; anything newer than this is simply live.
 const LIVE_MS = 2 * 60_000;
 
-type SheetName = 'sharing' | 'errands' | 'things' | 'trip';
+type SheetName = 'sharing' | 'errands' | 'trip';
 type Point = { lat: number; lng: number };
 type Picking = { apply: (point: Point) => void; point: Point | null; radiusM?: number };
 
 const EMPTY: Overview = { locations: [], places: [], errands: [], tags: [], mine: { mode: 'exact', shareUntil: null, recap: false, trail: true } };
 // "Check in now" waits this long for the phone's answer before saying there was none.
 const CHECK_IN_WAIT_MS = 60_000;
+// Things (tracked tags) aren't shown on the map.
+const NO_THINGS: never[] = [];
 
 const hasPosition = (location: PersonLocation | undefined): location is PersonLocation & Point => !!location && location.lat !== null && location.lng !== null;
 
@@ -75,7 +77,7 @@ export default function LocatorPage() {
     if (new URLSearchParams(window.location.search).get('sheet') === 'errands') setSheet('errands');
   }, []);
 
-  const { locations, places, errands, tags, mine } = overview ?? EMPTY;
+  const { locations, places, errands, mine } = overview ?? EMPTY;
   const byId = useMemo(() => new Map(locations.map((l) => [l.userId, l])), [locations]);
   const placeById = useMemo(() => new Map(places.map((p) => [p.id, p])), [places]);
   const personById = useMemo(() => new Map(people.map((p) => [p.id, p])), [people]);
@@ -261,10 +263,6 @@ export default function LocatorPage() {
           <span aria-hidden="true">🛒</span> {t('locator.errands')}
           {errands.length > 0 && <span className="chip-count">{errands.length}</span>}
         </button>
-        <button type="button" className="chip-btn" onClick={() => setSheet('things')}>
-          <span aria-hidden="true">🐕</span> {t('locator.things')}
-          {tags.length > 0 && <span className="chip-count">{tags.length}</span>}
-        </button>
       </div>
 
       {picking && (
@@ -294,7 +292,7 @@ export default function LocatorPage() {
           people={mapPeople}
           places={places}
           errands={errands.map((e) => ({ id: e.id, title: e.title, lat: e.lat, lng: e.lng, claimed: !!e.claimedById }))}
-          things={tags}
+          things={NO_THINGS}
           trail={trail && trail.points.length >= 2 ? { key: trail.userId, hue: hueFor(trail.userId), points: trail.points } : null}
           focus={focus}
           pick={picking && { point: picking.point, radiusM: picking.radiusM }}
@@ -306,7 +304,7 @@ export default function LocatorPage() {
             if (place) flyTo(place);
           }}
           onErrand={() => setSheet('errands')}
-          onThing={() => setSheet('things')}
+          onThing={() => undefined}
         />
       </div>
 
@@ -358,8 +356,17 @@ export default function LocatorPage() {
       )}
 
       <SharingSheet open={sheetOpen('sharing')} onClose={() => setSheet(null)} mine={mine} elsewhere={elsewhere} onChanged={load} />
-      <ErrandsSheet open={sheetOpen('errands')} onClose={() => setSheet(null)} errands={errands} people={people} me={me} onPick={requestPick} onChanged={load} onShow={flyTo} />
-      <TagsSheet open={sheetOpen('things')} onClose={() => setSheet(null)} tags={tags} people={people} onPick={requestPick} onChanged={load} onShow={flyTo} />
+      <ErrandsSheet
+        open={sheetOpen('errands')}
+        onClose={() => setSheet(null)}
+        errands={errands}
+        people={people}
+        me={me}
+        near={hasPosition(myLocation) ? myLocation : places[0] ?? null}
+        onPick={requestPick}
+        onChanged={load}
+        onShow={flyTo}
+      />
       <TripSheet
         open={sheetOpen('trip')}
         onClose={() => setSheet(null)}

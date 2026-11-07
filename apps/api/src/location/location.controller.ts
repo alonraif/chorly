@@ -109,8 +109,7 @@ export class LocationController {
 
   // POST, so a family's addresses stay out of the access logs.
   @Post('/geocode')
-  @UseGuards(AdminGuard)
-  @ApiOperation({ summary: 'Find an address on the map (parent)' })
+  @ApiOperation({ summary: 'Find an address or a business on the map' })
   geocode(@Body(new ZodValidationPipe(GeocodeSchema)) body: any) {
     return this.geocoder.search(body);
   }

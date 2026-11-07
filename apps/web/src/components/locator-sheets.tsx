@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useId, useState, type ReactNode } from 'react';
 import { POKE_KINDS } from '@chorly/shared';
 import { api } from '../lib/api';
 import { currencySymbol, firstName, relativeTime, timeOf } from '../lib/format';
@@ -74,8 +74,17 @@ function useAction() {
 
 type AddressResult = Point & { label: string };
 
-function AddressSearch({ near, onFound }: { near: Point | null; onFound: (point: Point) => void }) {
+function AddressSearch({
+  near,
+  onFound,
+  placeholder = t('locator.addressPlaceholder'),
+}: {
+  near: Point | null;
+  onFound: (point: Point) => void;
+  placeholder?: string;
+}) {
   const { busy, run } = useAction();
+  const inputId = useId();
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<AddressResult[] | null>(null);
 
@@ -93,10 +102,10 @@ function AddressSearch({ near, onFound }: { near: Point | null; onFound: (point:
 
   return (
     <div className="field">
-      <label className="field-label-sm" htmlFor="place-address">{t('locator.address')}</label>
+      <label className="field-label-sm" htmlFor={inputId}>{t('locator.address')}</label>
       <div className="address-search">
         <input
-          id="place-address"
+          id={inputId}
           className="input"
           value={query}
           maxLength={200}
@@ -110,7 +119,7 @@ function AddressSearch({ near, onFound }: { near: Point | null; onFound: (point:
             e.preventDefault();
             if (!busy && query.trim().length >= 2) search();
           }}
-          placeholder={t('locator.addressPlaceholder')}
+          placeholder={placeholder}
         />
         <button type="button" className="btn btn-secondary" onClick={search} disabled={busy || query.trim().length < 2}>
           {t('locator.addressSearch')}
@@ -522,6 +531,7 @@ export function ErrandsSheet({
   errands,
   people,
   me,
+  near,
   onPick,
   onChanged,
   onShow,
@@ -531,6 +541,8 @@ export function ErrandsSheet({
   errands: Errand[];
   people: Member[];
   me: Member;
+  /** Where address searches look first: the viewer, or the family's places. */
+  near: Point | null;
   onPick: RequestPick;
   onChanged: () => void;
   onShow: (point: Point) => void;
@@ -596,6 +608,11 @@ export function ErrandsSheet({
             <span className="field-label-sm">{t('locator.placeNote')}</span>
             <input className="input" value={note} maxLength={200} onChange={(e) => setNote(e.target.value)} />
           </label>
+          <AddressSearch
+            near={point ?? near}
+            onFound={setPoint}
+            placeholder={t('locator.errandWherePlaceholder')}
+          />
           <PointField value={point} onChange={setPoint} onPick={onPick} />
         </div>
       ) : errands.length === 0 ? (
