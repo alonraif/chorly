@@ -4,6 +4,7 @@ import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 import me.theraifs.chorly.approvals.ApprovalsPlugin;
 import me.theraifs.chorly.location.LocationPlugin;
+import me.theraifs.chorly.updates.UpdatesPlugin;
 
 public class MainActivity extends BridgeActivity {
 
@@ -15,6 +16,7 @@ public class MainActivity extends BridgeActivity {
             registerPlugin(ApprovalsPlugin.class);
         }
         registerPlugin(LocationPlugin.class);
+        registerPlugin(UpdatesPlugin.class);
         super.onCreate(savedInstanceState);
     }
 }

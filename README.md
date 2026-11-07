@@ -313,7 +313,7 @@ export JAVA_HOME=/opt/homebrew/opt/openjdk@21 ANDROID_HOME=/opt/homebrew/share/a
 npm run apk
 ```
 
-The APK is copied to `deploy/apk/chorly.apk`, which is what family members download under **Account → Get the Android app** (signed-in Android browsers only). A new build goes live right away, with no deploy. It's signed with `mobile/android/chorly-release.keystore` and the passwords in `keystore.properties`, both outside git. Back them up: phones only accept an update signed with the same key.
+The APK is copied to `deploy/apk/chorly.apk`, with its version in `deploy/apk/version.json`. Family members download it under **Account → Get the Android app** (signed-in Android browsers only). From app 1.6 on, the app updates itself: when the server has a higher `versionCode`, **Account → Update to Chorly x.y** downloads the APK and opens Android's installer (the first time, Android asks to let Chorly install apps). A new build goes live right away, with no deploy. It's signed with `mobile/android/chorly-release.keystore` and the passwords in `keystore.properties`, both outside git. Back them up: phones only accept an update signed with the same key.
 
 **Notifications** go through Firebase, so they need a free Firebase project with an Android app using the package name `me.theraifs.chorly`:
 

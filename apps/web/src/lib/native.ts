@@ -64,3 +64,13 @@ export async function registerNativePush(push: any) {
     await Promise.all(listeners.map(async (listener) => (await listener).remove()));
   }
 }
+
+// Updating the app from inside it (app 1.6+). Null in a browser and in older apps.
+export type NativeAppInfo = { versionCode: number; versionName: string; supported: boolean };
+export function nativeUpdates(): {
+  getInfo(): Promise<NativeAppInfo>;
+  install(): Promise<void>;
+  addListener(event: 'progress', listener: (progress: { percent: number }) => void): Promise<{ remove(): Promise<void> }>;
+} | null {
+  return nativePlugins()?.ChorlyUpdates ?? null;
+}
