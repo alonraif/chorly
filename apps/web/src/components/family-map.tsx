@@ -14,6 +14,8 @@ export type MapPerson = {
   id: string;
   displayName: string;
   avatarAt: string | null;
+  /** Where to load the picture from, when not the signed-in route (the shared map has no session). */
+  avatarSrc?: string | null;
   lat: number;
   lng: number;
   stale: boolean;
@@ -169,14 +171,16 @@ function tappable<T extends HTMLElement>(root: T, label: string, onClick: () => 
 }
 
 // Everything below is built as elements, not HTML strings, so names can't inject markup into the map.
-function faceElement(person: Pick<MapPerson, 'id' | 'displayName' | 'avatarAt'>) {
+function faceElement(person: Pick<MapPerson, 'id' | 'displayName' | 'avatarAt' | 'avatarSrc'>) {
   const face = span('avatar');
   face.style.setProperty('--hue', String(hueFor(person.id)));
   face.textContent = initials(person.displayName);
-  if (person.avatarAt) {
+  const src =
+    person.avatarSrc !== undefined ? person.avatarSrc : person.avatarAt && `/api/users/${person.id}/avatar?v=${encodeURIComponent(person.avatarAt)}`;
+  if (src) {
     const img = document.createElement('img');
     img.alt = '';
-    img.src = `/api/users/${person.id}/avatar?v=${encodeURIComponent(person.avatarAt)}`;
+    img.src = src;
     img.onload = () => face.replaceChildren(img);
   }
   return face;
@@ -409,7 +413,7 @@ function fillGroup(root: HTMLElement, items: Placed[], together: boolean) {
   // The same order every time, so the faces don't shuffle as the bubble changes.
   const group = [...items].sort((a, b) => keyOf(a).localeCompare(keyOf(b)));
   // Called on every frame of a zoom: rebuilt only when who's in it changes, or faces would reload and pop.
-  const look = `${together}:${group.map((item) => `${keyOf(item)}|${item.label}|${item.person?.avatarAt}|${item.emoji}`).join()}`;
+  const look = `${together}:${group.map((item) => `${keyOf(item)}|${item.label}|${item.person?.avatarAt}|${item.person?.avatarSrc}|${item.emoji}`).join()}`;
   if (root.dataset.look === look) return;
   root.dataset.look = look;
   const faces = group.flatMap((item) => (item.person ? [item.person] : []));
@@ -746,7 +750,7 @@ export function FamilyMap({
         id: p.id,
         lat: p.lat,
         lng: p.lng,
-        look: `${p.displayName}|${p.avatarAt}|${p.stale}|${p.emoji}|${p.eta}`,
+        look: `${p.displayName}|${p.avatarAt}|${p.avatarSrc}|${p.stale}|${p.emoji}|${p.eta}`,
         make: () => personElement(p, () => latest.current.onPerson(p.id)),
         update: (element: HTMLElement) => movePerson(element, p),
       })),

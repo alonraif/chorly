@@ -3412,6 +3412,32 @@ textarea.input {
   gap: 8px;
 }
 
+/* Family page: location share links */
+.share-links {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  border-top: 1px solid var(--line);
+}
+
+.share-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.share-link .row-main {
+  flex: 1;
+}
+
+.share-link.is-locked .row-sub {
+  color: var(--danger, #c92a2a);
+}
+
 /* ---------- Shopping list ---------- */
 
 @media (min-width: 900px) {

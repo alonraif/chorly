@@ -9,5 +9,6 @@ import { TagsService } from './tags.service';
 @Module({
   controllers: [LocationController],
   providers: [LocationService, PlacesService, ErrandsService, TagsService, GeocodeService],
+  exports: [LocationService],
 })
 export class LocationModule {}

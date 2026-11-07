@@ -10,6 +10,7 @@ import { setCurrentLocale } from '../../../lib/user';
 import type { Earnings } from '../../../lib/types';
 import { Avatar } from '../../../components/avatar';
 import { DisplayLinkSection } from '../../../components/display-link';
+import { LocationShareSection } from '../../../components/location-share';
 import { Icon } from '../../../components/icon';
 import { errorMessage, Segmented, Sheet, Switch, useUi } from '../../../components/ui';
 
@@ -152,6 +153,8 @@ export default function FamilyPage() {
           </ul>
         </div>
       </section>
+
+      <LocationShareSection />
 
       <DisplayLinkSection />
 

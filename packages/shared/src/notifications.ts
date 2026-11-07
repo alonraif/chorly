@@ -165,4 +165,16 @@ export const notificationText = {
   // Lines are "name – place hours".
   placeRecap: (locale: Locale, lines: string[]) =>
     locale === 'he' ? { title: '🗺️ השבוע במפה', body: lines.join(' · ') } : { title: '🗺️ The week on the map', body: lines.join(' · ') },
+
+  // `label` is what the parent called the link, if anything.
+  shareLinkLocked: (locale: Locale, label: string | null) =>
+    locale === 'he'
+      ? {
+          title: '🔒 קישור המיקום ננעל',
+          body: `מישהו הזין קוד שגוי 4 פעמים${label ? ` בקישור "${label}"` : ''}. הקישור כובה.`,
+        }
+      : {
+          title: '🔒 Location link locked',
+          body: `Someone entered a wrong PIN 4 times${label ? ` on "${label}"` : ''}. The link was turned off.`,
+        },
 };

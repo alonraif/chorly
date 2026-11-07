@@ -1,0 +1,145 @@
+/* Shared location map: opened from a link by someone without an account, usually on a phone. */
+
+.share-page {
+  min-height: 100dvh;
+  max-width: 720px;
+  margin: 0 auto;
+  padding: max(16px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  background: var(--bg);
+  color: var(--ink);
+}
+
+.share-message {
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.share-message h1 {
+  margin: 0;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.5rem;
+}
+
+.share-message p {
+  margin: 0;
+  max-width: 34ch;
+  color: var(--ink-2);
+}
+
+.share-message-icon {
+  font-size: 2.5rem;
+}
+
+.share-label {
+  font-weight: 600;
+}
+
+.share-pin-form {
+  position: relative;
+  margin-top: 12px;
+}
+
+/* The real input is laid over the dots, invisible, so the phone's number pad and paste still work. */
+.share-pin {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  font-size: 16px;
+}
+
+.share-pin-dots {
+  display: flex;
+  gap: 14px;
+  pointer-events: none;
+}
+
+.share-pin-dots span {
+  width: 48px;
+  height: 56px;
+  border-radius: 12px;
+  border: 2px solid var(--line-strong);
+  background: var(--surface);
+  position: relative;
+}
+
+.share-pin-dots span.is-filled::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--ink);
+}
+
+.share-pin-form:focus-within .share-pin-dots span {
+  border-color: var(--brand);
+}
+
+.share-error {
+  color: var(--danger) !important;
+  font-weight: 600;
+}
+
+.share-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.share-head h1 {
+  margin: 0;
+  font-family: var(--font-heading), sans-serif;
+  font-size: 1.35rem;
+}
+
+.share-sub {
+  margin: 2px 0 0;
+  font-size: 0.875rem;
+  color: var(--ink-2);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.share-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--success, #2b8a3e);
+}
+
+.share-page .family-map {
+  height: min(60dvh, 560px);
+}
+
+.share-people {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.share-person {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.share-person .row-main {
+  flex: 1;
+  min-width: 0;
+}

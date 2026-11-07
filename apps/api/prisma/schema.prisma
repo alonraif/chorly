@@ -106,6 +106,7 @@ model Tenant {
   errands     Errand[]
   mapTags     MapTag[]
   shopping    ShoppingItem[]
+  locationShares LocationShareLink[]
 }
 
 model User {
@@ -146,6 +147,7 @@ model User {
   mapTagsUpdated    MapTag[]
   shoppingAdded     ShoppingItem[]       @relation("ShoppingAdder")
   shoppingBought    ShoppingItem[]       @relation("ShoppingBuyer")
+  locationShares    LocationShareLink[]
 
   @@index([tenantId, isActive])
   @@index([tenantId, isAway])
@@ -483,4 +485,46 @@ model MoneyLedger {
 
   @@index([tenantId, userId, createdAt])
   @@index([instanceId])
+}
+
+// A temporary link that shows chosen members on a read-only map to someone without an account.
+// Only the hash of the link's secret is kept. The first person to open it picks a 4-digit PIN,
+// and 4 wrong PINs in a row turn the link off.
+model LocationShareLink {
+  id           String    @id @default(cuid())
+  tenantId     String
+  tenant       Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tokenHash    String    @unique
+  label        String?
+  // The members the link shows. Members who leave the family drop out on their own.
+  userIds      String[]
+  createdById  String
+  createdBy    User      @relation(fields: [createdById], references: [id], onDelete: Cascade)
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  // "parent" when a parent turned it off, "pin_failed" after too many wrong PINs.
+  revokeReason String?
+  // "salt:hash" (scrypt); null until the link is first opened.
+  pinHash      String?
+  pinSetAt     DateTime?
+  // Wrong PINs in a row; a right one starts it over.
+  failedPins   Int       @default(0)
+  lastViewedAt DateTime?
+  createdAt    DateTime  @default(now())
+
+  views LocationShareView[]
+
+  @@index([tenantId, expiresAt])
+}
+
+// What a viewer gets for the right PIN. The page keeps it in memory only, so opening the link again asks for the PIN.
+model LocationShareView {
+  id        String            @id @default(cuid())
+  linkId    String
+  link      LocationShareLink @relation(fields: [linkId], references: [id], onDelete: Cascade)
+  tokenHash String            @unique
+  expiresAt DateTime
+  createdAt DateTime          @default(now())
+
+  @@index([linkId])
 }

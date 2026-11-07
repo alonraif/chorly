@@ -12,6 +12,8 @@ const VISIT_KEEP_MS = 14 * 24 * 60 * 60_000;
 const TRAIL_KEEP_MS = 2 * 24 * 60 * 60_000;
 const ERRAND_KEEP_MS = 7 * 24 * 60 * 60_000;
 const TRIP_KEEP_MS = 3 * 60 * 60_000;
+// Ended share links are listed for a while (a locked one for a day), then forgotten.
+const SHARE_LINK_KEEP_MS = 30 * 24 * 60 * 60_000;
 
 // Parents hear about a family member's phone, other than their own.
 async function parentsOf(tenantId: string, exceptUserId: string) {
@@ -73,9 +75,19 @@ async function runForTenant(tenantId: string) {
   if (expired.length || lowBattery) console.log('[worker:location-watch] tenant done', { tenantId, expired: expired.length, lowBattery });
 }
 
+async function cleanShareLinks(tenantId: string) {
+  const now = Date.now();
+  await prisma.locationShareView.deleteMany({ where: { link: { tenantId }, expiresAt: { lte: new Date(now) } } });
+  const before = new Date(now - SHARE_LINK_KEEP_MS);
+  await prisma.locationShareLink.deleteMany({ where: { tenantId, OR: [{ expiresAt: { lt: before } }, { revokedAt: { lt: before } }] } });
+}
+
 async function main() {
   const tenants = await prisma.tenant.findMany({ where: TENANT_ID_FILTER ? { id: TENANT_ID_FILTER } : undefined });
-  for (const tenant of tenants) await runForTenant(tenant.id);
+  for (const tenant of tenants) {
+    await runForTenant(tenant.id);
+    await cleanShareLinks(tenant.id);
+  }
 }
 
 main().catch((e) => { console.error(e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });

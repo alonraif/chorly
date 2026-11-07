@@ -227,3 +227,18 @@ export const ShoppingUpdateSchema = z
   })
   .partial()
   .strict();
+
+// How long a location share link can last, in minutes: 1 hour, 8 hours, 1 day, 3 days, 7 days.
+export const LOCATION_SHARE_DURATIONS = [60, 480, 1440, 4320, 10080] as const;
+export const LOCATION_SHARE_MAX_FAILED_PINS = 4;
+
+export const CreateLocationShareSchema = z
+  .object({
+    userIds: z.array(z.string().min(1)).min(1).max(20),
+    durationMinutes: z.union([z.literal(60), z.literal(480), z.literal(1440), z.literal(4320), z.literal(10080)]),
+    label: z.string().trim().max(40).optional(),
+  })
+  .strict();
+export type CreateLocationShare = z.infer<typeof CreateLocationShareSchema>;
+
+export const SharePinSchema = z.object({ pin: z.string().regex(/^\d{4}$/) }).strict();

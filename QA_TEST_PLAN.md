@@ -321,6 +321,25 @@ Expected:
 - The member who turned it off gets no notification.
 - **Family** is under Account on a phone and in the sidebar on a computer, and the phone tab bar has six tabs.
 
+### REG-19 Temporary location share link
+Steps:
+1. As a parent, open **Family** → **Share location**. Choose 2 members, **1 hour**, label "Grandma", then **Create link**.
+2. Open the link in a private window with no account. Choose a PIN and enter it again.
+3. Reload the page and enter the PIN.
+4. Change one shown member to **Nearby only**, then to paused.
+5. In a new private window, open the link, enter a wrong PIN 3 times, then the right one.
+6. Open it again and enter a wrong PIN 4 times in a row.
+7. Create another link, open it and unlock it, then press **Turn off** on the Family page.
+8. As a kid, call `POST /api/family/location-shares`.
+Expected:
+- The link is shown once, with **Copy** (and **Share** on a phone). The Family list shows "Grandma", when it ends, and "Not opened yet", which changes to "PIN set" after step 2.
+- Only the 2 chosen members appear, with pictures. No places, errands, things, trail, speed or battery are shown. Every reload asks for the PIN.
+- Nearby only shows a halo, not a sharp position. Paused shows "Paused sharing" with no position.
+- A wrong PIN says how many tries are left. A right PIN starts the count over.
+- After the 4th wrong PIN the page says the link is locked. Every parent gets "Location link locked" (in their own language), and the Family list shows the link as locked for a day.
+- A turned-off link stops showing the map at the next refresh (15 s) and says the link has ended. So does a link whose time ran out.
+- Kids get 403.
+
 ## Diagnostics Checklist (when tests fail)
 - API health: `GET http://localhost:4000/health`
 - Confirm chores exist:
