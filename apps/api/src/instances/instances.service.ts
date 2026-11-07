@@ -23,6 +23,13 @@ function visibleProofs(photoKeys: unknown, actor: RequestUser) {
     .flatMap(([userId, keys]) => keys.map((key) => ({ userId, key, isVideo: !key.endsWith('.jpg') })));
 }
 
+// The photo to put on a "ready for approval" push: whoever just finished first, then anyone else's.
+// Clips can't be shown in a notification, so only photos count.
+function proofPhoto(photoKeys: Record<string, string[]>, firstUserId: string) {
+  const keys = [...(photoKeys[firstUserId] ?? []), ...Object.values(photoKeys).flat()];
+  return keys.find((key) => key.endsWith('.jpg'));
+}
+
 // A parent's own chore skips Approvals, even one shared with a kid: they did it, or were there for it.
 function approvesOwnChore(instance: { assignments: Array<{ userId: string }> }, actor: RequestUser) {
   return actor.isAdmin && instance.assignments.some((a) => a.userId === actor.id);
@@ -210,9 +217,20 @@ export class InstancesService {
     }
 
     if (status === 'done' && instance.status !== 'done') {
+      // A paid chore with no set amount needs the parent to type one, so that one opens the app instead.
+      const quickApprove = !(refreshed.chore.hasReward && refreshed.chore.rewardAmount == null);
+      const image = proofPhoto(photoObj, actor.id);
       void this.push.sendToParents(tenantId, 'readyForApproval', (locale) => ({
         ...notificationText.readyForApproval(locale, actor.displayName, choreName(refreshed.chore, locale)),
         url: '/parent/review',
+        approval: quickApprove || image
+          ? {
+              instanceId,
+              image: image ? `/api/instances/${instanceId}/proofs/${image}` : undefined,
+              canApprove: quickApprove,
+              strings: notificationText.approvalActions(locale),
+            }
+          : undefined,
       }), actor.id);
     }
 

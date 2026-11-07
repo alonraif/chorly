@@ -6,7 +6,17 @@ import type { Locale } from '@prisma/client';
 import { isPushServiceEndpoint, wantsNotification, type NotificationPref } from '@chorly/shared';
 import { PrismaService } from '../prisma.service';
 
-export type PushPayload = { title: string; body: string; url?: string };
+// A chore waiting for a parent: the notification gets an Approve button that works without opening
+// Chorly, and the kid's photo when there is one. `image` is a same-origin API path, fetched with the
+// parent's own login. `strings` are the button and what the notification says after it's pressed.
+// Without `canApprove` it's only the photo: the chore needs something typed, so the parent opens the app.
+export type ApprovalPush = {
+  instanceId: string;
+  canApprove: boolean;
+  image?: string;
+  strings: { approve: string; approved: string; handled: string; failed: string };
+};
+export type PushPayload = { title: string; body: string; url?: string; approval?: ApprovalPush };
 // A function payload is rendered per recipient, in that user's language.
 type PayloadFor = PushPayload | ((locale: Locale) => PushPayload);
 
@@ -43,8 +53,9 @@ export class PushService {
     await this.prisma.pushSubscription.deleteMany({ where: { userId, endpoint } });
   }
 
-  async subscribeFcm(userId: string, token: string) {
-    await this.prisma.fcmToken.upsert({ where: { token }, create: { userId, token }, update: { userId } });
+  // `approvals`: the install draws approval pushes itself (app 1.5+). Older ones only show what Firebase draws.
+  async subscribeFcm(userId: string, token: string, approvals = false) {
+    await this.prisma.fcmToken.upsert({ where: { token }, create: { userId, token, approvals }, update: { userId, approvals } });
   }
 
   // `pref` is the notification type; users who turned it off are skipped. Null always sends (e.g. the test push).
@@ -64,8 +75,26 @@ export class PushService {
       devices
         .filter((device) => !pref || wantsNotification(device.user.notifyPrefs, pref))
         .map(async (device) => {
-          const { title, body, url } = typeof payload === 'function' ? payload(device.user.locale) : payload;
+          const { title, body, url, approval } = typeof payload === 'function' ? payload(device.user.locale) : payload;
           try {
+            if (approval && device.approvals) {
+              // Data only, so the app builds the notification itself, with its button and photo.
+              await fcm.send({
+                token: device.token,
+                data: {
+                  type: 'approval',
+                  title,
+                  body,
+                  url: url ?? '/',
+                  instanceId: approval.instanceId,
+                  canApprove: approval.canApprove ? '1' : '0',
+                  ...(approval.image ? { image: approval.image } : {}),
+                  ...approval.strings,
+                },
+                android: { priority: 'high' },
+              });
+              return;
+            }
             await fcm.send({
               token: device.token,
               notification: { title, body },

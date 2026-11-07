@@ -3,4 +3,5 @@
     <string name="location_channel_name">שיתוף מיקום</string>
     <string name="location_default_title">המיקום שלך משותף</string>
     <string name="location_default_message">המשפחה רואה איפה את/ה</string>
+    <string name="approvals_channel_name">מטלות לאישור</string>
 </resources>

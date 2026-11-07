@@ -63,6 +63,9 @@
             </intent-filter>
         </service>
 
+        <!-- The Approve button on a "ready for approval" notification. -->
+        <receiver android:name=".approvals.ApprovalReceiver" android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

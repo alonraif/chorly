@@ -354,6 +354,8 @@ model FcmToken {
   userId    String
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   token     String   @unique
+  // The install draws approval pushes itself, with an Approve button (app 1.5+).
+  approvals Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([userId])

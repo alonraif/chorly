@@ -17,7 +17,7 @@ const SubscribeSchema = z.object({
 
 const UnsubscribeSchema = z.object({ endpoint: z.string().url() });
 
-const FcmSchema = z.object({ token: z.string().min(1).max(4096) });
+const FcmSchema = z.object({ token: z.string().min(1).max(4096), approvals: z.boolean().optional() });
 
 @ApiTags('push')
 @Controller('/push')
@@ -48,7 +48,7 @@ export class PushController {
   @Post('/fcm')
   @ApiOperation({ summary: 'Register this Android app install for push notifications' })
   async fcm(@CurrentUser() user: RequestUser, @Body(new ZodValidationPipe(FcmSchema)) body: any) {
-    await this.push.subscribeFcm(user.id, body.token);
+    await this.push.subscribeFcm(user.id, body.token, body.approvals ?? false);
     return { ok: true };
   }
 

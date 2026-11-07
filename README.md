@@ -298,6 +298,8 @@ The only trail kept is `PlaceVisit`, the stays at the family's own places, and t
 - **Android / Chrome:** open the site → menu → *Install app*, then tap **Turn on** next to **Notifications** under Account.
 - **iPhone (iOS 16.4+):** open in Safari → Share → *Add to Home Screen*, open Chorly from the icon, then tap **Turn on** next to **Notifications** under Account. iOS only allows web push for home-screen apps.
 
+**Approving from the notification.** A "ready for approval" push has an **Approve** button that approves as the signed-in parent without opening Chorly, and shows the kid's photo when they took one (clips aren't shown; they're still in Approvals). The notification then says it was approved, or that someone already took care of it; if approving fails (signed out, offline) it says so and a tap opens Approvals. A paid chore with no set amount has no button, since the parent has to type one. Where it works: the Android app 1.5+ (button and photo), Chrome and Edge on Android and Windows (button and photo), Chrome on a Mac (button; macOS doesn't show notification images). Safari and iPhones show the plain notification.
+
 ### Android app
 
 `mobile/` is a Capacitor wrapper that loads the live site, so web and API deploys reach it without a new APK. Rebuild only when something in `mobile/` changes (plugins, permissions, icon, the location service in `android/app/src/main/java/me/theraifs/chorly/location/`); bump `versionCode` in `mobile/android/app/build.gradle` first. Deploy the web and API before publishing an APK that needs them: the site has to know the app's plugins before the app arrives.

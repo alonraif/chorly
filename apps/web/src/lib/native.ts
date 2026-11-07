@@ -58,7 +58,8 @@ export async function registerNativePush(push: any) {
       listeners.push(push.addListener('registrationError', (result: { error: string }) => reject(new Error(result.error))));
     });
     await push.register();
-    await api.post('/push/fcm', { token: await token });
+    // App 1.5+ draws approval pushes itself, with an Approve button and the kid's photo.
+    await api.post('/push/fcm', { token: await token, approvals: !!nativePlugins()?.ChorlyApprovals });
   } finally {
     await Promise.all(listeners.map(async (listener) => (await listener).remove()));
   }

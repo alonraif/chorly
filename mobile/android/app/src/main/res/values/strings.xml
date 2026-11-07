@@ -7,4 +7,5 @@
     <string name="location_channel_name">Location sharing</string>
     <string name="location_default_title">Sharing your location</string>
     <string name="location_default_message">Your family can see where you are</string>
+    <string name="approvals_channel_name">Chores to approve</string>
 </resources>

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { api } from '../lib/api';
 import { t, type MessageKey } from '../lib/i18n';
 import { LocationProvider } from '../lib/location';
-import { nativePlugins } from '../lib/native';
+import { nativePlugins, nativePush, registerNativePush } from '../lib/native';
 import { SessionProvider, useSession, type Member } from '../lib/session';
 import { clearCurrentUserId, setCurrentLocale } from '../lib/user';
 import { AndroidAppRow } from './android-app-row';
@@ -80,6 +80,18 @@ export function AppFrame({ children }: { children: ReactNode }) {
       .catch(() => router.replace('/'));
     // Only re-check when moving between public and signed-in areas.
   }, [isPublic, router]);
+
+  // An updated app re-registers its phone, so a parent gets approval pushes with the Approve button
+  // without first visiting Account. Only where notifications are already allowed: this never asks.
+  const parentId = me?.isAdmin ? me.id : null;
+  useEffect(() => {
+    const push = nativePush();
+    if (!parentId || !push || !nativePlugins()?.ChorlyApprovals) return;
+    push
+      .checkPermissions()
+      .then(({ receive }: { receive: string }) => (receive === 'granted' ? registerNativePush(push) : undefined))
+      .catch(() => undefined);
+  }, [parentId]);
 
   const isChild = me?.role === 'child';
   const kidBlocked = isChild && !KID_PATHS.includes(pathname);

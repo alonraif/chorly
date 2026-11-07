@@ -14,6 +14,12 @@ export const notificationText = {
       ? { title: `✅ ${kid}`, body: `${chore} — מחכה לאישור` }
       : { title: `✅ ${kid}`, body: `${chore} — ready for approval` },
 
+  // The Approve button on a "ready for approval" push, and what the notification turns into after it's pressed.
+  approvalActions: (locale: Locale) =>
+    locale === 'he'
+      ? { approve: 'אישור', approved: '⭐ אושר', handled: 'כבר טופל', failed: 'לא הצלחנו לאשר. לחצו כדי לפתוח' }
+      : { approve: 'Approve', approved: '⭐ Approved', handled: 'Already taken care of', failed: 'Couldn’t approve. Tap to open' },
+
   approved: (locale: Locale, chore: string, reward: string | null) =>
     locale === 'he'
       ? { title: '⭐ אושר!', body: reward ? `${chore} (+${reward})` : chore }
