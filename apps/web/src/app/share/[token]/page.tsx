@@ -245,7 +245,8 @@ function PinScreen({
       {label && <p className="share-label"><bdi>{label}</bdi></p>}
       <h1>{title}</h1>
       <p>{hint}</p>
-      <form className="share-pin-form" onSubmit={submit}>
+      {/* Digits always read left to right, in Hebrew too. */}
+      <form className="share-pin-form" dir="ltr" onSubmit={submit}>
         <input
           ref={input}
           className="share-pin"
